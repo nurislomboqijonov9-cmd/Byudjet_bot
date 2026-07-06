@@ -160,6 +160,20 @@
     const netQ = q.menga.reduce((s,x)=>s+x.summa,0) - q.men.reduce((s,x)=>s+x.summa,0);
     const hasQ = q.menga.length || q.men.length;
 
+    // Oylik norma kartasi
+    let limitCard = '';
+    if (d.limit){
+      const sarf = d.oy_xarajat||0, lim = d.limit;
+      const foiz = Math.round(sarf/lim*100);
+      const over = sarf > lim;
+      const col = over ? 'var(--neg)' : (sarf >= 0.9*lim ? '#D69A6E' : 'var(--brand2)');
+      const right = over ? `${som(sarf-lim)} oshdi` : `${som(lim-sarf)} qoldi`;
+      limitCard = `<div class="card"><h3>Oylik norma <span class="r">${som(sarf)} / ${som(lim)}</span></h3>
+        <div class="track"><div class="fill" style="width:${Math.min(100,sarf/lim*100)}%; background:${col}"></div></div>
+        <div style="display:flex; justify-content:space-between; font-size:12.5px; margin-top:8px; color:var(--soft)">
+          <span>${foiz}% ishlatildi</span><b style="color:${over?'var(--neg)':'var(--ink)'}">${right}</b></div></div>`;
+    }
+
     document.getElementById('app').innerHTML = `
       <header><div class="eyebrow">${MOY[now.getMonth()]} ${now.getFullYear()}</div></header>
 
@@ -174,6 +188,7 @@
             <div><div class="k">Chiqim (oy)</div><div class="v num" style="color:#EBAF9C">−${som(chiqim)}</div></div>
           </div>
         </div>
+        ${limitCard}
         <div class="card"><h3>So'nggi yozuvlar</h3>${yoz}</div>
       </div></div></div>
 

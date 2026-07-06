@@ -3,6 +3,11 @@ import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+try:
+    from zoneinfo import ZoneInfo
+    TASHKENT = ZoneInfo("Asia/Tashkent")
+except Exception:
+    TASHKENT = None
 
 # DATA_DIR — ma'lumot saqlanadigan papka.
 # Railway'da doimiy Volume /data ga ulanadi va DATA_DIR=/data qilib beriladi,
@@ -10,6 +15,14 @@ from pathlib import Path
 DATA_DIR = Path(os.getenv("DATA_DIR", Path(__file__).parent))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "byudjet.db"
+
+
+def now_tk():
+    """Hozirgi vaqt (Toshkent, UTC+5), soatlarsiz farq bo'lmasligi uchun."""
+    if TASHKENT:
+        return datetime.now(TASHKENT).replace(tzinfo=None)
+    return datetime.utcnow()  # zaxira: UTC+5 ni qo'lda qo'shsa ham bo'ladi
+
 
 # Har bir turning pul oqimiga ta'siri (+1 kirim, -1 chiqim)
 CASHFLOW = {
@@ -20,6 +33,12 @@ CASHFLOW = {
     "qarz_qaytardim": -1,   # o'z qarzimni to'ladim
     "qarz_qaytarildi": 1,   # menga qarzni qaytarishdi
 }
+
+
+def _ensure_column(con, table, col, decl):
+    cols = [r[1] for r in con.execute(f"PRAGMA table_info({table})").fetchall()]
+    if col not in cols:
+        con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
 
 
 def init_db():
@@ -37,21 +56,92 @@ def init_db():
             sana TEXT NOT NULL
         )
     """)
+    # Eslatma ustunlari (eski bazalarga ham qo'shiladi)
+    _ensure_column(con, "yozuvlar", "eslatma_vaqti", "TEXT")
+    _ensure_column(con, "yozuvlar", "eslatma_yuborildi", "INTEGER DEFAULT 0")
+    # Sozlamalar (oylik norma va h.k.)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS sozlamalar (
+            user_id INTEGER NOT NULL,
+            kalit TEXT NOT NULL,
+            qiymat TEXT,
+            PRIMARY KEY (user_id, kalit)
+        )
+    """)
     con.commit()
     con.close()
 
 
-def add_entry(user_id, tur, summa, kim=None, kategoriya=None, izoh=None, transkript=None):
+def set_limit(user_id, summa):
+    con = sqlite3.connect(DB_PATH)
+    con.execute(
+        """INSERT INTO sozlamalar (user_id, kalit, qiymat) VALUES (?, 'oylik_limit', ?)
+           ON CONFLICT(user_id, kalit) DO UPDATE SET qiymat = excluded.qiymat""",
+        (user_id, str(summa)),
+    )
+    con.commit()
+    con.close()
+
+
+def get_limit(user_id):
+    con = sqlite3.connect(DB_PATH)
+    r = con.execute(
+        "SELECT qiymat FROM sozlamalar WHERE user_id = ? AND kalit = 'oylik_limit'", (user_id,)
+    ).fetchone()
+    con.close()
+    return float(r[0]) if r and r[0] else None
+
+
+def month_chiqim(user_id):
+    """Shu oy sof xarajat (faqat 'chiqim' turi) — oylik norma uchun."""
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    rows = con.execute("SELECT summa, sana FROM yozuvlar WHERE user_id = ? AND tur = 'chiqim'", (user_id,)).fetchall()
+    con.close()
+    now = now_tk()
+    total = 0.0
+    for r in rows:
+        d = datetime.fromisoformat(r["sana"])
+        if d.year == now.year and d.month == now.month:
+            total += r["summa"]
+    return total
+
+
+def add_entry(user_id, tur, summa, kim=None, kategoriya=None, izoh=None,
+              transkript=None, eslatma_vaqti=None):
     con = sqlite3.connect(DB_PATH)
     cur = con.execute(
-        """INSERT INTO yozuvlar (user_id, tur, summa, kim, kategoriya, izoh, transkript, sana)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (user_id, tur, summa, kim, kategoriya, izoh, transkript, datetime.now().isoformat()),
+        """INSERT INTO yozuvlar (user_id, tur, summa, kim, kategoriya, izoh, transkript, sana, eslatma_vaqti)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (user_id, tur, summa, kim, kategoriya, izoh, transkript, now_tk().isoformat(), eslatma_vaqti),
     )
     con.commit()
     new_id = cur.lastrowid
     con.close()
     return new_id
+
+
+def due_reminders():
+    """Vaqti kelgan, hali yuborilmagan eslatmalar."""
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    now = now_tk().isoformat()
+    rows = con.execute(
+        """SELECT * FROM yozuvlar
+           WHERE eslatma_vaqti IS NOT NULL
+             AND COALESCE(eslatma_yuborildi, 0) = 0
+             AND eslatma_vaqti <= ?""",
+        (now,),
+    ).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def mark_reminder_sent(entry_id):
+    con = sqlite3.connect(DB_PATH)
+    con.execute("UPDATE yozuvlar SET eslatma_yuborildi = 1 WHERE id = ?", (entry_id,))
+    con.commit()
+    con.close()
 
 
 def delete_entry(entry_id, user_id):
@@ -100,7 +190,7 @@ def balance(user_id):
     rows = con.execute("SELECT tur, summa, sana FROM yozuvlar WHERE user_id = ?", (user_id,)).fetchall()
     con.close()
 
-    now = datetime.now()
+    now = now_tk()
     total = oy_kirim = oy_chiqim = 0.0
     for r in rows:
         sign = CASHFLOW.get(r["tur"], 0)
@@ -112,6 +202,43 @@ def balance(user_id):
             elif sign < 0:
                 oy_chiqim += r["summa"]
     return {"balans": total, "oy_kirim": oy_kirim, "oy_chiqim": oy_chiqim}
+
+
+def month_categories(user_id):
+    """Shu oy chiqimlari (pul chiqqan turlar) kategoriya bo'yicha."""
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    rows = con.execute("SELECT tur, summa, kategoriya, sana FROM yozuvlar WHERE user_id = ?", (user_id,)).fetchall()
+    con.close()
+    now = now_tk()
+    agg = {}
+    for r in rows:
+        if CASHFLOW.get(r["tur"], 0) >= 0:
+            continue  # faqat chiqimlar
+        d = datetime.fromisoformat(r["sana"])
+        if d.year != now.year or d.month != now.month:
+            continue
+        nom = r["kategoriya"] or "Boshqa"
+        agg[nom] = agg.get(nom, 0) + r["summa"]
+    return sorted(({"nom": k, "summa": v} for k, v in agg.items()), key=lambda x: -x["summa"])
+
+
+def summary(user_id):
+    """Mini App uchun barcha ma'lumot."""
+    b = balance(user_id)
+    d = debts(user_id)
+    menga = sorted(({"kim": k, "summa": v} for k, v in d.items() if v > 0), key=lambda x: -x["summa"])
+    men = sorted(({"kim": k, "summa": -v} for k, v in d.items() if v < 0), key=lambda x: -x["summa"])
+    return {
+        "balans": b["balans"],
+        "oy_kirim": b["oy_kirim"],
+        "oy_chiqim": b["oy_chiqim"],
+        "oy_xarajat": month_chiqim(user_id),
+        "limit": get_limit(user_id),
+        "kategoriyalar": month_categories(user_id),
+        "qarzlar": {"menga": menga, "men": men},
+        "yozuvlar": last_entries(user_id, 15),
+    }
 
 
 def debts(user_id):
