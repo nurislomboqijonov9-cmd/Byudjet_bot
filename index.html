@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Byudjet</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;450;500;600&display=swap');
+
+  :root{
+    --bg:#F3F5F4; --card:#FFFFFF; --ink:#1B2A26; --soft:#63736D; --line:#E7EBE9;
+    --brand:#1F4B45; --brand2:#2C6A60; --pos:#2E7D5B; --neg:#C0674F; --faint:#EEF2F0;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{background:var(--bg);}
+  body{font-family:'Inter',-apple-system,sans-serif; color:var(--ink);
+    max-width:520px; margin:0 auto; padding-bottom:88px; line-height:1.4;
+    -webkit-font-smoothing:antialiased;}
+  .num{font-family:'Space Grotesk',sans-serif; font-variant-numeric:tabular-nums; letter-spacing:-.01em;}
+
+  header{padding:20px 18px 4px;}
+  .eyebrow{font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--brand2); font-weight:600;}
+  .wrap{padding:0 14px;}
+  .stack{display:flex; flex-direction:column; gap:12px;}
+
+  /* Hero */
+  .hero{background:var(--brand); color:#fff; border-radius:20px; padding:22px; position:relative; overflow:hidden;}
+  .hero .arc{position:absolute; right:-50px; top:-50px; width:170px; height:170px; border-radius:50%;
+    background:rgba(255,255,255,.05);}
+  .hero .lbl{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.55); font-weight:600;}
+  .hero .amt{font-size:36px; font-weight:700; margin-top:8px;}
+  .hero .amt small{font-size:16px; color:rgba(255,255,255,.65); font-weight:600;}
+  .hero .split{display:flex; gap:16px; margin-top:22px; position:relative;}
+  .hero .split>div{flex:1;}
+  .hero .split .k{font-size:10px; letter-spacing:.07em; text-transform:uppercase; color:rgba(255,255,255,.5); margin-bottom:4px;}
+  .hero .split .v{font-size:16px; font-weight:600;}
+  .vline{width:1px; background:rgba(255,255,255,.15);}
+
+  .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px;}
+  .card h3{font-family:'Space Grotesk'; font-size:14px; font-weight:600; margin-bottom:14px; display:flex; align-items:center;}
+  .card h3 .r{margin-left:auto; font-family:'Inter'; font-size:12.5px; font-weight:500; color:var(--soft);}
+
+  .catrow{margin-bottom:13px;} .catrow:last-child{margin-bottom:0;}
+  .catrow .t{display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:6px;}
+  .catrow .t span{color:var(--soft);} .catrow .t b{font-weight:600;}
+  .track{height:8px; background:var(--faint); border-radius:5px; overflow:hidden;}
+  .fill{height:100%; border-radius:5px;}
+
+  .donutwrap{display:flex; align-items:center; gap:20px;}
+  .donut{width:112px; height:112px; border-radius:50%; flex-shrink:0; position:relative;}
+  .donut::after{content:''; position:absolute; inset:20px; background:var(--card); border-radius:50%;}
+  .donut .mid{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; z-index:1;}
+  .donut .mid b{font-family:'Space Grotesk'; font-size:16px;} .donut .mid span{font-size:10px; color:var(--soft);}
+  .legend{flex:1; display:flex; flex-direction:column; gap:9px; min-width:0;}
+  .legend .li{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--soft);}
+  .legend .li .sw{width:10px; height:10px; border-radius:3px; flex-shrink:0;}
+  .legend .li .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .legend .li b{margin-left:auto; color:var(--ink); font-weight:600; padding-left:8px;}
+
+  .row{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--faint);}
+  .row:last-child{border-bottom:none;}
+  .ic{width:40px; height:40px; border-radius:11px; flex-shrink:0; display:flex; align-items:center;
+    justify-content:center; font-size:18px;}
+  .row .nm{font-size:14px; font-weight:600;} .row .mt{font-size:12px; color:var(--soft); margin-top:1px;}
+  .row .val{margin-left:auto; font-weight:600; white-space:nowrap;}
+
+  .av{width:40px; height:40px; border-radius:50%; background:var(--faint); color:var(--brand);
+    display:flex; align-items:center; justify-content:center; font-weight:600; font-size:15px; flex-shrink:0;}
+
+  .tabbar{position:fixed; bottom:0; left:0; right:0; max-width:520px; margin:0 auto; background:var(--card);
+    border-top:1px solid var(--line); display:flex; padding:8px 6px calc(12px + env(safe-area-inset-bottom));}
+  .tab{flex:1; background:none; border:none; cursor:pointer; display:flex; flex-direction:column;
+    align-items:center; gap:4px; padding:6px 0; color:#9AA8A2; font-family:inherit; font-size:10.5px; font-weight:600;}
+  .tab.on{color:var(--brand);}
+  .tab svg{width:22px; height:22px;}
+
+  .view{display:none;} .view.on{display:block; animation:f .22s ease;}
+  @keyframes f{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;}}
+
+  .empty{text-align:center; color:var(--soft); font-size:13px; padding:20px 10px;}
+  .center{min-height:70vh; display:flex; align-items:center; justify-content:center; text-align:center;
+    color:var(--soft); font-size:14px; padding:20px;}
+  .spin{width:26px; height:26px; border:3px solid var(--line); border-top-color:var(--brand);
+    border-radius:50%; animation:sp .8s linear infinite; margin:0 auto 12px;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+  <div id="app"><div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div></div>
+
+<script>
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const CATCOLORS = ['#1F4B45','#2C6A60','#4E8C7F','#7DAA9E','#C0674F','#D69A6E','#A9C6BD'];
+  const TUR = {
+    kirim:{i:'↓',pos:1,l:'Kirim'}, chiqim:{i:'↑',pos:0,l:'Chiqim'},
+    qarz_berdim:{i:'📤',pos:0,l:'Qarz berdim'}, qarz_oldim:{i:'📥',pos:1,l:'Qarz oldim'},
+    qarz_qaytardim:{i:'↩︎',pos:0,l:'Qarzimni qaytardim'}, qarz_qaytarildi:{i:'↪︎',pos:1,l:'Qarzim qaytarildi'},
+  };
+  const MOY = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
+
+  function som(n){ n=Math.round(Number(n)||0); const neg=n<0; n=Math.abs(n);
+    return (neg?'−':'')+n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' '); }
+  function esc(s){ return (s||'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  function ini(s){ return (s||'?').trim().charAt(0).toUpperCase(); }
+
+  if (tg){ try{ tg.ready(); tg.expand(); tg.setHeaderColor('#1F4B45'); tg.setBackgroundColor('#F3F5F4'); }catch(e){} }
+
+  fetch('/api/summary', { headers: { 'X-Init-Data': (tg && tg.initData) || '' } })
+    .then(r => { if(!r.ok) throw new Error(r.status); return r.json(); })
+    .then(render)
+    .catch(err => {
+      document.getElementById('app').innerHTML =
+        '<div class="center"><div>Ma\'lumot yuklanmadi.<br><br>Iltimos, ilovani <b>Telegram bot ichidagi «📊 Byudjet» tugmasi</b> orqali oching.</div></div>';
+    });
+
+  function render(d){
+    const now = new Date();
+    const chiqim = d.oy_chiqim || 0;
+    const bal = d.balans || 0;
+
+    // Donut segmentlari
+    const cats = d.kategoriyalar || [];
+    const totCat = cats.reduce((s,c)=>s+c.summa,0) || 1;
+    let acc = 0, grad = [];
+    cats.forEach((c,i)=>{ const col=CATCOLORS[i%CATCOLORS.length]; const p=c.summa/totCat*100;
+      grad.push(`${col} ${acc}% ${acc+p}%`); acc+=p; });
+    const donutBg = cats.length ? `conic-gradient(${grad.join(',')})` : 'var(--faint)';
+    const catMax = cats.length ? cats[0].summa : 1;
+
+    const legend = cats.map((c,i)=>`<div class="li"><span class="sw" style="background:${CATCOLORS[i%CATCOLORS.length]}"></span>
+        <span class="nm">${esc(c.nom)}</span><b class="num">${som(c.summa)}</b></div>`).join('') ||
+        '<div class="empty" style="padding:6px 0">Shu oy chiqim yo\'q</div>';
+
+    const catbars = cats.map((c,i)=>`<div class="catrow"><div class="t"><span>${esc(c.nom)}</span><b class="num">${som(c.summa)}</b></div>
+        <div class="track"><div class="fill" style="width:${Math.max(3,c.summa/catMax*100)}%; background:${CATCOLORS[i%CATCOLORS.length]}"></div></div></div>`).join('')
+        || '<div class="empty">Ma\'lumot yo\'q</div>';
+
+    // Tranzaksiyalar
+    const yoz = (d.yozuvlar||[]).map(t=>{
+      const m = TUR[t.tur] || {i:'•',pos:0,l:t.tur};
+      const dt = new Date(t.sana);
+      const col = m.pos ? 'var(--pos)' : 'var(--neg)';
+      const bg  = m.pos ? 'rgba(46,125,91,.10)' : 'rgba(192,103,79,.10)';
+      const nm = t.kim ? `${m.l.split(' ')[0]==='Qarz'?'Qarz':m.l} — ${esc(t.kim)}` : esc(t.kategoriya||m.l);
+      const meta = [t.izoh?esc(t.izoh):null, `${dt.getDate()} ${MOY[dt.getMonth()].slice(0,3)}`].filter(Boolean).join(' · ');
+      return `<div class="row"><div class="ic" style="background:${bg}">${m.i}</div>
+        <div style="min-width:0"><div class="nm">${nm}</div><div class="mt">${meta}</div></div>
+        <div class="val num" style="color:${col}">${m.pos?'+':'−'}${som(t.summa)}</div></div>`;
+    }).join('') || '<div class="empty">Hali yozuv yo\'q. Botga ovozli xabar yuboring 🎤</div>';
+
+    // Qarzlar
+    const q = d.qarzlar || {menga:[],men:[]};
+    const menga = q.menga.map(x=>`<div class="row"><div class="av">${ini(x.kim)}</div>
+        <div class="nm">${esc(x.kim)}</div><div class="val num" style="color:var(--pos)">${som(x.summa)}</div></div>`).join('');
+    const men = q.men.map(x=>`<div class="row"><div class="av">${ini(x.kim)}</div>
+        <div class="nm">${esc(x.kim)}</div><div class="val num" style="color:var(--neg)">${som(x.summa)}</div></div>`).join('');
+    const netQ = q.menga.reduce((s,x)=>s+x.summa,0) - q.men.reduce((s,x)=>s+x.summa,0);
+    const hasQ = q.menga.length || q.men.length;
+
+    document.getElementById('app').innerHTML = `
+      <header><div class="eyebrow">${MOY[now.getMonth()]} ${now.getFullYear()}</div></header>
+
+      <!-- ASOSIY -->
+      <div class="view on" id="v-asosiy"><div class="wrap"><div class="stack">
+        <div class="hero"><div class="arc"></div>
+          <div class="lbl">Umumiy balans</div>
+          <div class="amt num">${som(bal)} <small>so'm</small></div>
+          <div class="split">
+            <div><div class="k">Kirim (oy)</div><div class="v num" style="color:#9BD9BC">+${som(d.oy_kirim)}</div></div>
+            <div class="vline"></div>
+            <div><div class="k">Chiqim (oy)</div><div class="v num" style="color:#EBAF9C">−${som(chiqim)}</div></div>
+          </div>
+        </div>
+        <div class="card"><h3>So'nggi yozuvlar</h3>${yoz}</div>
+      </div></div></div>
+
+      <!-- QARZLAR -->
+      <div class="view" id="v-qarzlar"><div class="wrap"><div class="stack">
+        ${hasQ ? `
+          ${menga ? `<div class="card"><h3 style="color:var(--pos)">Menga qarzdor</h3>${menga}</div>`:''}
+          ${men ? `<div class="card"><h3 style="color:var(--neg)">Men qarzdorman</h3>${men}</div>`:''}
+          <div class="hero" style="padding:18px 22px"><div class="lbl">Sof qoldiq</div>
+            <div class="amt num" style="font-size:26px; color:${netQ>=0?'#9BD9BC':'#EBAF9C'}">
+              ${netQ>=0?'+':'−'}${som(netQ)} <small>so'm</small></div></div>
+        ` : '<div class="empty" style="padding:60px 20px">Hozircha qarzlar yo\'q ✅</div>'}
+      </div></div></div>
+
+      <!-- HISOBOT -->
+      <div class="view" id="v-hisobot"><div class="wrap"><div class="stack">
+        <div class="card"><h3>Chiqim taqsimoti <span class="r">${MOY[now.getMonth()]}</span></h3>
+          <div class="donutwrap">
+            <div class="donut" style="background:${donutBg}"><div class="mid"><b class="num">${som(chiqim)}</b><span>jami</span></div></div>
+            <div class="legend">${legend}</div>
+          </div>
+        </div>
+        <div class="card"><h3>Kategoriya bo'yicha</h3>${catbars}</div>
+      </div></div></div>
+
+      <div class="tabbar">
+        <button class="tab on" data-v="asosiy">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>Asosiy</button>
+        <button class="tab" data-v="qarzlar">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 9V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2M7 15v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-2"/></svg>Qarzlar</button>
+        <button class="tab" data-v="hisobot">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Hisobot</button>
+      </div>`;
+
+    document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+      document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+      t.classList.add('on');
+      document.getElementById('v-'+t.dataset.v).classList.add('on');
+      window.scrollTo(0,0);
+    }));
+  }
+</script>
+</body>
+</html>
