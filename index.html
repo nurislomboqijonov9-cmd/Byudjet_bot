@@ -142,8 +142,12 @@
   window.sendText=async function(mid){
     const el=document.getElementById('addtext'); const v=el.value.trim(); if(!v){toast('Nimadir yozing');return;}
     toast('Qo\'shilyapti…');
-    try{const r=await fetch('/api/qoshish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,matn:v})});
-      const d=await r.json(); toast(d.xabar||'Bajarildi'); loadMijoz(mid);}catch(e){toast('Xato');}
+    try{
+      const r=await fetch('/api/qoshish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,matn:v})});
+      let d=null; try{d=await r.json();}catch(_){}
+      if(!r.ok || !d){ toast('Xato: '+r.status+(d&&(d.xato||d.xabar)?' · '+(d.xato||d.xabar):'')); return; }
+      toast(d.xabar||d.xato||'Bajarildi'); if(d.ok) loadMijoz(mid);
+    }catch(e){ toast('Tarmoq xatosi'); }
   };
 
   window.recToggle=async function(mid){
@@ -151,16 +155,24 @@
     if(rec && rec.state==='recording'){rec.stop();return;}
     try{
       const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-      rec=new MediaRecorder(stream); recChunks=[]; recMid=mid;
+      let opts={};
+      if(window.MediaRecorder && MediaRecorder.isTypeSupported){
+        if(MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) opts={mimeType:'audio/ogg;codecs=opus'};
+        else if(MediaRecorder.isTypeSupported('audio/ogg')) opts={mimeType:'audio/ogg'};
+      }
+      rec=new MediaRecorder(stream,opts); recChunks=[]; recMid=mid;
       rec.ondataavailable=e=>recChunks.push(e.data);
       rec.onstop=async()=>{const blob=new Blob(recChunks,{type:rec.mimeType||'audio/webm'});
         stream.getTracks().forEach(t=>t.stop()); btn.classList.remove('rec'); btn.textContent='🎤';
         toast('Yuborilyapti…');
         try{const r=await fetch('/api/qoshish_audio',{method:'POST',headers:{...H,'X-Mijoz-Id':String(recMid),'Content-Type':blob.type||'audio/webm'},body:blob});
-          const d=await r.json(); toast(d.xabar||'Bajarildi'); loadMijoz(recMid);}catch(e){toast('Ovoz yuborilmadi');}
+          let d=null; try{d=await r.json();}catch(_){}
+          if(!r.ok || !d){ toast('Ovoz xato: '+r.status); return; }
+          toast(d.xabar||'Bajarildi'); if(d.ok) loadMijoz(recMid);
+        }catch(e){ toast('Ovoz yuborilmadi (tarmoq)'); }
       };
       rec.start(); btn.classList.add('rec'); btn.textContent='⏹'; toast('Yozilyapti… tugatish uchun ⏹ bosing');
-    }catch(e){toast('Mikrofon ishlamadi. Yozib qo\'shing.');}
+    }catch(e){toast('Mikrofon ochilmadi. Yozib qo\'shing.');}
   };
 
   window.saveAdres=async function(mid){
