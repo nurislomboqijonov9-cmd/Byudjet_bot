@@ -69,7 +69,28 @@ def apply(mijoz_id, t):
             "ok": True, "amal": "qaytarish", "mijoz": m["ism"], "mijoz_id": mijoz_id,
             "return_id": rid, "partiya_raqam": p["partiya_raqam"], "mahsulot": p["mahsulot"],
             "qty": qty, "qolgan": h2["qolgan"], "partiya_narx": h2["narx"],
-            "jami": d["jami"], "ortdi": ortdi,
+            "jami": d["jami"], "qolgan_qarz": d["qolgan_qarz"], "ortdi": ortdi,
+        }
+
+    # ----- TO'LOV / PREDOPLATA -----
+    if amal == "tolov":
+        summa = getattr(t, "summa", None)
+        kun = getattr(t, "kun", None)
+        izoh = None
+        if not summa and kun:
+            rate = db.daily_rate(mijoz_id)
+            if rate <= 0:
+                return {"ok": False, "xato": "Hozir chiqgan mahsulot yo'q — kunni pulga aylantirib bo'lmaydi. Pul summasini ayting."}
+            summa = rate * kun
+            izoh = f"{kun} kunlik"
+        if not summa or summa <= 0:
+            return {"ok": False, "xato": "To'lov summasini ayting"}
+        tid = db.add_tolov(mijoz_id, summa, _sana(t), izoh)
+        d = db.mijoz_detail(mijoz_id)
+        return {
+            "ok": True, "amal": "tolov", "mijoz": m["ism"], "mijoz_id": mijoz_id,
+            "tolov_id": tid, "summa": summa, "izoh": izoh,
+            "tolangan": d["tolangan"], "qolgan_qarz": d["qolgan_qarz"],
         }
 
     return {"ok": False, "xato": "Tushunolmadim"}

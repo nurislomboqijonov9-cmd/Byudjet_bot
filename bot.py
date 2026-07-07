@@ -23,7 +23,7 @@ log = logging.getLogger("arenda")
 
 _allowed = os.getenv("ALLOWED_USER_IDS", "").replace(" ", "")
 ALLOWED = {int(x) for x in _allowed.split(",") if x} if _allowed else None
-APP_VERSION = "6"
+APP_VERSION = "7"
 
 
 def som(n):
@@ -67,21 +67,31 @@ def fmt(res):
                 f"💵 kuniga {som(res['kunlik_narx'])} so'm\n📅 {res['sana']}")
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("↩️ Bekor qilish", callback_data=f"delp:{res['partiya_id']}")]])
         return text, kb
-    else:
-        ortdi = "\n(qolgani shuncha edi, shuncha yozildi)" if res.get("ortdi") else ""
-        text = (f"✅ *{res['mijoz']}* — {res['partiya_raqam']}-partiya\n\n"
-                f"📥 {son(res['qty'])} ta {res['mahsulot']} qaytdi{ortdi}\n"
-                f"📦 Qolgan: {son(res['qolgan'])} ta\n"
-                f"🧮 Shu partiya: {som(res['partiya_narx'])} so'm\n"
-                f"💰 {res['mijoz']} jami: *{som(res['jami'])} so'm*")
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("↩️ Bekor qilish", callback_data=f"delr:{res['return_id']}")]])
+    if res["amal"] == "tolov":
+        izoh = f" ({res['izoh']})" if res.get("izoh") else ""
+        qq = res["qolgan_qarz"]
+        holat = f"💰 Qolgan qarz: {som(qq)} so'm" if qq >= 0 else f"💰 {som(-qq)} so'm — mijozning haqi bor (ortiqcha to'ladi)"
+        text = (f"✅ *{res['mijoz']}* — to'lov qabul qilindi\n\n"
+                f"💵 {som(res['summa'])} so'm{izoh}\n{holat}")
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("↩️ Bekor qilish", callback_data=f"delt:{res['tolov_id']}")]])
         return text, kb
+    # qaytarish
+    ortdi = "\n(qolgani shuncha edi, shuncha yozildi)" if res.get("ortdi") else ""
+    qq = res["qolgan_qarz"]
+    holat = f"💰 Qolgan qarz: {som(qq)} so'm" if qq >= 0 else f"💰 {som(-qq)} so'm — haqi bor"
+    text = (f"✅ *{res['mijoz']}* — {res['partiya_raqam']}-partiya\n\n"
+            f"📥 {son(res['qty'])} ta {res['mahsulot']} qaytdi{ortdi}\n"
+            f"📦 Qolgan: {son(res['qolgan'])} ta\n"
+            f"🧮 Shu partiya: {som(res['partiya_narx'])} so'm\n{holat}")
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("↩️ Bekor qilish", callback_data=f"delr:{res['return_id']}")]])
+    return text, kb
 
 
 def _pending_dict(t):
     return {"amal": t.amal.value if hasattr(t.amal, "value") else t.amal,
             "mahsulot": t.mahsulot, "miqdor": t.miqdor, "kunlik_narx": t.kunlik_narx,
-            "partiya": t.partiya, "hammasi": t.hammasi, "sana": t.sana}
+            "partiya": t.partiya, "hammasi": t.hammasi, "sana": t.sana,
+            "summa": getattr(t, "summa", None), "kun": getattr(t, "kun", None)}
 
 
 class _T:
@@ -167,8 +177,8 @@ async def mijozlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     lines = ["🏗 *Mijozlar qarzi:*\n"]
     for m in ml:
         tel = f" · {m['telefon']}" if m["telefon"] else ""
-        lines.append(f"👤 *{m['mijoz']}*{tel}\n   {som(m['jami'])} so'm ({son(m['jami_qolgan'])} dona)")
-    lines.append(f"\n💰 *Umumiy:* {som(sum(m['jami'] for m in ml))} so'm")
+        lines.append(f"👤 *{m['mijoz']}*{tel}\n   {som(m['qolgan_qarz'])} so'm ({son(m['jami_qolgan'])} dona)")
+    lines.append(f"\n💰 *Umumiy qarz:* {som(sum(m['qolgan_qarz'] for m in ml))} so'm")
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
@@ -229,6 +239,9 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("delr:"):
         db.delete_return(int(data.split(":")[1]))
         await q.edit_message_text("🗑 Qaytarish bekor qilindi.")
+    elif data.startswith("delt:"):
+        db.delete_tolov(int(data.split(":")[1]))
+        await q.edit_message_text("🗑 To'lov bekor qilindi.")
 
 
 # ---------- Ishga tushirish ----------
@@ -239,7 +252,7 @@ async def run():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("mijozlar", mijozlar_cmd))
     app.add_handler(CommandHandler("app", app_cmd))
-    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick|delp|delr):"))
+    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick|delp|delr|delt):"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 

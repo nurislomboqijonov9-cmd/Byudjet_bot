@@ -60,6 +60,16 @@
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;
     padding:11px 16px;border-radius:12px;font-size:13.5px;max-width:90%;text-align:center;z-index:50;box-shadow:0 6px 20px rgba(0,0,0,.2);}
   .form input{margin-top:8px;}
+  .search{margin-bottom:12px;}
+  .search input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;font-size:15px;font-family:inherit;background:#fff;outline:none;}
+  .search input:focus{border-color:var(--brand);}
+  .brk{display:flex;justify-content:space-between;font-size:14px;padding:8px 0;}
+  .brk:not(:last-child){border-bottom:1px solid var(--faint);}
+  .brk .k{color:var(--soft);} .brk b{font-family:'Space Grotesk';}
+  .tlist{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--faint);font-size:13.5px;}
+  .tlist:last-child{border-bottom:none;}
+  .tlist .s{font-family:'Space Grotesk';font-weight:600;color:var(--pos);}
+  .tlist .x{margin-left:auto;color:#B7C3BD;background:none;border:none;font-size:18px;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -82,19 +92,28 @@
   async function loadList(){
     app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
     let d; try{const r=await fetch('/api/mijozlar',{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
-    const ml=d.mijozlar||[]; const jami=ml.reduce((s,m)=>s+m.jami,0);
-    let cards=ml.map(m=>`<div class="card"><div class="mijoz" onclick="loadMijoz(${m.id})">
-        <div class="av">${ini(m.mijoz)}</div>
-        <div><div class="nm">${esc(m.mijoz)}</div>
-          <div class="mt">${m.telefon?('📞 '+esc(m.telefon)+' · '):''}${son(m.jami_qolgan)} dona qolgan</div></div>
-        <div class="val"><b>${som(m.jami)}</b><span>so'm</span></div><div class="chev">›</div></div></div>`).join('');
-    if(!ml.length) cards='<div class="empty">Hozircha mijoz yo\'q.<br>«➕ Yangi» bosing yoki botga ovoz yuboring.</div>';
+    window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+m.qolgan_qarz,0);
     app.innerHTML=`<header><div><div class="eyebrow">Ijara hisobi</div><h1>Mijozlar</h1></div>
         <button class="plus" onclick="showNew()">➕ Yangi</button></header>
       <div class="hero"><div class="arc"></div><div class="lbl">Umumiy qarz</div>
-        <div class="amt num">${som(jami)} <small>so'm</small></div><div class="sub">${ml.length} ta mijoz</div></div>
-      <div id="newform"></div>${cards}`;
+        <div class="amt num">${som(jami)} <small>so'm</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
+      <div id="newform"></div>
+      <div class="search"><input id="qidir" placeholder="🔍 Ism yoki telefon..." oninput="renderCards(this.value)"></div>
+      <div id="cards"></div>`;
+    renderCards('');
   }
+
+  window.renderCards=function(q){
+    q=(q||'').toLowerCase().trim();
+    const list=(window._ml||[]).filter(m=>!q || (m.mijoz||'').toLowerCase().includes(q) || (m.telefon||'').includes(q));
+    let cards=list.map(m=>`<div class="card"><div class="mijoz" onclick="loadMijoz(${m.id})">
+        <div class="av">${ini(m.mijoz)}</div>
+        <div><div class="nm">${esc(m.mijoz)}</div>
+          <div class="mt">${m.telefon?('📞 '+esc(m.telefon)+' · '):''}${son(m.jami_qolgan)} dona qolgan</div></div>
+        <div class="val"><b>${som(m.qolgan_qarz)}</b><span>so'm</span></div><div class="chev">›</div></div></div>`).join('');
+    if(!list.length) cards='<div class="empty">'+(q?'Topilmadi':'Hozircha mijoz yo\'q. «➕ Yangi» bosing.')+'</div>';
+    document.getElementById('cards').innerHTML=cards;
+  };
 
   window.showNew=function(){
     const f=document.getElementById('newform');
@@ -123,20 +142,46 @@
           <div class="box"><div class="k">Kun</div><div class="v">${p.kunlar}</div></div></div>
         <div class="p-narx"><span class="k">Shu partiya</span><b class="num">${som(p.narx)} so'm</b></div></div>`;
     }).join('')||'<div class="empty">Partiya yo\'q. Pastdan qo\'shing.</div>';
+    const neg=d.qolgan_qarz<0;
+    const tlist=(d.tolovlar||[]).map(tv=>`<div class="tlist"><span class="s">+${som(tv.summa)}</span>
+        <span style="color:var(--soft)">${(tv.sana||'').slice(5)}${tv.izoh?' · '+esc(tv.izoh):''}</span>
+        <button class="x" onclick="delTolov(${tv.id},${d.id})">×</button></div>`).join('');
     app.innerHTML=`<header><div><button class="back" onclick="loadList()">‹ Orqaga</button>
         <div class="eyebrow">Mijoz${d.telefon?' · 📞 '+esc(d.telefon):''}</div><h1>${esc(d.mijoz)}</h1></div></header>
-      <div class="hero"><div class="arc"></div><div class="lbl">Jami qarzi</div>
-        <div class="amt num">${som(d.jami)} <small>so'm</small></div><div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan</div></div>
+      <div class="hero"><div class="arc"></div><div class="lbl">${neg?'Mijozning haqi':'Qolgan qarzi'}</div>
+        <div class="amt num">${som(Math.abs(d.qolgan_qarz))} <small>so'm</small></div>
+        <div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan</div></div>
+      <div class="card">
+        <div class="brk"><span class="k">Hisoblangan</span><b class="num">${som(d.hisoblangan)} so'm</b></div>
+        <div class="brk"><span class="k">To'langan</span><b class="num" style="color:var(--pos)">${som(d.tolangan)} so'm</b></div>
+        <div class="brk"><span class="k">${neg?'Ortiqcha (haqi)':'Qolgan qarz'}</span><b class="num" style="color:${neg?'var(--pos)':'var(--ink)'}">${som(Math.abs(d.qolgan_qarz))} so'm</b></div>
+      </div>
       <div class="addbox"><div class="t">➕ Shu mijozga qo'shish</div>
-        <div class="inrow"><input class="f" id="addtext" placeholder="«20 ta lesa, kuniga 2000» yoki «1-partiyadan 5 ta qaytardi»">
+        <div class="inrow"><input class="f" id="addtext" placeholder="«20 ta lesa, kuniga 2000» / «1-partiyadan 5 ta qaytardi» / «10 kunlik berdi»">
           <button class="mic" id="micbtn" onclick="recToggle(${d.id})">🎤</button></div>
         <button class="send" onclick="sendText(${d.id})">Qo'shish</button>
-        <div class="hint">🎤 tugmasini bosib gapiring, yoki yozib «Qo'shish».</div></div>
+        <div class="hint">🎤 bosib gapiring, yoki yozib «Qo'shish».</div></div>
+      <div class="addbox"><div class="t">💵 To'lov / predoplata (so'm)</div>
+        <input class="f" id="paytext" inputmode="numeric" placeholder="Masalan: 1000000">
+        <button class="send" onclick="saveTolov(${d.id})">To'lovni qo'shish</button>
+        <div class="hint">Kun bilan bo'lsa: yuqoridagi oynaga «10 kunlik berdi» deb yozing.</div>
+        ${tlist?'<div style="margin-top:10px">'+tlist+'</div>':''}</div>
       <div class="addbox"><div class="t">📍 Manzil</div>
         <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
         <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
       ${ps}
       <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>`;
+  };
+
+  window.saveTolov=async function(mid){
+    const v=parseFloat((document.getElementById('paytext').value||'').replace(/\s/g,''));
+    if(!v||v<=0){toast('Summani yozing');return;}
+    try{const r=await fetch('/api/tolov',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,summa:v})});
+      const d=await r.json(); if(d.ok){toast('💵 To\'lov qo\'shildi');loadMijoz(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
+  };
+  window.delTolov=async function(tid,mid){
+    try{const r=await fetch('/api/tolov_del',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({tolov_id:tid})});
+      if(!r.ok)throw 0; toast('O\'chirildi'); loadMijoz(mid);}catch(e){toast('Xato');}
   };
 
   window.sendText=async function(mid){

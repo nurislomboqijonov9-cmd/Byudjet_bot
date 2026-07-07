@@ -19,6 +19,7 @@ def client():
 class Amal(str, Enum):
     chiqish = "chiqish"
     qaytarish = "qaytarish"
+    tolov = "tolov"
 
 
 class IjaraAmal(BaseModel):
@@ -31,6 +32,8 @@ class IjaraAmal(BaseModel):
     hammasi: bool = Field(default=False, description="Qaytarishda hamma qolgan mahsulot qaytarilsa True")
     kunlik_narx: float | None = Field(default=None, description="Bitta dona uchun BIR KUNLIK ijara narxi (so'mda). Faqat chiqishda.")
     partiya: int | None = Field(default=None, description="Qaytarishda qaysi partiya raqami (masalan '1-partiya' -> 1). Aytilmasa null.")
+    summa: float | None = Field(default=None, description="To'lov/predoplata puli so'mda (masalan '1 million' -> 1000000). Faqat to'lovda.")
+    kun: int | None = Field(default=None, description="To'lov kun bilan aytilsa nechta kun (masalan '10 kunlik' -> 10). Faqat to'lovda.")
     sana: str | None = Field(default=None, description="Sana ISO (YYYY-MM-DD). Aytilmasa null (bugun bo'ladi).")
     transkript: str = Field(description="Aynan nima deyilgani")
 
@@ -45,6 +48,10 @@ AMALLAR:
 - "qaytarish": mijoz mahsulotni qaytardi.
   Masalan: "Abbos 1-partiyadan 30 ta qaytardi" -> amal=qaytarish, mijoz=Abbos, partiya=1, miqdor=30
   "Karim 2-partiyadan hammasini qaytardi" -> amal=qaytarish, mijoz=Karim, partiya=2, hammasi=true
+- "tolov": mijoz oldindan yoki keyin pul to'ladi (predoplata / to'lov / qarzini yopdi).
+  Masalan: "Abbos 1 million predoplata berdi" -> amal=tolov, mijoz=Abbos, summa=1000000
+  "Karim 10 kunlik berdi" -> amal=tolov, mijoz=Karim, kun=10
+  "Abbos 500 ming to'ladi" -> amal=tolov, mijoz=Abbos, summa=500000
 
 QOIDALAR:
 - Sonlarni raqam qil: "100 ta"=100, "2 ming"=2000, "yarim million"=500000.

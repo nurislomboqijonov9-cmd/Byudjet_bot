@@ -158,6 +158,33 @@ def make_web_app(bot_token, allowed=None):
         db.set_adres(mid, body.get("adres"))
         return web.json_response({"ok": True})
 
+    async def api_tolov(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            body = await request.json()
+            mid = int(body.get("mijoz_id"))
+            summa = float(body.get("summa"))
+            if summa <= 0:
+                return web.json_response({"ok": False, "xabar": "Summa noto'g'ri"})
+            db.add_tolov(mid, summa, db.today_tk().isoformat(), None)
+            d = db.mijoz_detail(mid)
+            return web.json_response({"ok": True, "qolgan_qarz": d["qolgan_qarz"]})
+        except Exception as e:
+            return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
+
+    async def api_tolov_del(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            body = await request.json()
+            db.delete_tolov(int(body.get("tolov_id")))
+            return web.json_response({"ok": True})
+        except Exception:
+            return web.json_response({"ok": False}, status=400)
+
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)
     app.router.add_get("/api/mijozlar", api_mijozlar)
@@ -167,4 +194,6 @@ def make_web_app(bot_token, allowed=None):
     app.router.add_post("/api/qoshish_audio", api_qoshish_audio)
     app.router.add_post("/api/ochirish", api_ochirish)
     app.router.add_post("/api/adres", api_adres)
+    app.router.add_post("/api/tolov", api_tolov)
+    app.router.add_post("/api/tolov_del", api_tolov_del)
     return app

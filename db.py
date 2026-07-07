@@ -48,6 +48,9 @@ def init_db():
     con.execute("""CREATE TABLE IF NOT EXISTS qaytarishlar (
         id INTEGER PRIMARY KEY AUTOINCREMENT, partiya_id INTEGER NOT NULL,
         miqdor REAL NOT NULL, qaytgan_sana TEXT NOT NULL)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS tolovlar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, mijoz_id INTEGER NOT NULL,
+        summa REAL NOT NULL, sana TEXT NOT NULL, izoh TEXT, yaratilgan TEXT NOT NULL)""")
 
     # Eski versiyalardan ko'chirish: agar 'mijoz' (matn) ustuni bo'lsa —
     # mijoz_id ni to'ldirib, eski majburiy 'mijoz' ustunini butunlay olib tashlaymiz.
@@ -204,6 +207,48 @@ def returns_for(partiya_id):
     return [dict(r) for r in rows]
 
 
+# ---------- To'lovlar (predoplata) ----------
+def add_tolov(mijoz_id, summa, sana, izoh=None):
+    con = _con()
+    cur = con.execute("INSERT INTO tolovlar (mijoz_id, summa, sana, izoh, yaratilgan) VALUES (?, ?, ?, ?, ?)",
+                      (mijoz_id, summa, sana, izoh, now_tk().isoformat()))
+    con.commit()
+    tid = cur.lastrowid
+    con.close()
+    return tid
+
+
+def delete_tolov(tolov_id):
+    con = _con()
+    con.execute("DELETE FROM tolovlar WHERE id = ?", (tolov_id,))
+    con.commit()
+    con.close()
+
+
+def tolovlar_of(mijoz_id):
+    con = _con()
+    rows = con.execute("SELECT * FROM tolovlar WHERE mijoz_id = ? ORDER BY id DESC", (mijoz_id,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def jami_tolov(mijoz_id):
+    con = _con()
+    r = con.execute("SELECT COALESCE(SUM(summa),0) FROM tolovlar WHERE mijoz_id = ?", (mijoz_id,)).fetchone()
+    con.close()
+    return r[0] or 0.0
+
+
+def daily_rate(mijoz_id, today=None):
+    """Mijozning hozirgi bir kunlik ijara narxi (qolgan × kunlik_narx yig'indisi)."""
+    total = 0.0
+    for p in partiyalar_of(mijoz_id):
+        h = partiya_hisob(p, today)
+        if h["qolgan"] > 0:
+            total += h["qolgan"] * p["kunlik_narx"]
+    return total
+
+
 # ---------- Hisob-kitob ----------
 def _billable_days(d0, dend):
     return max(0, (dend - d0).days - 1)
@@ -240,10 +285,16 @@ def mijoz_detail(mijoz_id, today=None):
     if not m:
         return None
     ps = [partiya_hisob(p, today) for p in partiyalar_of(mijoz_id)]
+    hisoblangan = sum(x["narx"] for x in ps)
+    tolangan = jami_tolov(mijoz_id)
     return {
         "id": mijoz_id, "mijoz": m["ism"], "telefon": m["telefon"], "adres": m.get("adres"),
         "partiyalar": ps,
-        "jami": sum(x["narx"] for x in ps),
+        "jami": hisoblangan,
+        "hisoblangan": hisoblangan,
+        "tolangan": tolangan,
+        "qolgan_qarz": hisoblangan - tolangan,
+        "tolovlar": tolovlar_of(mijoz_id),
         "jami_qolgan": sum(x["qolgan"] for x in ps),
     }
 
@@ -258,8 +309,9 @@ def mijozlar(today=None):
         d = mijoz_detail(mid, today)
         res.append({
             "id": mid, "mijoz": d["mijoz"], "telefon": d["telefon"],
-            "jami": d["jami"], "jami_qolgan": d["jami_qolgan"],
+            "jami": d["jami"], "tolangan": d["tolangan"], "qolgan_qarz": d["qolgan_qarz"],
+            "jami_qolgan": d["jami_qolgan"],
             "partiya_soni": len(d["partiyalar"]),
         })
-    res.sort(key=lambda x: -x["jami"])
+    res.sort(key=lambda x: -x["qolgan_qarz"])
     return res
