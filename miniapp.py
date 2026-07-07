@@ -104,20 +104,19 @@ def make_web_app(bot_token, allowed=None):
         uid, err = check(request)
         if err:
             return err
-        body = await request.json()
         try:
+            body = await request.json()
             mid = int(body.get("mijoz_id"))
-        except Exception:
-            return web.json_response({"xato": "mijoz_id kerak"}, status=400)
-        matn = (body.get("matn") or "").strip()
-        if not matn:
-            return web.json_response({"xato": "matn kerak"}, status=400)
-        try:
+            matn = (body.get("matn") or "").strip()
+            if not matn:
+                return web.json_response({"ok": False, "xabar": "Matn bo'sh"})
             t = ai.from_text(matn)
-        except Exception:
-            return web.json_response({"xato": "Tushunolmadim"}, status=200)
-        res = logic.apply(mid, t)
-        return web.json_response({"ok": res.get("ok", False), "xabar": web_msg(res)})
+            res = logic.apply(mid, t)
+            return web.json_response({"ok": res.get("ok", False), "xabar": web_msg(res)})
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return web.json_response({"ok": False, "xabar": f"Server xato: {type(e).__name__}: {str(e)[:180]}"})
 
     async def api_qoshish_audio(request):
         uid, err = check(request)
@@ -125,16 +124,15 @@ def make_web_app(bot_token, allowed=None):
             return err
         try:
             mid = int(request.headers.get("X-Mijoz-Id"))
-        except Exception:
-            return web.json_response({"xato": "mijoz_id kerak"}, status=400)
-        audio = await request.read()
-        mime = request.headers.get("Content-Type", "audio/ogg").split(";")[0]
-        try:
+            audio = await request.read()
+            mime = request.headers.get("Content-Type", "audio/ogg").split(";")[0]
             t = ai.from_audio(audio, mime_type=mime)
-        except Exception:
-            return web.json_response({"ok": False, "xabar": "Ovoz o'qilmadi. Yozib qo'shing."}, status=200)
-        res = logic.apply(mid, t)
-        return web.json_response({"ok": res.get("ok", False), "xabar": web_msg(res)})
+            res = logic.apply(mid, t)
+            return web.json_response({"ok": res.get("ok", False), "xabar": web_msg(res)})
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return web.json_response({"ok": False, "xabar": f"Ovoz xato: {type(e).__name__}: {str(e)[:180]}"})
 
     async def api_ochirish(request):
         uid, err = check(request)
