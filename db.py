@@ -49,15 +49,32 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT, partiya_id INTEGER NOT NULL,
         miqdor REAL NOT NULL, qaytgan_sana TEXT NOT NULL)""")
 
-    # Eski versiyadan (mijoz nomi bilan) ko'chirish
+    # Eski versiyalardan ko'chirish: agar 'mijoz' (matn) ustuni bo'lsa —
+    # mijoz_id ni to'ldirib, eski majburiy 'mijoz' ustunini butunlay olib tashlaymiz.
     cols = [r[1] for r in con.execute("PRAGMA table_info(partiyalar)").fetchall()]
-    if "mijoz_id" not in cols and "mijoz" in cols:
-        con.execute("ALTER TABLE partiyalar ADD COLUMN mijoz_id INTEGER")
-        names = [r[0] for r in con.execute("SELECT DISTINCT mijoz FROM partiyalar WHERE mijoz IS NOT NULL").fetchall()]
-        for nm in names:
-            cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan) VALUES (?, NULL, ?)",
-                              (nm, now_tk().isoformat()))
-            con.execute("UPDATE partiyalar SET mijoz_id = ? WHERE mijoz = ?", (cur.lastrowid, nm))
+    if "mijoz" in cols:
+        if "mijoz_id" not in cols:
+            con.execute("ALTER TABLE partiyalar ADD COLUMN mijoz_id INTEGER")
+        # Bo'sh mijoz_id larni to'ldirish (ism bo'yicha mavjud mijozga bog'lash yoki yaratish)
+        miss = con.execute("SELECT id, mijoz FROM partiyalar WHERE mijoz_id IS NULL AND mijoz IS NOT NULL").fetchall()
+        for rid, nm in miss:
+            m = con.execute("SELECT id FROM mijozlar WHERE LOWER(TRIM(ism))=LOWER(TRIM(?)) LIMIT 1", (nm,)).fetchone()
+            cid = m[0] if m else con.execute(
+                "INSERT INTO mijozlar (ism, telefon, yaratilgan) VALUES (?, NULL, ?)",
+                (nm, now_tk().isoformat())).lastrowid
+            con.execute("UPDATE partiyalar SET mijoz_id = ? WHERE id = ?", (cid, rid))
+        # Jadvalni yangi sxema bilan qayta qurish (eski 'mijoz' ustunisiz)
+        con.execute("DROP TABLE IF EXISTS partiyalar_new")
+        con.execute("""CREATE TABLE partiyalar_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, mijoz_id INTEGER NOT NULL,
+            partiya_raqam INTEGER NOT NULL, mahsulot TEXT NOT NULL, miqdor REAL NOT NULL,
+            kunlik_narx REAL NOT NULL, chiqgan_sana TEXT NOT NULL, yaratilgan TEXT NOT NULL)""")
+        con.execute("""INSERT INTO partiyalar_new
+            (id, mijoz_id, partiya_raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, yaratilgan)
+            SELECT id, mijoz_id, partiya_raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, yaratilgan
+            FROM partiyalar WHERE mijoz_id IS NOT NULL""")
+        con.execute("DROP TABLE partiyalar")
+        con.execute("ALTER TABLE partiyalar_new RENAME TO partiyalar")
 
     # Manzil ustuni (eski bazalarga ham qo'shiladi)
     mcols = [r[1] for r in con.execute("PRAGMA table_info(mijozlar)").fetchall()]
