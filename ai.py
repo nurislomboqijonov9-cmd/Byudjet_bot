@@ -25,6 +25,7 @@ class IjaraAmal(BaseModel):
     tushunildi: bool = Field(description="Ijara amali aytildimi (True) yoki tushunarsiz (False)")
     amal: Amal | None = Field(default=None, description="'chiqish' (ijaraga berildi) yoki 'qaytarish'")
     mijoz: str | None = Field(default=None, description="Mijoz ismi (bosh harf bilan)")
+    telefon: str | None = Field(default=None, description="Mijoz telefon raqami, aytilsa (masalan 'raqami 998901234567'). Aytilmasa null.")
     mahsulot: str | None = Field(default=None, description="Mahsulot nomi (masalan: lesa, temir ustun). Faqat chiqishda.")
     miqdor: float | None = Field(default=None, description="Dona soni. Qaytarishda 'hammasi' bo'lsa null.")
     hammasi: bool = Field(default=False, description="Qaytarishda hamma qolgan mahsulot qaytarilsa True")
@@ -51,7 +52,8 @@ QOIDALAR:
 - "hammasini/hammasi/butunlay/to'liq qaytardi" bo'lsa hammasi=true, miqdor=null.
 - partiya raqamini int qil ("1-partiya"/"birinchi partiya"=1). Aytilmasa null.
 - sana aytilsa ISO (YYYY-MM-DD) qil (yuqoridagi hozirgi vaqtga tayan). Aytilmasa null.
-- Ijara bilan bog'liq bo'lmasa (salom, savol) tushunildi=false.
+- mijoz ismini bosh harf bilan yoz.
+- Agar telefon raqam aytilsa (masalan "raqami 90 123 45 67", "telefoni ...") — telefon maydoniga yoz.
 """
 
 

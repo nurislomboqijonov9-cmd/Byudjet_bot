@@ -1,10 +1,7 @@
-"""Ijara (arenda) hisobi — ma'lumotlar bazasi (SQLite).
+"""Ijara hisobi — ma'lumotlar bazasi (SQLite).
 
-Korxona lesa va temir mahsulotlarini kunlik ijaraga beradi.
-Ma'lumot hamma xodimlar uchun UMUMIY (bitta korxona).
-
-Hisob qoidasi: chiqgan kun HAM, qaytgan kun HAM hisoblanmaydi —
-faqat o'rtadagi to'liq kunlar sanaladi.
+Mijoz = alohida shaxs (id, ism, telefon). Bir xil ismli mijozlar telefon bilan farqlanadi.
+Hisob qoidasi: chiqgan kun HAM, qaytgan kun HAM hisoblanmaydi.
 """
 import os
 import sqlite3
@@ -39,45 +36,103 @@ def _con():
 
 def init_db():
     con = _con()
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS partiyalar (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            mijoz TEXT NOT NULL,
-            partiya_raqam INTEGER NOT NULL,
-            mahsulot TEXT NOT NULL,
-            miqdor REAL NOT NULL,
-            kunlik_narx REAL NOT NULL,
-            chiqgan_sana TEXT NOT NULL,
-            yaratilgan TEXT NOT NULL
-        )
-    """)
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS qaytarishlar (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            partiya_id INTEGER NOT NULL,
-            miqdor REAL NOT NULL,
-            qaytgan_sana TEXT NOT NULL
-        )
-    """)
+    con.execute("""CREATE TABLE IF NOT EXISTS mijozlar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ism TEXT NOT NULL, telefon TEXT, adres TEXT, yaratilgan TEXT NOT NULL)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS partiyalar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        mijoz_id INTEGER NOT NULL,
+        partiya_raqam INTEGER NOT NULL,
+        mahsulot TEXT NOT NULL, miqdor REAL NOT NULL, kunlik_narx REAL NOT NULL,
+        chiqgan_sana TEXT NOT NULL, yaratilgan TEXT NOT NULL)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS qaytarishlar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, partiya_id INTEGER NOT NULL,
+        miqdor REAL NOT NULL, qaytgan_sana TEXT NOT NULL)""")
+
+    # Eski versiyadan (mijoz nomi bilan) ko'chirish
+    cols = [r[1] for r in con.execute("PRAGMA table_info(partiyalar)").fetchall()]
+    if "mijoz_id" not in cols and "mijoz" in cols:
+        con.execute("ALTER TABLE partiyalar ADD COLUMN mijoz_id INTEGER")
+        names = [r[0] for r in con.execute("SELECT DISTINCT mijoz FROM partiyalar WHERE mijoz IS NOT NULL").fetchall()]
+        for nm in names:
+            cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan) VALUES (?, NULL, ?)",
+                              (nm, now_tk().isoformat()))
+            con.execute("UPDATE partiyalar SET mijoz_id = ? WHERE mijoz = ?", (cur.lastrowid, nm))
+
+    # Manzil ustuni (eski bazalarga ham qo'shiladi)
+    mcols = [r[1] for r in con.execute("PRAGMA table_info(mijozlar)").fetchall()]
+    if "adres" not in mcols:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN adres TEXT")
     con.commit()
     con.close()
 
 
-# ---------- Yozish ----------
-def next_raqam(mijoz):
+# ---------- Mijozlar ----------
+def clean_phone(s):
+    if not s:
+        return None
+    d = "".join(c for c in str(s) if c.isdigit())
+    return d or None
+
+
+def add_mijoz(ism, telefon=None):
     con = _con()
-    r = con.execute("SELECT MAX(partiya_raqam) FROM partiyalar WHERE mijoz = ?", (mijoz,)).fetchone()
+    cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan) VALUES (?, ?, ?)",
+                      (ism.strip(), clean_phone(telefon), now_tk().isoformat()))
+    con.commit()
+    mid = cur.lastrowid
+    con.close()
+    return mid
+
+
+def get_mijoz(mijoz_id):
+    con = _con()
+    r = con.execute("SELECT * FROM mijozlar WHERE id = ?", (mijoz_id,)).fetchone()
+    con.close()
+    return dict(r) if r else None
+
+
+def set_adres(mijoz_id, adres):
+    con = _con()
+    con.execute("UPDATE mijozlar SET adres = ? WHERE id = ?", ((adres or "").strip() or None, mijoz_id))
+    con.commit()
+    con.close()
+
+
+def mijozlar_by_name(ism):
+    con = _con()
+    rows = con.execute("SELECT * FROM mijozlar WHERE LOWER(TRIM(ism)) = LOWER(TRIM(?)) ORDER BY id",
+                       (ism,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def delete_mijoz(mijoz_id):
+    con = _con()
+    ids = [r[0] for r in con.execute("SELECT id FROM partiyalar WHERE mijoz_id = ?", (mijoz_id,)).fetchall()]
+    for pid in ids:
+        con.execute("DELETE FROM qaytarishlar WHERE partiya_id = ?", (pid,))
+    con.execute("DELETE FROM partiyalar WHERE mijoz_id = ?", (mijoz_id,))
+    con.execute("DELETE FROM mijozlar WHERE id = ?", (mijoz_id,))
+    con.commit()
+    con.close()
+
+
+# ---------- Partiyalar ----------
+def next_raqam(mijoz_id):
+    con = _con()
+    r = con.execute("SELECT MAX(partiya_raqam) FROM partiyalar WHERE mijoz_id = ?", (mijoz_id,)).fetchone()
     con.close()
     return (r[0] or 0) + 1
 
 
-def add_partiya(mijoz, mahsulot, miqdor, kunlik_narx, chiqgan_sana):
-    raqam = next_raqam(mijoz)
+def add_partiya(mijoz_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana):
+    raqam = next_raqam(mijoz_id)
     con = _con()
     cur = con.execute(
-        """INSERT INTO partiyalar (mijoz, partiya_raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, yaratilgan)
+        """INSERT INTO partiyalar (mijoz_id, partiya_raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, yaratilgan)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (mijoz, raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, now_tk().isoformat()),
+        (mijoz_id, raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, now_tk().isoformat()),
     )
     con.commit()
     pid = cur.lastrowid
@@ -85,16 +140,18 @@ def add_partiya(mijoz, mahsulot, miqdor, kunlik_narx, chiqgan_sana):
     return pid, raqam
 
 
-def add_return(partiya_id, miqdor, qaytgan_sana):
+def get_partiya(mijoz_id, raqam):
     con = _con()
-    cur = con.execute(
-        "INSERT INTO qaytarishlar (partiya_id, miqdor, qaytgan_sana) VALUES (?, ?, ?)",
-        (partiya_id, miqdor, qaytgan_sana),
-    )
-    con.commit()
-    rid = cur.lastrowid
+    r = con.execute("SELECT * FROM partiyalar WHERE mijoz_id = ? AND partiya_raqam = ?", (mijoz_id, raqam)).fetchone()
     con.close()
-    return rid
+    return dict(r) if r else None
+
+
+def partiyalar_of(mijoz_id):
+    con = _con()
+    rows = con.execute("SELECT * FROM partiyalar WHERE mijoz_id = ? ORDER BY partiya_raqam", (mijoz_id,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
 
 
 def delete_partiya(partiya_id):
@@ -105,36 +162,22 @@ def delete_partiya(partiya_id):
     con.close()
 
 
+# ---------- Qaytarishlar ----------
+def add_return(partiya_id, miqdor, qaytgan_sana):
+    con = _con()
+    cur = con.execute("INSERT INTO qaytarishlar (partiya_id, miqdor, qaytgan_sana) VALUES (?, ?, ?)",
+                      (partiya_id, miqdor, qaytgan_sana))
+    con.commit()
+    rid = cur.lastrowid
+    con.close()
+    return rid
+
+
 def delete_return(return_id):
     con = _con()
     con.execute("DELETE FROM qaytarishlar WHERE id = ?", (return_id,))
     con.commit()
     con.close()
-
-
-def delete_mijoz(mijoz):
-    con = _con()
-    ids = [r[0] for r in con.execute("SELECT id FROM partiyalar WHERE mijoz = ?", (mijoz,)).fetchall()]
-    for pid in ids:
-        con.execute("DELETE FROM qaytarishlar WHERE partiya_id = ?", (pid,))
-    con.execute("DELETE FROM partiyalar WHERE mijoz = ?", (mijoz,))
-    con.commit()
-    con.close()
-
-
-# ---------- O'qish ----------
-def get_partiya(mijoz, raqam):
-    con = _con()
-    r = con.execute("SELECT * FROM partiyalar WHERE mijoz = ? AND partiya_raqam = ?", (mijoz, raqam)).fetchone()
-    con.close()
-    return dict(r) if r else None
-
-
-def partiyalar_of(mijoz):
-    con = _con()
-    rows = con.execute("SELECT * FROM partiyalar WHERE mijoz = ? ORDER BY partiya_raqam", (mijoz,)).fetchall()
-    con.close()
-    return [dict(r) for r in rows]
 
 
 def returns_for(partiya_id):
@@ -144,16 +187,8 @@ def returns_for(partiya_id):
     return [dict(r) for r in rows]
 
 
-def all_mijozlar():
-    con = _con()
-    rows = con.execute("SELECT DISTINCT mijoz FROM partiyalar ORDER BY mijoz").fetchall()
-    con.close()
-    return [r[0] for r in rows]
-
-
-# ---------- Hisob-kitob (yurak) ----------
+# ---------- Hisob-kitob ----------
 def _billable_days(d0, dend):
-    """Chiqgan kun ham, tugash kun ham hisoblanmaydi."""
     return max(0, (dend - d0).days - 1)
 
 
@@ -162,16 +197,13 @@ def _pdate(s):
 
 
 def partiya_hisob(p, today=None):
-    """Bitta partiya bo'yicha: qolgan miqdor va jami narx (shu kungacha)."""
     today = today or today_tk()
     issue = _pdate(p["chiqgan_sana"])
     daily = p["kunlik_narx"]
-    rets = returns_for(p["id"])
     narx = 0.0
     qaytgan = 0.0
-    for r in rets:
-        kun = _billable_days(issue, _pdate(r["qaytgan_sana"]))
-        narx += r["miqdor"] * daily * kun
+    for r in returns_for(p["id"]):
+        narx += r["miqdor"] * daily * _billable_days(issue, _pdate(r["qaytgan_sana"]))
         qaytgan += r["miqdor"]
     qolgan = p["miqdor"] - qaytgan
     kunlar = 0
@@ -179,35 +211,37 @@ def partiya_hisob(p, today=None):
         kunlar = _billable_days(issue, today)
         narx += qolgan * daily * kunlar
     return {
-        "id": p["id"],
-        "partiya_raqam": p["partiya_raqam"],
-        "mahsulot": p["mahsulot"],
-        "miqdor": p["miqdor"],
-        "qolgan": qolgan,
-        "kunlik_narx": daily,
-        "chiqgan_sana": str(p["chiqgan_sana"])[:10],
-        "kunlar": kunlar,
-        "narx": narx,
+        "id": p["id"], "partiya_raqam": p["partiya_raqam"], "mahsulot": p["mahsulot"],
+        "miqdor": p["miqdor"], "qolgan": qolgan, "kunlik_narx": daily,
+        "chiqgan_sana": str(p["chiqgan_sana"])[:10], "kunlar": kunlar, "narx": narx,
     }
 
 
-def mijoz_detail(mijoz, today=None):
+def mijoz_detail(mijoz_id, today=None):
     today = today or today_tk()
-    ps = [partiya_hisob(p, today) for p in partiyalar_of(mijoz)]
-    jami = sum(x["narx"] for x in ps)
-    qolgan = sum(x["qolgan"] for x in ps)
-    return {"mijoz": mijoz, "partiyalar": ps, "jami": jami, "jami_qolgan": qolgan}
+    m = get_mijoz(mijoz_id)
+    if not m:
+        return None
+    ps = [partiya_hisob(p, today) for p in partiyalar_of(mijoz_id)]
+    return {
+        "id": mijoz_id, "mijoz": m["ism"], "telefon": m["telefon"], "adres": m.get("adres"),
+        "partiyalar": ps,
+        "jami": sum(x["narx"] for x in ps),
+        "jami_qolgan": sum(x["qolgan"] for x in ps),
+    }
 
 
 def mijozlar(today=None):
     today = today or today_tk()
+    con = _con()
+    ids = [r[0] for r in con.execute("SELECT id FROM mijozlar ORDER BY id").fetchall()]
+    con.close()
     res = []
-    for m in all_mijozlar():
-        d = mijoz_detail(m, today)
+    for mid in ids:
+        d = mijoz_detail(mid, today)
         res.append({
-            "mijoz": m,
-            "jami": d["jami"],
-            "jami_qolgan": d["jami_qolgan"],
+            "id": mid, "mijoz": d["mijoz"], "telefon": d["telefon"],
+            "jami": d["jami"], "jami_qolgan": d["jami_qolgan"],
             "partiya_soni": len(d["partiyalar"]),
         })
     res.sort(key=lambda x: -x["jami"])

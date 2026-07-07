@@ -8,30 +8,28 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;450;500;600&display=swap');
   :root{--bg:#F3F5F4;--card:#FFFFFF;--ink:#1B2A26;--soft:#63736D;--line:#E7EBE9;
-    --brand:#1F4B45;--brand2:#2C6A60;--pos:#2E7D5B;--neg:#C0674F;--faint:#EEF2F0;--amber:#C08A3E;}
+    --brand:#1F4B45;--brand2:#2C6A60;--pos:#2E7D5B;--neg:#C0674F;--faint:#EEF2F0;}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   body{background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;max-width:520px;margin:0 auto;
     padding:0 14px 40px;line-height:1.4;-webkit-font-smoothing:antialiased;}
   .num{font-family:'Space Grotesk',sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
-  header{padding:20px 4px 12px;}
+  header{padding:20px 4px 12px;display:flex;align-items:flex-end;}
   .eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brand2);font-weight:600;}
   h1{font-family:'Space Grotesk';font-size:22px;font-weight:700;margin-top:3px;}
+  .plus{margin-left:auto;background:var(--brand);color:#fff;border:none;border-radius:11px;padding:9px 13px;
+    font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;}
   .hero{background:var(--brand);color:#fff;border-radius:18px;padding:18px 20px;margin-bottom:16px;position:relative;overflow:hidden;}
   .hero .arc{position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;background:rgba(255,255,255,.05);}
   .hero .lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.55);font-weight:600;}
-  .hero .amt{font-size:30px;font-weight:700;margin-top:6px;}
-  .hero .amt small{font-size:15px;color:rgba(255,255,255,.65);}
+  .hero .amt{font-size:30px;font-weight:700;margin-top:6px;} .hero .amt small{font-size:15px;color:rgba(255,255,255,.65);}
   .hero .sub{font-size:12.5px;color:rgba(255,255,255,.6);margin-top:4px;}
   .card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:15px;margin-bottom:10px;}
   .mijoz{display:flex;align-items:center;gap:13px;cursor:pointer;}
   .av{width:44px;height:44px;border-radius:12px;background:var(--faint);color:var(--brand);flex-shrink:0;
     display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:700;font-size:17px;}
-  .mijoz .nm{font-size:15.5px;font-weight:600;}
-  .mijoz .mt{font-size:12.5px;color:var(--soft);margin-top:2px;}
-  .mijoz .val{margin-left:auto;text-align:right;}
-  .mijoz .val b{font-family:'Space Grotesk';font-weight:700;font-size:15.5px;}
-  .mijoz .val span{display:block;font-size:11px;color:var(--soft);}
-  .chev{color:#B7C3BD;font-size:20px;margin-left:6px;}
+  .mijoz .nm{font-size:15.5px;font-weight:600;} .mijoz .mt{font-size:12.5px;color:var(--soft);margin-top:2px;}
+  .mijoz .val{margin-left:auto;text-align:right;} .mijoz .val b{font-family:'Space Grotesk';font-weight:700;font-size:15.5px;}
+  .mijoz .val span{display:block;font-size:11px;color:var(--soft);} .chev{color:#B7C3BD;font-size:20px;margin-left:6px;}
   .back{display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--brand2);
     font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;padding:6px 0;margin-bottom:4px;}
   .p-head{display:flex;align-items:center;margin-bottom:10px;}
@@ -40,97 +38,142 @@
   .p-title{font-size:15px;font-weight:600;} .p-sana{font-size:12px;color:var(--soft);}
   .p-grid{display:flex;gap:8px;margin-top:10px;}
   .box{flex:1;background:var(--faint);border-radius:10px;padding:9px 10px;}
-  .box .k{font-size:10.5px;color:var(--soft);text-transform:uppercase;letter-spacing:.04em;}
-  .box .v{font-family:'Space Grotesk';font-weight:600;font-size:15px;margin-top:2px;}
+  .box .k{font-size:10.5px;color:var(--soft);text-transform:uppercase;} .box .v{font-family:'Space Grotesk';font-weight:600;font-size:15px;margin-top:2px;}
   .p-narx{display:flex;justify-content:space-between;align-items:center;margin-top:11px;padding-top:11px;border-top:1px solid var(--faint);}
   .p-narx .k{font-size:13px;color:var(--soft);} .p-narx b{font-family:'Space Grotesk';font-weight:700;font-size:16px;}
   .done{color:var(--pos);font-weight:600;font-size:12.5px;}
-  .del{width:100%;margin-top:8px;padding:13px;border:1px solid var(--neg);color:var(--neg);background:#fff;
-    border-radius:12px;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;}
-  .center{min-height:70vh;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--soft);font-size:14px;padding:20px;}
+  .addbox{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:14px;margin-bottom:10px;}
+  .addbox .t{font-family:'Space Grotesk';font-weight:600;font-size:14px;margin-bottom:10px;}
+  .inrow{display:flex;gap:8px;}
+  input.f{flex:1;width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;font-size:15px;font-family:inherit;color:var(--ink);outline:none;background:#fff;}
+  input.f:focus{border-color:var(--brand);}
+  .mic{width:46px;flex-shrink:0;border:1px solid var(--line);background:#fff;border-radius:11px;font-size:19px;cursor:pointer;}
+  .mic.rec{background:var(--neg);border-color:var(--neg);color:#fff;animation:pulse 1s infinite;}
+  @keyframes pulse{50%{opacity:.55;}}
+  .send{width:100%;margin-top:8px;padding:12px;background:var(--brand);color:#fff;border:none;border-radius:11px;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;}
+  .del{width:100%;margin-top:8px;padding:13px;border:1px solid var(--neg);color:var(--neg);background:#fff;border-radius:12px;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;}
+  .hint{font-size:12px;color:var(--soft);margin-top:8px;}
+  .center{min-height:60vh;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--soft);font-size:14px;padding:20px;}
   .spin{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 12px;}
   @keyframes sp{to{transform:rotate(360deg);}}
-  .empty{text-align:center;color:var(--soft);font-size:14px;padding:50px 20px;}
-  .view{animation:f .2s ease;} @keyframes f{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
-  @media (prefers-reduced-motion:reduce){*{animation:none!important;}}
+  .empty{text-align:center;color:var(--soft);font-size:14px;padding:40px 20px;}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;
+    padding:11px 16px;border-radius:12px;font-size:13.5px;max-width:90%;text-align:center;z-index:50;box-shadow:0 6px 20px rgba(0,0,0,.2);}
+  .form input{margin-top:8px;}
 </style>
 </head>
 <body>
   <div id="app"><div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div></div>
+  <div id="toast"></div>
 <script>
   const tg = window.Telegram && window.Telegram.WebApp;
   if (tg){ try{ tg.ready(); tg.expand(); tg.setHeaderColor('#1F4B45'); tg.setBackgroundColor('#F3F5F4'); }catch(e){} }
   const H = { 'X-Init-Data': (tg && tg.initData) || '' };
-
-  function som(n){ n=Math.round(Number(n)||0); return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' '); }
-  function son(n){ n=Number(n)||0; return Number.isInteger(n)?n:n.toFixed(1); }
-  function esc(s){ return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-  function ini(s){ return (s||'?').trim().charAt(0).toUpperCase(); }
   const app = document.getElementById('app');
+  let rec=null, recChunks=[], recMid=null;
 
-  function err(){ app.innerHTML='<div class="center"><div>Ma\'lumot yuklanmadi.<br><br>Iltimos, botdagi <b>«📊 Hisob»</b> tugmasi orqali oching.</div></div>'; }
+  const som=n=>{n=Math.round(Number(n)||0);return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');};
+  const son=n=>{n=Number(n)||0;return Number.isInteger(n)?n:n.toFixed(1);};
+  const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const ini=s=>(s||'?').trim().charAt(0).toUpperCase();
+  function toast(m){const t=document.getElementById('toast');t.innerHTML='<div class="toast">'+esc(m)+'</div>';setTimeout(()=>t.innerHTML='',3500);}
+  function errScreen(){app.innerHTML='<div class="center"><div>Ma\'lumot yuklanmadi.<br><br>Botdagi <b>«📊 Hisob»</b> tugmasi orqali oching.</div></div>';}
 
   async function loadList(){
     app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
-    let d;
-    try{ const r=await fetch('/api/mijozlar',{headers:H}); if(!r.ok) throw 0; d=await r.json(); }
-    catch(e){ return err(); }
-    const ml = d.mijozlar||[];
-    const jami = ml.reduce((s,m)=>s+m.jami,0);
-    let cards = ml.map(m=>`<div class="card"><div class="mijoz" onclick="loadMijoz('${esc(m.mijoz).replace(/'/g,"\\'")}')">
+    let d; try{const r=await fetch('/api/mijozlar',{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
+    const ml=d.mijozlar||[]; const jami=ml.reduce((s,m)=>s+m.jami,0);
+    let cards=ml.map(m=>`<div class="card"><div class="mijoz" onclick="loadMijoz(${m.id})">
         <div class="av">${ini(m.mijoz)}</div>
         <div><div class="nm">${esc(m.mijoz)}</div>
-          <div class="mt">${m.partiya_soni} partiya · ${son(m.jami_qolgan)} dona qolgan</div></div>
-        <div class="val"><b>${som(m.jami)}</b><span>so'm</span></div>
-        <div class="chev">›</div></div></div>`).join('');
-    if(!ml.length) cards='<div class="empty">Hozircha mijoz yo\'q.<br>Botga ovoz yuboring:<br>«Abbosga 100 ta lesa chiqdi, kuniga 2000 so\'m»</div>';
-    app.innerHTML=`<div class="view">
-      <header><div class="eyebrow">Ijara hisobi</div><h1>Mijozlar</h1></header>
+          <div class="mt">${m.telefon?('📞 '+esc(m.telefon)+' · '):''}${son(m.jami_qolgan)} dona qolgan</div></div>
+        <div class="val"><b>${som(m.jami)}</b><span>so'm</span></div><div class="chev">›</div></div></div>`).join('');
+    if(!ml.length) cards='<div class="empty">Hozircha mijoz yo\'q.<br>«➕ Yangi» bosing yoki botga ovoz yuboring.</div>';
+    app.innerHTML=`<header><div><div class="eyebrow">Ijara hisobi</div><h1>Mijozlar</h1></div>
+        <button class="plus" onclick="showNew()">➕ Yangi</button></header>
       <div class="hero"><div class="arc"></div><div class="lbl">Umumiy qarz</div>
-        <div class="amt num">${som(jami)} <small>so'm</small></div>
-        <div class="sub">${ml.length} ta mijoz</div></div>
-      ${cards}</div>`;
+        <div class="amt num">${som(jami)} <small>so'm</small></div><div class="sub">${ml.length} ta mijoz</div></div>
+      <div id="newform"></div>${cards}`;
   }
 
-  window.loadMijoz = async function(ism){
-    app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
-    let d;
-    try{ const r=await fetch('/api/mijoz?ism='+encodeURIComponent(ism),{headers:H}); if(!r.ok) throw 0; d=await r.json(); }
-    catch(e){ return err(); }
-    const ps = (d.partiyalar||[]).map(p=>{
-      const done = p.qolgan<=0;
-      return `<div class="card">
-        <div class="p-head"><div class="p-badge">${p.partiya_raqam}</div>
-          <div><div class="p-title">${esc(p.mahsulot)}</div><div class="p-sana">📅 ${p.chiqgan_sana}${done?' · <span class="done">to\'liq qaytgan ✓</span>':''}</div></div></div>
-        <div class="p-grid">
-          <div class="box"><div class="k">Qolgan</div><div class="v">${son(p.qolgan)} / ${son(p.miqdor)}</div></div>
-          <div class="box"><div class="k">Kunlik</div><div class="v">${som(p.kunlik_narx)}</div></div>
-          <div class="box"><div class="k">Kun</div><div class="v">${p.kunlar}</div></div>
-        </div>
-        <div class="p-narx"><span class="k">Shu partiya hisobi</span><b class="num">${som(p.narx)} so'm</b></div>
-      </div>`;
-    }).join('') || '<div class="empty">Partiya yo\'q.</div>';
-
-    app.innerHTML=`<div class="view">
-      <header><button class="back" onclick="loadList()">‹ Orqaga</button>
-        <div class="eyebrow">Mijoz</div><h1>${esc(d.mijoz)}</h1></header>
-      <div class="hero"><div class="arc"></div><div class="lbl">Jami qarzi</div>
-        <div class="amt num">${som(d.jami)} <small>so'm</small></div>
-        <div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan</div></div>
-      ${ps}
-      <button class="del" onclick="ochir('${esc(d.mijoz).replace(/'/g,"\\'")}')">🗑 Yacheykani o'chirish</button>
-    </div>`;
+  window.showNew=function(){
+    const f=document.getElementById('newform');
+    if(f.innerHTML){f.innerHTML='';return;}
+    f.innerHTML=`<div class="addbox form"><div class="t">➕ Yangi mijoz</div>
+      <input class="f" id="n_ism" placeholder="Ism (masalan Abbos)">
+      <input class="f" id="n_tel" placeholder="Telefon (ixtiyoriy)" inputmode="tel">
+      <button class="send" onclick="saveNew()">Saqlash</button></div>`;
+  };
+  window.saveNew=async function(){
+    const ism=document.getElementById('n_ism').value.trim();
+    const tel=document.getElementById('n_tel').value.trim();
+    if(!ism){toast('Ism kiriting');return;}
+    try{const r=await fetch('/api/mijoz_qosh',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({ism,telefon:tel})});
+      const d=await r.json(); if(d.ok){toast('Mijoz qo\'shildi');loadMijoz(d.id);} else toast(d.xato||'Xato');}catch(e){toast('Xato');}
   };
 
-  window.ochir = async function(ism){
-    const ok = tg && tg.showConfirm ? await new Promise(res=>tg.showConfirm(`${ism} yacheykasini o'chirasizmi? Bu qaytarilmaydi.`,res))
-                                    : confirm(`${ism} yacheykasini o'chirasizmi?`);
-    if(!ok) return;
+  window.loadMijoz=async function(id){
+    app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
+    let d; try{const r=await fetch('/api/mijoz?id='+id,{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
+    const ps=(d.partiyalar||[]).map(p=>{const done=p.qolgan<=0;
+      return `<div class="card"><div class="p-head"><div class="p-badge">${p.partiya_raqam}</div>
+          <div><div class="p-title">${esc(p.mahsulot)}</div><div class="p-sana">📅 ${p.chiqgan_sana}${done?' · <span class="done">qaytgan ✓</span>':''}</div></div></div>
+        <div class="p-grid"><div class="box"><div class="k">Qolgan</div><div class="v">${son(p.qolgan)}/${son(p.miqdor)}</div></div>
+          <div class="box"><div class="k">Kunlik</div><div class="v">${som(p.kunlik_narx)}</div></div>
+          <div class="box"><div class="k">Kun</div><div class="v">${p.kunlar}</div></div></div>
+        <div class="p-narx"><span class="k">Shu partiya</span><b class="num">${som(p.narx)} so'm</b></div></div>`;
+    }).join('')||'<div class="empty">Partiya yo\'q. Pastdan qo\'shing.</div>';
+    app.innerHTML=`<header><div><button class="back" onclick="loadList()">‹ Orqaga</button>
+        <div class="eyebrow">Mijoz${d.telefon?' · 📞 '+esc(d.telefon):''}</div><h1>${esc(d.mijoz)}</h1></div></header>
+      <div class="hero"><div class="arc"></div><div class="lbl">Jami qarzi</div>
+        <div class="amt num">${som(d.jami)} <small>so'm</small></div><div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan</div></div>
+      <div class="addbox"><div class="t">➕ Shu mijozga qo'shish</div>
+        <div class="inrow"><input class="f" id="addtext" placeholder="«20 ta lesa, kuniga 2000» yoki «1-partiyadan 5 ta qaytardi»">
+          <button class="mic" id="micbtn" onclick="recToggle(${d.id})">🎤</button></div>
+        <button class="send" onclick="sendText(${d.id})">Qo'shish</button>
+        <div class="hint">🎤 tugmasini bosib gapiring, yoki yozib «Qo'shish».</div></div>
+      <div class="addbox"><div class="t">📍 Manzil</div>
+        <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
+        <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
+      ${ps}
+      <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>`;
+  };
+
+  window.sendText=async function(mid){
+    const el=document.getElementById('addtext'); const v=el.value.trim(); if(!v){toast('Nimadir yozing');return;}
+    toast('Qo\'shilyapti…');
+    try{const r=await fetch('/api/qoshish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,matn:v})});
+      const d=await r.json(); toast(d.xabar||'Bajarildi'); loadMijoz(mid);}catch(e){toast('Xato');}
+  };
+
+  window.recToggle=async function(mid){
+    const btn=document.getElementById('micbtn');
+    if(rec && rec.state==='recording'){rec.stop();return;}
     try{
-      const r=await fetch('/api/ochirish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz:ism})});
-      if(!r.ok) throw 0;
-      loadList();
-    }catch(e){ alert('O\'chirib bo\'lmadi.'); }
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      rec=new MediaRecorder(stream); recChunks=[]; recMid=mid;
+      rec.ondataavailable=e=>recChunks.push(e.data);
+      rec.onstop=async()=>{const blob=new Blob(recChunks,{type:rec.mimeType||'audio/webm'});
+        stream.getTracks().forEach(t=>t.stop()); btn.classList.remove('rec'); btn.textContent='🎤';
+        toast('Yuborilyapti…');
+        try{const r=await fetch('/api/qoshish_audio',{method:'POST',headers:{...H,'X-Mijoz-Id':String(recMid),'Content-Type':blob.type||'audio/webm'},body:blob});
+          const d=await r.json(); toast(d.xabar||'Bajarildi'); loadMijoz(recMid);}catch(e){toast('Ovoz yuborilmadi');}
+      };
+      rec.start(); btn.classList.add('rec'); btn.textContent='⏹'; toast('Yozilyapti… tugatish uchun ⏹ bosing');
+    }catch(e){toast('Mikrofon ishlamadi. Yozib qo\'shing.');}
+  };
+
+  window.saveAdres=async function(mid){
+    const v=document.getElementById('adrestext').value.trim();
+    try{const r=await fetch('/api/adres',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,adres:v})});
+      if(!r.ok)throw 0; toast('📍 Manzil saqlandi');}catch(e){toast('Xato');}
+  };
+
+  window.ochir=async function(id){
+    const ok = tg&&tg.showConfirm ? await new Promise(r=>tg.showConfirm('Yacheykani o\'chirasizmi? Qaytarilmaydi.',r)) : confirm('O\'chirasizmi?');
+    if(!ok)return;
+    try{const r=await fetch('/api/ochirish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:id})});
+      if(!r.ok)throw 0; toast('O\'chirildi'); loadList();}catch(e){toast('O\'chirib bo\'lmadi');}
   };
 
   loadList();
