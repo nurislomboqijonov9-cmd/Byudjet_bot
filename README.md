@@ -1,96 +1,23 @@
-# 💰 Byudjet Telegram Bot
+# 🏗 Ijara (arenda) hisobi — Telegram bot + Mini App
 
-Ovozli xabar yuborasiz — bot o'zi tushunib, daromad/xarajat/qarzni avtomatik yozib qo'yadi.
+Korxona lesa va temir mahsulotlarini kunlik ijaraga beradi. Ovoz yoki matn yuborasiz — bot o'zi tushunib yozadi. Mini App'da har mijozning yacheykasi ko'rinadi.
 
-**Masalan aytasiz:**
-- «Bugun bozorga 85 ming sarfladim» → 🔴 Chiqim, 85 000
-- «Umarga 90 ming qarz berdim» → 📤 Qarz, Umar menga qarzdor
-- «Maosh 4 million tushdi» → 🟢 Kirim, 4 000 000
+## Qanday ishlaydi
 
-Matn yozsangiz ham ishlaydi. Gemini audioni to'g'ridan-to'g'ri o'zbek tilida tushunadi — alohida ovoz-matn dasturi kerak emas.
+**📤 Chiqish (ijaraga berish):**
+- «Abbosga 100 ta lesa chiqdi, kuniga 2000 so'm» → Abbosga 1-partiya ochiladi
 
----
+**📥 Qaytarish:**
+- «Abbos 1-partiyadan 30 ta qaytardi» → 30 ta yechiladi, qolgani hisoblanaveradi
+- «Karim 2-partiyadan hammasini qaytardi»
 
-## Nima kerak
-
-- **Python 3.10+** kompyuteringizda o'rnatilgan bo'lishi kerak
-- **Telegram bot tokeni** (bepul)
-- **Gemini API kaliti** (bepul limit bor)
-
----
-
-## 1-qadam: Telegram bot yaratish
-
-1. Telegramda [@BotFather](https://t.me/BotFather) ga yozing
-2. `/newbot` buyrug'ini yuboring, botga nom bering
-3. U sizga **token** beradi (masalan `123456:ABC-DEF...`) — saqlab qo'ying
-
-## 2-qadam: Gemini kaliti olish
-
-1. [aistudio.google.com](https://aistudio.google.com) ga kiring (Google akkaunt)
-2. "Get API key" → "Create API key" bosing
-3. Berilgan kalitni saqlab qo'ying
-
-## 3-qadam: (ixtiyoriy) O'z Telegram ID ngizni bilish
-
-Botni faqat o'zingiz ishlatishingiz uchun. [@userinfobot](https://t.me/userinfobot) ga yozing — u sizning ID raqamingizni beradi.
-
----
-
-## O'rnatish va ishga tushirish
-
-Terminal (buyruqlar oynasi) da papka ichida:
-
-```bash
-# 1) Kutubxonalarni o'rnatish
-pip install -r requirements.txt
-
-# 2) Sozlamalar faylini tayyorlash
-cp .env.example .env
-```
-
-Endi `.env` faylini ochib, o'z ma'lumotlaringizni yozing:
-
-```
-TELEGRAM_TOKEN=BotFather bergan token
-GEMINI_API_KEY=aistudio bergan kalit
-ALLOWED_USER_IDS=sizning_id_ngiz     # ixtiyoriy
-```
-
-Ishga tushirish:
-
-```bash
-python bot.py
-```
-
-"Bot ishga tushdi" chiqsa, Telegramda botingizga `/start` yozing. Tayyor! 🎉
-
----
+**Hisob qoidasi:** chiqgan kun HAM, qaytgan kun HAM hisoblanmaydi — faqat o'rtadagi to'liq kunlar. Qisman qaytarsa, o'sha kundan qolgan songa hisob davom etadi.
 
 ## Buyruqlar
+- `/mijozlar` — barcha mijozlar va umumiy qarz
+- **📊 Hisob** (Mini App tugmasi) — har mijoz yacheykasi, partiyalar, o'chirish
 
-| Buyruq | Vazifasi |
-|--------|----------|
-| `/start` | Boshlash va yordam |
-| `/balans` | Umumiy hisob + shu oy kirim/chiqimi |
-| `/qarzlar` | Kim kimga qancha qarzdor |
-| `/royxat` | So'nggi 10 ta yozuv |
+## Ma'lumot
+Barcha xodimlar bitta umumiy ma'lumotni ko'radi (bitta korxona). Ma'lumot Railway Volume'da (`/data`) saqlanadi.
 
-Har bir yozuvdan keyin **↩️ Bekor qilish** tugmasi chiqadi — xato bo'lsa bosib o'chirasiz.
-
----
-
-## Doim yoqilgan turishi uchun
-
-Bot faqat kompyuter yoqiq va `python bot.py` ishlab turganda javob beradi. Doimiy ishlashi uchun:
-
-- **Eng oson:** arzon VPS ijaraga oling (oyiga ~$4–5), botni o'sha yerda `python bot.py` bilan ishga tushiring
-- Yoki kompyuteringizda kerak bo'lganda qo'lda yoqib qo'ying
-
-Xohlasangiz, keyingi bosqichda buni bepul/arzon serverga joylashda ham yordam beraman.
-
----
-
-## Ma'lumotlar qayerda
-
-Barcha yozuvlar shu papkadagi `byudjet.db` faylida (SQLite) saqlanadi. Boshqa hech kimga yuborilmaydi.
+Joylashtirish uchun **JOYLASHTIRISH.md** ga qarang.
