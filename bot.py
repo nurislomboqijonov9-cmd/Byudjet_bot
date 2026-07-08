@@ -89,6 +89,7 @@ def fmt(res):
 
 def _pending_dict(t):
     return {"amal": t.amal.value if hasattr(t.amal, "value") else t.amal,
+            "mijoz": t.mijoz, "telefon": getattr(t, "telefon", None),
             "mahsulot": t.mahsulot, "miqdor": t.miqdor, "kunlik_narx": t.kunlik_narx,
             "partiya": t.partiya, "hammasi": t.hammasi, "sana": t.sana,
             "summa": getattr(t, "summa", None), "kun": getattr(t, "kun", None)}
@@ -99,10 +100,18 @@ class _T:
         self.__dict__.update(d)
 
 
-def _disamb_kb(matches):
+def _disamb_kb(matches, allow_new=False, ism=None):
     rows = [[InlineKeyboardButton(f"{m['ism']} · {m['telefon'] or 'raqamsiz'}", callback_data=f"pick:{m['id']}")]
             for m in matches]
+    if allow_new and ism:
+        rows.append([InlineKeyboardButton(f"➕ Yangi mijoz: {ism}", callback_data="picknew")])
     return InlineKeyboardMarkup(rows)
+
+
+async def _finish(update: Update, mijoz_id, t):
+    res = logic.apply(mijoz_id, t)
+    text, kb = fmt(res)
+    await update.effective_message.reply_text(text, parse_mode="Markdown", reply_markup=kb)
 
 
 # ---------- Amalni yo'naltirish ----------
@@ -112,32 +121,18 @@ async def bajar(update: Update, ctx: ContextTypes.DEFAULT_TYPE, t):
         return
 
     amal = t.amal.value if hasattr(t.amal, "value") else t.amal
-    matches = db.mijozlar_by_name(t.mijoz)
     tel = db.clean_phone(getattr(t, "telefon", None))
-
-    # Telefon berilgan bo'lsa — shu bilan aniqlaymiz
+    matches = db.mijozlar_by_name(t.mijoz)
     if tel:
         byphone = [m for m in matches if m["telefon"] == tel]
         if byphone:
             matches = byphone
 
-    mijoz_id = None
-    if amal == "chiqish":
-        if tel and not any(m["telefon"] == tel for m in matches):
-            mijoz_id = db.add_mijoz(t.mijoz, tel)
-        elif len(matches) == 0:
-            mijoz_id = db.add_mijoz(t.mijoz, tel)
-        elif len(matches) == 1:
-            mijoz_id = matches[0]["id"]
-    else:  # qaytarish
-        if len(matches) == 0:
-            await update.message.reply_text(f"«{t.mijoz}» topilmadi.")
-            return
-        elif len(matches) == 1:
-            mijoz_id = matches[0]["id"]
-
-    if mijoz_id is None:
-        # Bir nechta bir xil ismli mijoz — so'raymiz
+    # 1) Aniq mos kelish
+    if len(matches) == 1:
+        await _finish(update, matches[0]["id"], t)
+        return
+    if len(matches) > 1:
         ctx.user_data["pending"] = _pending_dict(t)
         await update.message.reply_text(
             f"«{t.mijoz}» ismli bir nechta mijoz bor. Qaysi biri? 👇",
@@ -145,9 +140,26 @@ async def bajar(update: Update, ctx: ContextTypes.DEFAULT_TYPE, t):
         )
         return
 
-    res = logic.apply(mijoz_id, t)
-    text, kb = fmt(res)
-    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=kb)
+    # 2) Telefon bilan yangi mijoz (chiqish)
+    if tel and amal == "chiqish":
+        await _finish(update, db.add_mijoz(t.mijoz, tel), t)
+        return
+
+    # 3) Imloviy o'xshash mijoz bormi? (Fathulla ~ Fatxulla)
+    fuzzy = db.similar_mijozlar(t.mijoz)
+    if fuzzy:
+        ctx.user_data["pending"] = _pending_dict(t)
+        await update.message.reply_text(
+            f"«{t.mijoz}» topilmadi, lekin o'xshash mijoz bor. O'shami yoki yangimi? 👇",
+            reply_markup=_disamb_kb(fuzzy, allow_new=(amal == "chiqish"), ism=t.mijoz),
+        )
+        return
+
+    # 4) O'xshashi ham yo'q
+    if amal == "chiqish":
+        await _finish(update, db.add_mijoz(t.mijoz, tel), t)
+        return
+    await update.message.reply_text(f"«{t.mijoz}» topilmadi.")
 
 
 # ---------- Komandalar ----------
@@ -233,6 +245,15 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         res = logic.apply(mijoz_id, _T(pending))
         text, kb = fmt(res)
         await q.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
+    elif data == "picknew":
+        pending = ctx.user_data.pop("pending", None)
+        if not pending:
+            await q.edit_message_text("Amal eskirdi. Qaytadan yuboring.")
+            return
+        mijoz_id = db.add_mijoz(pending["mijoz"], pending.get("telefon"))
+        res = logic.apply(mijoz_id, _T(pending))
+        text, kb = fmt(res)
+        await q.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
     elif data.startswith("delp:"):
         db.delete_partiya(int(data.split(":")[1]))
         await q.edit_message_text("🗑 Partiya bekor qilindi.")
@@ -252,7 +273,7 @@ async def run():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("mijozlar", mijozlar_cmd))
     app.add_handler(CommandHandler("app", app_cmd))
-    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick|delp|delr|delt):"))
+    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 

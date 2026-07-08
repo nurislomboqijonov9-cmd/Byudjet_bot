@@ -127,6 +127,31 @@ def mijozlar_by_name(ism):
     return [dict(r) for r in rows]
 
 
+def all_customers():
+    con = _con()
+    rows = con.execute("SELECT id, ism, telefon FROM mijozlar ORDER BY id").fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def similar_mijozlar(ism, threshold=0.8):
+    """Imloviy o'xshash (masalan Fathulla ~ Fatxulla) mijozlarni topadi."""
+    from difflib import SequenceMatcher
+    a = (ism or "").strip().lower()
+    if not a:
+        return []
+    res = []
+    for m in all_customers():
+        b = (m["ism"] or "").strip().lower()
+        if a == b:
+            continue  # aniq mos kelganlar alohida ishlanadi
+        r = SequenceMatcher(None, a, b).ratio()
+        if r >= threshold:
+            res.append((r, m))
+    res.sort(key=lambda x: -x[0])
+    return [m for _, m in res]
+
+
 def delete_mijoz(mijoz_id):
     con = _con()
     ids = [r[0] for r in con.execute("SELECT id FROM partiyalar WHERE mijoz_id = ?", (mijoz_id,)).fetchall()]
