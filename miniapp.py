@@ -249,6 +249,34 @@ def make_web_app(bot_token, allowed=None):
         except Exception:
             return web.json_response({"ok": False}, status=400)
 
+    async def api_qoshimcha(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            mid = int(b.get("mijoz_id"))
+            tur = b.get("tur")
+            summa = float(b.get("summa"))
+            if tur not in ("yolkira", "remont") or summa <= 0:
+                return web.json_response({"ok": False, "xabar": "Noto'g'ri"})
+            db.add_qoshimcha(mid, tur, summa, db.today_tk().isoformat(), None)
+            d = db.mijoz_detail(mid)
+            return web.json_response({"ok": True, "qolgan_qarz": d["qolgan_qarz"]})
+        except Exception as e:
+            return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
+
+    async def api_qoshimcha_del(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            db.delete_qoshimcha(int(b.get("id")))
+            return web.json_response({"ok": True})
+        except Exception:
+            return web.json_response({"ok": False}, status=400)
+
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)
     app.router.add_get("/api/mijozlar", api_mijozlar)
@@ -264,4 +292,6 @@ def make_web_app(bot_token, allowed=None):
     app.router.add_post("/api/qaytarish", api_qaytarish)
     app.router.add_post("/api/qaytarish_del", api_qaytarish_del)
     app.router.add_post("/api/partiya_del", api_partiya_del)
+    app.router.add_post("/api/qoshimcha", api_qoshimcha)
+    app.router.add_post("/api/qoshimcha_del", api_qoshimcha_del)
     return app

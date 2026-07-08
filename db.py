@@ -51,6 +51,9 @@ def init_db():
     con.execute("""CREATE TABLE IF NOT EXISTS tolovlar (
         id INTEGER PRIMARY KEY AUTOINCREMENT, mijoz_id INTEGER NOT NULL,
         summa REAL NOT NULL, sana TEXT NOT NULL, izoh TEXT, yaratilgan TEXT NOT NULL)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS qoshimcha (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, mijoz_id INTEGER NOT NULL,
+        tur TEXT NOT NULL, summa REAL NOT NULL, sana TEXT NOT NULL, izoh TEXT, yaratilgan TEXT NOT NULL)""")
 
     # Eski versiyalardan ko'chirish: agar 'mijoz' (matn) ustuni bo'lsa —
     # mijoz_id ni to'ldirib, eski majburiy 'mijoz' ustunini butunlay olib tashlaymiz.
@@ -281,6 +284,30 @@ def jami_tolov(mijoz_id):
     return r[0] or 0.0
 
 
+def add_qoshimcha(mijoz_id, tur, summa, sana, izoh=None):
+    con = _con()
+    cur = con.execute("INSERT INTO qoshimcha (mijoz_id, tur, summa, sana, izoh, yaratilgan) VALUES (?, ?, ?, ?, ?, ?)",
+                      (mijoz_id, tur, summa, sana, izoh, now_tk().isoformat()))
+    con.commit()
+    qid = cur.lastrowid
+    con.close()
+    return qid
+
+
+def delete_qoshimcha(qid):
+    con = _con()
+    con.execute("DELETE FROM qoshimcha WHERE id = ?", (qid,))
+    con.commit()
+    con.close()
+
+
+def qoshimcha_of(mijoz_id):
+    con = _con()
+    rows = con.execute("SELECT * FROM qoshimcha WHERE mijoz_id = ? ORDER BY id DESC", (mijoz_id,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
 def daily_rate(mijoz_id, today=None):
     """Mijozning hozirgi bir kunlik ijara narxi (qolgan × kunlik_narx yig'indisi)."""
     total = 0.0
@@ -332,14 +359,20 @@ def mijoz_detail(mijoz_id, today=None):
     ps = [partiya_hisob(p, today) for p in partiyalar_of(mijoz_id)]
     hisoblangan = sum(x["narx"] for x in ps)
     tolangan = jami_tolov(mijoz_id)
+    qo = qoshimcha_of(mijoz_id)
+    yolkira = sum(x["summa"] for x in qo if x["tur"] == "yolkira")
+    remont = sum(x["summa"] for x in qo if x["tur"] == "remont")
     return {
         "id": mijoz_id, "mijoz": m["ism"], "telefon": m["telefon"], "adres": m.get("adres"),
         "partiyalar": ps,
         "jami": hisoblangan,
         "hisoblangan": hisoblangan,
+        "yolkira": yolkira,
+        "remont": remont,
         "tolangan": tolangan,
-        "qolgan_qarz": hisoblangan - tolangan,
+        "qolgan_qarz": hisoblangan + yolkira + remont - tolangan,
         "tolovlar": tolovlar_of(mijoz_id),
+        "qoshimcha": qo,
         "jami_qolgan": sum(x["qolgan"] for x in ps),
     }
 
