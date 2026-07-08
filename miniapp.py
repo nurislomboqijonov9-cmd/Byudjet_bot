@@ -185,6 +185,70 @@ def make_web_app(bot_token, allowed=None):
         except Exception:
             return web.json_response({"ok": False}, status=400)
 
+    async def api_partiya_edit(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            pid = int(b.get("partiya_id"))
+            p = db.get_partiya_by_id(pid)
+            if not p:
+                return web.json_response({"ok": False, "xabar": "Partiya topilmadi"})
+            miqdor = float(b.get("miqdor"))
+            qaytgan = sum(r["miqdor"] for r in db.returns_for(pid))
+            if miqdor < qaytgan:
+                return web.json_response({"ok": False, "xabar": f"Soni {int(qaytgan)} tadan kam bo'lmasin (shuncha qaytgan)"})
+            db.update_partiya(pid, (b.get("mahsulot") or p["mahsulot"]).strip(),
+                              miqdor, float(b.get("kunlik_narx")), b.get("sana") or p["chiqgan_sana"])
+            return web.json_response({"ok": True})
+        except Exception as e:
+            return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
+
+    async def api_qaytarish(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            pid = int(b.get("partiya_id"))
+            miqdor = float(b.get("miqdor"))
+            sana = (b.get("sana") or db.today_tk().isoformat())[:10]
+            p = db.get_partiya_by_id(pid)
+            if not p:
+                return web.json_response({"ok": False, "xabar": "Partiya topilmadi"})
+            qolgan = db.partiya_hisob(p)["qolgan"]
+            if miqdor <= 0:
+                return web.json_response({"ok": False, "xabar": "Soni noto'g'ri"})
+            if miqdor > qolgan:
+                miqdor = qolgan
+            db.add_return(pid, miqdor, sana)
+            return web.json_response({"ok": True})
+        except Exception as e:
+            return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
+
+    async def api_qaytarish_del(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            db.delete_return(int(b.get("return_id")))
+            return web.json_response({"ok": True})
+        except Exception:
+            return web.json_response({"ok": False}, status=400)
+
+    async def api_partiya_del(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            db.delete_partiya(int(b.get("partiya_id")))
+            return web.json_response({"ok": True})
+        except Exception:
+            return web.json_response({"ok": False}, status=400)
+
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)
     app.router.add_get("/api/mijozlar", api_mijozlar)
@@ -196,4 +260,8 @@ def make_web_app(bot_token, allowed=None):
     app.router.add_post("/api/adres", api_adres)
     app.router.add_post("/api/tolov", api_tolov)
     app.router.add_post("/api/tolov_del", api_tolov_del)
+    app.router.add_post("/api/partiya_edit", api_partiya_edit)
+    app.router.add_post("/api/qaytarish", api_qaytarish)
+    app.router.add_post("/api/qaytarish_del", api_qaytarish_del)
+    app.router.add_post("/api/partiya_del", api_partiya_del)
     return app

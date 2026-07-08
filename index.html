@@ -70,6 +70,9 @@
   .tlist:last-child{border-bottom:none;}
   .tlist .s{font-family:'Space Grotesk';font-weight:600;color:var(--pos);}
   .tlist .x{margin-left:auto;color:#B7C3BD;background:none;border:none;font-size:18px;cursor:pointer;}
+  .mini-btn{flex:1;padding:9px;border:1px solid var(--line);background:#fff;border-radius:10px;font-family:inherit;font-weight:600;font-size:13px;color:var(--brand);cursor:pointer;}
+  .rlist{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--faint);font-size:13px;color:var(--soft);}
+  .rlist .x{margin-left:auto;color:#B7C3BD;background:none;border:none;font-size:17px;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -134,13 +137,31 @@
   window.loadMijoz=async function(id){
     app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
     let d; try{const r=await fetch('/api/mijoz?id='+id,{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
+    const bugun=new Date().toLocaleDateString('en-CA');
     const ps=(d.partiyalar||[]).map(p=>{const done=p.qolgan<=0;
+      const rets=(p.qaytarishlar||[]).map(rr=>`<div class="rlist">↩️ ${son(rr.miqdor)} ta · ${rr.qaytgan_sana}<button class="x" onclick="delRet(${rr.id},${d.id})">×</button></div>`).join('');
       return `<div class="card"><div class="p-head"><div class="p-badge">${p.partiya_raqam}</div>
           <div><div class="p-title">${esc(p.mahsulot)}</div><div class="p-sana">📅 ${p.chiqgan_sana}${done?' · <span class="done">qaytgan ✓</span>':''}</div></div></div>
         <div class="p-grid"><div class="box"><div class="k">Qolgan</div><div class="v">${son(p.qolgan)}/${son(p.miqdor)}</div></div>
           <div class="box"><div class="k">Kunlik</div><div class="v">${som(p.kunlik_narx)}</div></div>
           <div class="box"><div class="k">Kun</div><div class="v">${p.kunlar}</div></div></div>
-        <div class="p-narx"><span class="k">Shu partiya</span><b class="num">${som(p.narx)} so'm</b></div></div>`;
+        <div class="p-narx"><span class="k">Shu partiya</span><b class="num">${som(p.narx)} so'm</b></div>
+        ${rets}
+        <div class="inrow" style="margin-top:10px">
+          <button class="mini-btn" onclick="tgl('edit${p.id}')">✏️ O'zgartirish</button>
+          ${p.qolgan>0?`<button class="mini-btn" onclick="tgl('ret${p.id}')">↩️ Qaytarish</button>`:''}</div>
+        <div id="edit${p.id}" style="display:none;margin-top:10px">
+          <input class="f" id="e_mah${p.id}" value="${esc(p.mahsulot)}" placeholder="Mahsulot" style="margin-bottom:8px">
+          <div class="inrow"><input class="f" id="e_miq${p.id}" value="${son(p.miqdor)}" inputmode="decimal" placeholder="Soni">
+            <input class="f" id="e_narx${p.id}" value="${son(p.kunlik_narx)}" inputmode="numeric" placeholder="Kunlik narx"></div>
+          <input class="f" id="e_sana${p.id}" type="date" value="${p.chiqgan_sana}" style="margin-top:8px">
+          <button class="send" onclick="savePartiya(${p.id},${d.id})">Saqlash</button>
+          <button class="del" style="margin-top:8px" onclick="delPartiya(${p.id},${d.id})">🗑 Bu partiyani o'chirish</button></div>
+        <div id="ret${p.id}" style="display:none;margin-top:10px">
+          <div class="inrow"><input class="f" id="r_miq${p.id}" inputmode="decimal" placeholder="Nechta qaytdi">
+            <input class="f" id="r_sana${p.id}" type="date" value="${bugun}"></div>
+          <button class="send" onclick="saveRet(${p.id},${d.id})">Qaytdi</button></div>
+      </div>`;
     }).join('')||'<div class="empty">Partiya yo\'q. Pastdan qo\'shing.</div>';
     const neg=d.qolgan_qarz<0;
     const tlist=(d.tolovlar||[]).map(tv=>`<div class="tlist"><span class="s">+${som(tv.summa)}</span>
@@ -171,6 +192,35 @@
         <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
       ${ps}
       <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>`;
+  };
+
+  window.tgl=function(id){const el=document.getElementById(id); if(el) el.style.display=el.style.display==='none'?'block':'none';};
+
+  window.savePartiya=async function(pid,mid){
+    const mah=(document.getElementById('e_mah'+pid).value||'').trim();
+    const miq=parseFloat((document.getElementById('e_miq'+pid).value||'').replace(/\s/g,''));
+    const narx=parseFloat((document.getElementById('e_narx'+pid).value||'').replace(/\s/g,''));
+    const sana=document.getElementById('e_sana'+pid).value;
+    if(!mah||!miq||!narx||!sana){toast('Hammasini to\'ldiring');return;}
+    try{const r=await fetch('/api/partiya_edit',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({partiya_id:pid,mahsulot:mah,miqdor:miq,kunlik_narx:narx,sana})});
+      const d=await r.json(); if(d.ok){toast('✏️ O\'zgartirildi');loadMijoz(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
+  };
+  window.saveRet=async function(pid,mid){
+    const miq=parseFloat((document.getElementById('r_miq'+pid).value||'').replace(/\s/g,''));
+    const sana=document.getElementById('r_sana'+pid).value;
+    if(!miq||miq<=0){toast('Nechta qaytdi?');return;}
+    try{const r=await fetch('/api/qaytarish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({partiya_id:pid,miqdor:miq,sana})});
+      const d=await r.json(); if(d.ok){toast('↩️ Qaytdi');loadMijoz(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
+  };
+  window.delRet=async function(rid,mid){
+    try{const r=await fetch('/api/qaytarish_del',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({return_id:rid})});
+      if(!r.ok)throw 0; toast('O\'chirildi'); loadMijoz(mid);}catch(e){toast('Xato');}
+  };
+  window.delPartiya=async function(pid,mid){
+    const ok = tg&&tg.showConfirm ? await new Promise(r=>tg.showConfirm('Bu partiyani butunlay o\'chirasizmi? Hisobdan ham chiqadi.',r)) : confirm('O\'chirasizmi?');
+    if(!ok)return;
+    try{const r=await fetch('/api/partiya_del',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({partiya_id:pid})});
+      if(!r.ok)throw 0; toast('🗑 Partiya o\'chirildi'); loadMijoz(mid);}catch(e){toast('Xato');}
   };
 
   window.saveTolov=async function(mid){

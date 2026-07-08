@@ -23,7 +23,7 @@ log = logging.getLogger("arenda")
 
 _allowed = os.getenv("ALLOWED_USER_IDS", "").replace(" ", "")
 ALLOWED = {int(x) for x in _allowed.split(",") if x} if _allowed else None
-APP_VERSION = "7"
+APP_VERSION = "9"
 
 
 def som(n):

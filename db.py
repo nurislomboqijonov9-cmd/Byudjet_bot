@@ -192,6 +192,23 @@ def get_partiya(mijoz_id, raqam):
     return dict(r) if r else None
 
 
+def get_partiya_by_id(partiya_id):
+    con = _con()
+    r = con.execute("SELECT * FROM partiyalar WHERE id = ?", (partiya_id,)).fetchone()
+    con.close()
+    return dict(r) if r else None
+
+
+def update_partiya(partiya_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana):
+    con = _con()
+    con.execute(
+        "UPDATE partiyalar SET mahsulot=?, miqdor=?, kunlik_narx=?, chiqgan_sana=? WHERE id=?",
+        (mahsulot, miqdor, kunlik_narx, str(chiqgan_sana)[:10], partiya_id),
+    )
+    con.commit()
+    con.close()
+
+
 def partiyalar_of(mijoz_id):
     con = _con()
     rows = con.execute("SELECT * FROM partiyalar WHERE mijoz_id = ? ORDER BY partiya_raqam", (mijoz_id,)).fetchall()
@@ -289,7 +306,8 @@ def partiya_hisob(p, today=None):
     daily = p["kunlik_narx"]
     narx = 0.0
     qaytgan = 0.0
-    for r in returns_for(p["id"]):
+    rets = returns_for(p["id"])
+    for r in rets:
         narx += r["miqdor"] * daily * _billable_days(issue, _pdate(r["qaytgan_sana"]))
         qaytgan += r["miqdor"]
     qolgan = p["miqdor"] - qaytgan
@@ -301,6 +319,8 @@ def partiya_hisob(p, today=None):
         "id": p["id"], "partiya_raqam": p["partiya_raqam"], "mahsulot": p["mahsulot"],
         "miqdor": p["miqdor"], "qolgan": qolgan, "kunlik_narx": daily,
         "chiqgan_sana": str(p["chiqgan_sana"])[:10], "kunlar": kunlar, "narx": narx,
+        "qaytgan": qaytgan,
+        "qaytarishlar": [{"id": r["id"], "miqdor": r["miqdor"], "qaytgan_sana": str(r["qaytgan_sana"])[:10]} for r in rets],
     }
 
 
