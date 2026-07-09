@@ -20,6 +20,7 @@ class Amal(str, Enum):
     chiqish = "chiqish"
     qaytarish = "qaytarish"
     tolov = "tolov"
+    malumot = "malumot"
 
 
 class IjaraAmal(BaseModel):
@@ -52,6 +53,9 @@ AMALLAR:
   Masalan: "Abbos 1 million predoplata berdi" -> amal=tolov, mijoz=Abbos, summa=1000000
   "Karim 10 kunlik berdi" -> amal=tolov, mijoz=Karim, kun=10
   "Abbos 500 ming to'ladi" -> amal=tolov, mijoz=Abbos, summa=500000
+- "malumot": foydalanuvchi HECH QANDAY amal aytmasdan shunchaki mijoz ismini yozsa, yoki uning
+  ma'lumoti/qarzini so'rasa. Masalan: "Do'smatov Davron", "Davron", "Karim qancha qarzi bor",
+  "Abbos malumoti" -> amal=malumot, mijoz=ism. (Agar chiqish/qaytarish/tolov aniq aytilsa — malumot EMAS.)
 
 QOIDALAR:
 - Sonlarni raqam qil: "100 ta"=100, "2 ming"=2000, "yarim million"=500000.

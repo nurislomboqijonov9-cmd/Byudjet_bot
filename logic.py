@@ -93,4 +93,8 @@ def apply(mijoz_id, t):
             "tolangan": d["tolangan"], "qolgan_qarz": d["qolgan_qarz"],
         }
 
+    # ----- MA'LUMOT (mijoz haqida) -----
+    if amal == "malumot":
+        return {"ok": True, "amal": "malumot", "mijoz_id": mijoz_id, "detail": db.mijoz_detail(mijoz_id)}
+
     return {"ok": False, "xato": "Tushunolmadim"}

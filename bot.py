@@ -35,6 +35,33 @@ def son(n):
     return str(int(n)) if n == int(n) else str(n)
 
 
+def _malumot_text(d):
+    lines = [f"👤 *{d['mijoz']}*"]
+    if d.get("telefon"):
+        lines.append(f"📞 {d['telefon']}")
+    if d.get("adres"):
+        lines.append(f"📍 {d['adres']}")
+    ps = d.get("partiyalar") or []
+    if ps:
+        lines.append("\n📦 *Olgan mahsulotlar:*")
+        for p in ps:
+            holat = f"qolgan {son(p['qolgan'])}" if p["qolgan"] > 0 else "to'liq qaytgan ✓"
+            lines.append(f"{p['partiya_raqam']}) {son(p['miqdor'])} ta {p['mahsulot']} · {holat} · kuniga {som(p['kunlik_narx'])}")
+    lines.append(f"\n🧮 Hisoblangan: {som(d['hisoblangan'])} so'm")
+    if d.get("yolkira"):
+        lines.append(f"🚚 Yo'lkira: {som(d['yolkira'])} so'm")
+    if d.get("remont"):
+        lines.append(f"🔧 Remont: {som(d['remont'])} so'm")
+    if d.get("tolangan"):
+        lines.append(f"💵 To'langan: {som(d['tolangan'])} so'm")
+    qq = d["qolgan_qarz"]
+    if qq >= 0:
+        lines.append(f"💰 *Qolgan qarz: {som(qq)} so'm*")
+    else:
+        lines.append(f"💰 *{som(-qq)} so'm — mijozning haqi bor*")
+    return "\n".join(lines)
+
+
 def ruxsat(uid):
     return ALLOWED is None or uid in ALLOWED
 
@@ -61,6 +88,8 @@ def webapp_url():
 def fmt(res):
     if not res.get("ok"):
         return res.get("xato", "Xatolik"), None
+    if res["amal"] == "malumot":
+        return _malumot_text(res["detail"]), None
     if res["amal"] == "chiqish":
         text = (f"✅ *{res['mijoz']}* — {res['raqam']}-partiya ochildi\n\n"
                 f"📦 {son(res['miqdor'])} ta {res['mahsulot']}\n"
