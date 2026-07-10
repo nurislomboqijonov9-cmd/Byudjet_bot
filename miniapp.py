@@ -168,7 +168,8 @@ def make_web_app(bot_token, allowed=None):
             summa = float(body.get("summa"))
             if summa <= 0:
                 return web.json_response({"ok": False, "xabar": "Summa noto'g'ri"})
-            db.add_tolov(mid, summa, db.today_tk().isoformat(), None)
+            sana = (body.get("sana") or db.today_tk().isoformat())[:10]
+            db.add_tolov(mid, summa, sana, None)
             d = db.mijoz_detail(mid)
             return web.json_response({"ok": True, "qolgan_qarz": d["qolgan_qarz"]})
         except Exception as e:
@@ -277,6 +278,23 @@ def make_web_app(bot_token, allowed=None):
         except Exception:
             return web.json_response({"ok": False}, status=400)
 
+    async def api_status(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            mid = int(b.get("mijoz_id"))
+            st = b.get("status")
+            if st not in ("faol", "nofaol", "sotuv"):
+                return web.json_response({"ok": False, "xabar": "Noto'g'ri status"})
+            db.set_status(mid, st)
+            return web.json_response({"ok": True})
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return web.json_response({"ok": False, "xabar": f"Server xato: {type(e).__name__}: {str(e)[:150]}"})
+
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)
     app.router.add_get("/api/mijozlar", api_mijozlar)
@@ -294,4 +312,5 @@ def make_web_app(bot_token, allowed=None):
     app.router.add_post("/api/partiya_del", api_partiya_del)
     app.router.add_post("/api/qoshimcha", api_qoshimcha)
     app.router.add_post("/api/qoshimcha_del", api_qoshimcha_del)
+    app.router.add_post("/api/status", api_status)
     return app

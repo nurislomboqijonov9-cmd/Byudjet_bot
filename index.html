@@ -263,7 +263,10 @@
   };
   window.setStatus=async function(mid,st){
     try{const r=await fetch('/api/status',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,status:st})});
-      if(!r.ok)throw 0; loadMijoz(mid);}catch(e){toast('Xato');}
+      let d=null; try{d=await r.json();}catch(_){}
+      if(!r.ok || !d || !d.ok){ toast((d&&d.xabar)||('Xato '+r.status)); return; }
+      loadMijoz(mid);
+    }catch(e){ toast('Tarmoq xatosi'); }
   };
 
   window.saveTolov=async function(mid){
