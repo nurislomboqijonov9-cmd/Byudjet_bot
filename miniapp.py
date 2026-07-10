@@ -295,6 +295,32 @@ def make_web_app(bot_token, allowed=None):
             traceback.print_exc()
             return web.json_response({"ok": False, "xabar": f"Server xato: {type(e).__name__}: {str(e)[:150]}"})
 
+    async def api_eslatma(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            mid = int(b.get("mijoz_id"))
+            vada = (b.get("vada_sana") or "")[:10]
+            if not vada:
+                return web.json_response({"ok": False, "xabar": "Sana kerak"})
+            db.add_eslatma(mid, vada, (b.get("izoh") or "").strip() or None)
+            return web.json_response({"ok": True})
+        except Exception as e:
+            return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
+
+    async def api_eslatma_del(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            db.delete_eslatma(int(b.get("id")))
+            return web.json_response({"ok": True})
+        except Exception:
+            return web.json_response({"ok": False}, status=400)
+
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)
     app.router.add_get("/api/mijozlar", api_mijozlar)
@@ -313,4 +339,6 @@ def make_web_app(bot_token, allowed=None):
     app.router.add_post("/api/qoshimcha", api_qoshimcha)
     app.router.add_post("/api/qoshimcha_del", api_qoshimcha_del)
     app.router.add_post("/api/status", api_status)
+    app.router.add_post("/api/eslatma", api_eslatma)
+    app.router.add_post("/api/eslatma_del", api_eslatma_del)
     return app

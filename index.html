@@ -176,6 +176,9 @@
     const qlist=(d.qoshimcha||[]).map(q=>`<div class="tlist"><span class="num" style="font-weight:600;color:var(--neg)">${q.tur==='yolkira'?'🚚':'🔧'} ${som(q.summa)}</span>
         <span style="color:var(--soft)">${dmy(q.sana)}</span>
         <button class="x" onclick="delQosh(${q.id},${d.id})">×</button></div>`).join('');
+    const elist=(d.eslatmalar||[]).map(e=>`<div class="tlist"><span style="color:${e.yuborildi?'var(--soft)':'var(--brand2)'};font-weight:600;white-space:nowrap">📅 ${dmy(e.vada_sana)}</span>
+        <span style="color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.izoh?esc(e.izoh):''}</span>
+        <button class="x" onclick="delEsl(${e.id},${d.id})">×</button></div>`).join('');
     const sm=STAT[d.status];
     const statHtml=`<div class="card statrow">
         ${sm?`<span class="stbadge" style="color:${sm.c};background:${sm.bg}">● ${sm.t}</span>`:'<span style="color:var(--soft);font-size:13.5px">Status belgilanmagan</span>'}
@@ -215,6 +218,12 @@
           <button class="mini-btn" onclick="saveQosh('remont',${d.id})">🔧 Remont</button></div>
         <div class="hint">Summani yozib, turini tanlang. Qarzga qo'shiladi.</div>
         ${qlist?'<div style="margin-top:10px">'+qlist+'</div>':''}</div>
+      <div class="addbox"><div class="t">📞 To'lov va'dasi</div>
+        <input class="f" id="eizoh" placeholder="«15-iyulda beraman dedi»" style="margin-bottom:8px">
+        <div class="inrow"><input class="f" id="evada" type="date" value="${bugun}">
+          <button class="mini-btn" onclick="saveEsl(${d.id})">➕ Qo'shish</button></div>
+        <div class="hint">Va'da kuni ertalab 11:00 da bot to'liq ma'lumot bilan eslatadi.</div>
+        ${elist?'<div style="margin-top:10px">'+elist+'</div>':''}</div>
       <div class="addbox"><div class="t">📍 Manzil</div>
         <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
         <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
@@ -267,6 +276,17 @@
       if(!r.ok || !d || !d.ok){ toast((d&&d.xabar)||('Xato '+r.status)); return; }
       loadMijoz(mid);
     }catch(e){ toast('Tarmoq xatosi'); }
+  };
+  window.saveEsl=async function(mid){
+    const izoh=(document.getElementById('eizoh').value||'').trim();
+    const vada=document.getElementById('evada').value;
+    if(!vada){toast('Sanani tanlang');return;}
+    try{const r=await fetch('/api/eslatma',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,vada_sana:vada,izoh})});
+      const d=await r.json(); if(d.ok){toast('📞 Eslatma qo\'shildi');loadMijoz(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
+  };
+  window.delEsl=async function(id,mid){
+    try{const r=await fetch('/api/eslatma_del',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({id})});
+      if(!r.ok)throw 0; toast('O\'chirildi'); loadMijoz(mid);}catch(e){toast('Xato');}
   };
 
   window.saveTolov=async function(mid){

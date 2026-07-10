@@ -21,6 +21,7 @@ class Amal(str, Enum):
     qaytarish = "qaytarish"
     tolov = "tolov"
     malumot = "malumot"
+    eslatma = "eslatma"
 
 
 class IjaraAmal(BaseModel):
@@ -35,6 +36,7 @@ class IjaraAmal(BaseModel):
     partiya: int | None = Field(default=None, description="Qaytarishda qaysi partiya raqami (masalan '1-partiya' -> 1). Aytilmasa null.")
     summa: float | None = Field(default=None, description="To'lov/predoplata puli so'mda (masalan '1 million' -> 1000000). Faqat to'lovda.")
     kun: int | None = Field(default=None, description="To'lov kun bilan aytilsa nechta kun (masalan '10 kunlik' -> 10). Faqat to'lovda.")
+    izoh: str | None = Field(default=None, description="Eslatma uchun mijoz aytgan gap (masalan '15-iyulda beraman dedi'). Faqat eslatmada.")
     sana: str | None = Field(default=None, description="Sana ISO (YYYY-MM-DD). Aytilmasa null (bugun bo'ladi).")
     transkript: str = Field(description="Aynan nima deyilgani")
 
@@ -56,13 +58,18 @@ AMALLAR:
 - "malumot": foydalanuvchi HECH QANDAY amal aytmasdan shunchaki mijoz ismini yozsa, yoki uning
   ma'lumoti/qarzini so'rasa. Masalan: "Do'smatov Davron", "Davron", "Karim qancha qarzi bor",
   "Abbos malumoti" -> amal=malumot, mijoz=ism. (Agar chiqish/qaytarish/tolov aniq aytilsa — malumot EMAS.)
+- "eslatma": mijoz to'lovni qachondir va'da qilsa. Masalan: "Siroj aka 15-iyulda beraman dedi",
+  "Abbos 20 kuni to'layman dedi" -> amal=eslatma, mijoz=ism, sana=va'da qilingan sana (ISO),
+  izoh=mijoz aytgan gap. O'sha kuni ertalab bot eslatadi.
 
 QOIDALAR:
 - Sonlarni raqam qil: "100 ta"=100, "2 ming"=2000, "yarim million"=500000.
-- kunlik_narx — bitta dona uchun BIR KUNLIK narx (so'mda).
+- kunlik_narx — bitta dona uchun BIR KUNLIK narx (so'mda). Tekin/bepul bo'lsa kunlik_narx=0.
 - "hammasini/hammasi/butunlay/to'liq qaytardi" bo'lsa hammasi=true, miqdor=null.
 - partiya raqamini int qil ("1-partiya"/"birinchi partiya"=1). Aytilmasa null.
-- sana aytilsa ISO (YYYY-MM-DD) qil (yuqoridagi hozirgi vaqtga tayan). Aytilmasa null.
+- SANA: agar sana aytilsa ISO (YYYY-MM-DD) qil. DIQQAT: "11.04.26" yoki "11.04.2026" ko'rinishidagi
+  sana KUN.OY.YIL demakdir (11.04.26 -> 2026-04-11, 5.12.25 -> 2025-12-05). "5-aprel", "kecha",
+  "ertaga", "3 kun oldin" kabilarni yuqoridagi hozirgi sanaga tayanib hisobla. Sana aytilmasa null.
 - mijoz ismini bosh harf bilan yoz.
 - Agar telefon raqam aytilsa (masalan "raqami 90 123 45 67", "telefoni ...") — telefon maydoniga yoz.
 """

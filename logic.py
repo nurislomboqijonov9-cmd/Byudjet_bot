@@ -93,6 +93,16 @@ def apply(mijoz_id, t):
             "tolangan": d["tolangan"], "qolgan_qarz": d["qolgan_qarz"],
         }
 
+    # ----- ESLATMA (to'lov va'dasi) -----
+    if amal == "eslatma":
+        vada = getattr(t, "sana", None)
+        if not vada:
+            return {"ok": False, "xato": "Qaysi kunga va'da qildi? Sanani ayting."}
+        izoh = getattr(t, "izoh", None) or "to'lov va'da qildi"
+        eid = db.add_eslatma(mijoz_id, vada, izoh)
+        return {"ok": True, "amal": "eslatma", "mijoz": m["ism"], "mijoz_id": mijoz_id,
+                "eslatma_id": eid, "vada_sana": str(vada)[:10], "izoh": izoh}
+
     # ----- MA'LUMOT (mijoz haqida) -----
     if amal == "malumot":
         return {"ok": True, "amal": "malumot", "mijoz_id": mijoz_id, "detail": db.mijoz_detail(mijoz_id)}

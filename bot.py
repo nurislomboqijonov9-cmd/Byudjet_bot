@@ -90,6 +90,11 @@ def fmt(res):
         return res.get("xato", "Xatolik"), None
     if res["amal"] == "malumot":
         return _malumot_text(res["detail"]), None
+    if res["amal"] == "eslatma":
+        text = (f"✅ Eslatma qo'shildi\n\n👤 *{res['mijoz']}*\n📝 «{res['izoh']}»\n"
+                f"📅 Va'da: {res['vada_sana']}\n⏰ O'sha kuni 11:00 da eslataman.")
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("↩️ Bekor qilish", callback_data=f"dele:{res['eslatma_id']}")]])
+        return text, kb
     if res["amal"] == "chiqish":
         text = (f"✅ *{res['mijoz']}* — {res['raqam']}-partiya ochildi\n\n"
                 f"📦 {son(res['miqdor'])} ta {res['mahsulot']}\n"
@@ -121,7 +126,8 @@ def _pending_dict(t):
             "mijoz": t.mijoz, "telefon": getattr(t, "telefon", None),
             "mahsulot": t.mahsulot, "miqdor": t.miqdor, "kunlik_narx": t.kunlik_narx,
             "partiya": t.partiya, "hammasi": t.hammasi, "sana": t.sana,
-            "summa": getattr(t, "summa", None), "kun": getattr(t, "kun", None)}
+            "summa": getattr(t, "summa", None), "kun": getattr(t, "kun", None),
+            "izoh": getattr(t, "izoh", None)}
 
 
 class _T:
@@ -292,9 +298,39 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("delt:"):
         db.delete_tolov(int(data.split(":")[1]))
         await q.edit_message_text("🗑 To'lov bekor qilindi.")
+    elif data.startswith("dele:"):
+        db.delete_eslatma(int(data.split(":")[1]))
+        await q.edit_message_text("🗑 Eslatma bekor qilindi.")
 
 
 # ---------- Ishga tushirish ----------
+async def _send_eslatma(app, r):
+    d = db.mijoz_detail(r["mijoz_id"])
+    if not d:
+        return
+    vada = str(r["vada_sana"])[:10]
+    header = (f"⏰ *BUGUN TO'LOV VA'DASI!*\n\n"
+              f"📝 «{r.get('izoh') or ''}»\n"
+              f"📅 Va'da sanasi: {vada}\n\n")
+    text = header + _malumot_text(d)
+    for uid in (ALLOWED or []):
+        try:
+            await app.bot.send_message(chat_id=uid, text=text, parse_mode="Markdown")
+        except Exception:
+            log.exception("eslatma yuborishda xatolik")
+
+
+async def reminder_loop(app):
+    while True:
+        try:
+            for r in db.due_eslatmalar():
+                await _send_eslatma(app, r)
+                db.mark_eslatma_sent(r["id"])
+        except Exception:
+            log.exception("eslatma tekshiruvi xatolik")
+        await asyncio.sleep(60)
+
+
 async def run():
     token = os.environ["TELEGRAM_TOKEN"]
     db.init_db()
@@ -302,7 +338,7 @@ async def run():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("mijozlar", mijozlar_cmd))
     app.add_handler(CommandHandler("app", app_cmd))
-    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:)"))
+    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
@@ -324,6 +360,7 @@ async def run():
             log.exception("menyu tugmasi xatolik")
 
     await app.updater.start_polling()
+    asyncio.create_task(reminder_loop(app))
     log.info("Ijara boti + Mini App ishga tushdi (port %s).", port)
     await asyncio.Event().wait()
 

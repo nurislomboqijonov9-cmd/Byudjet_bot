@@ -54,6 +54,9 @@ def init_db():
     con.execute("""CREATE TABLE IF NOT EXISTS qoshimcha (
         id INTEGER PRIMARY KEY AUTOINCREMENT, mijoz_id INTEGER NOT NULL,
         tur TEXT NOT NULL, summa REAL NOT NULL, sana TEXT NOT NULL, izoh TEXT, yaratilgan TEXT NOT NULL)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS eslatmalar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, mijoz_id INTEGER NOT NULL,
+        vada_sana TEXT NOT NULL, izoh TEXT, yuborildi INTEGER DEFAULT 0, yaratilgan TEXT NOT NULL)""")
 
     # Eski versiyalardan ko'chirish: agar 'mijoz' (matn) ustuni bo'lsa —
     # mijoz_id ni to'ldirib, eski majburiy 'mijoz' ustunini butunlay olib tashlaymiz.
@@ -319,6 +322,53 @@ def qoshimcha_of(mijoz_id):
     return [dict(r) for r in rows]
 
 
+# ---------- Eslatmalar (to'lov va'dasi) ----------
+def add_eslatma(mijoz_id, vada_sana, izoh=None):
+    con = _con()
+    cur = con.execute("INSERT INTO eslatmalar (mijoz_id, vada_sana, izoh, yuborildi, yaratilgan) VALUES (?, ?, ?, 0, ?)",
+                      (mijoz_id, str(vada_sana)[:10], izoh, now_tk().isoformat()))
+    con.commit()
+    eid = cur.lastrowid
+    con.close()
+    return eid
+
+
+def delete_eslatma(eid):
+    con = _con()
+    con.execute("DELETE FROM eslatmalar WHERE id = ?", (eid,))
+    con.commit()
+    con.close()
+
+
+def eslatmalar_of(mijoz_id):
+    con = _con()
+    rows = con.execute("SELECT * FROM eslatmalar WHERE mijoz_id = ? ORDER BY vada_sana", (mijoz_id,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def due_eslatmalar():
+    """Va'da kuni kelgan (11:00 dan keyin) va hali yuborilmagan eslatmalar."""
+    con = _con()
+    rows = con.execute("SELECT * FROM eslatmalar WHERE COALESCE(yuborildi,0) = 0").fetchall()
+    con.close()
+    now = now_tk()
+    today = now.date().isoformat()
+    out = []
+    for r in rows:
+        vs = str(r["vada_sana"])[:10]
+        if vs < today or (vs == today and now.hour >= 11):
+            out.append(dict(r))
+    return out
+
+
+def mark_eslatma_sent(eid):
+    con = _con()
+    con.execute("UPDATE eslatmalar SET yuborildi = 1 WHERE id = ?", (eid,))
+    con.commit()
+    con.close()
+
+
 def daily_rate(mijoz_id, today=None):
     """Mijozning hozirgi bir kunlik ijara narxi (qolgan × kunlik_narx yig'indisi)."""
     total = 0.0
@@ -385,6 +435,7 @@ def mijoz_detail(mijoz_id, today=None):
         "qolgan_qarz": hisoblangan + yolkira + remont - tolangan,
         "tolovlar": tolovlar_of(mijoz_id),
         "qoshimcha": qo,
+        "eslatmalar": eslatmalar_of(mijoz_id),
         "jami_qolgan": sum(x["qolgan"] for x in ps),
     }
 
