@@ -86,6 +86,8 @@ def init_db():
     mcols = [r[1] for r in con.execute("PRAGMA table_info(mijozlar)").fetchall()]
     if "adres" not in mcols:
         con.execute("ALTER TABLE mijozlar ADD COLUMN adres TEXT")
+    if "status" not in mcols:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN status TEXT")
     con.commit()
     con.close()
 
@@ -118,6 +120,15 @@ def get_mijoz(mijoz_id):
 def set_adres(mijoz_id, adres):
     con = _con()
     con.execute("UPDATE mijozlar SET adres = ? WHERE id = ?", ((adres or "").strip() or None, mijoz_id))
+    con.commit()
+    con.close()
+
+
+def set_status(mijoz_id, status):
+    if status not in ("faol", "nofaol", "sotuv", None):
+        return
+    con = _con()
+    con.execute("UPDATE mijozlar SET status = ? WHERE id = ?", (status, mijoz_id))
     con.commit()
     con.close()
 
@@ -364,6 +375,7 @@ def mijoz_detail(mijoz_id, today=None):
     remont = sum(x["summa"] for x in qo if x["tur"] == "remont")
     return {
         "id": mijoz_id, "mijoz": m["ism"], "telefon": m["telefon"], "adres": m.get("adres"),
+        "status": m.get("status"),
         "partiyalar": ps,
         "jami": hisoblangan,
         "hisoblangan": hisoblangan,
@@ -386,7 +398,7 @@ def mijozlar(today=None):
     for mid in ids:
         d = mijoz_detail(mid, today)
         res.append({
-            "id": mid, "mijoz": d["mijoz"], "telefon": d["telefon"],
+            "id": mid, "mijoz": d["mijoz"], "telefon": d["telefon"], "status": d["status"],
             "jami": d["jami"], "tolangan": d["tolangan"], "qolgan_qarz": d["qolgan_qarz"],
             "jami_qolgan": d["jami_qolgan"],
             "partiya_soni": len(d["partiyalar"]),

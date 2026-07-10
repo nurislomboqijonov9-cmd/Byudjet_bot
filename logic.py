@@ -22,8 +22,8 @@ def apply(mijoz_id, t):
 
     # ----- CHIQISH -----
     if amal == "chiqish":
-        if not (t.mahsulot and t.miqdor and t.kunlik_narx):
-            return {"ok": False, "xato": "Chiqish uchun mahsulot, soni va kunlik narx kerak"}
+        if not t.mahsulot or not t.miqdor or t.miqdor <= 0 or t.kunlik_narx is None or t.kunlik_narx < 0:
+            return {"ok": False, "xato": "Chiqish uchun mahsulot, soni va kunlik narx kerak (tekin bo'lsa 0)"}
         pid, raqam = db.add_partiya(mijoz_id, t.mahsulot, t.miqdor, t.kunlik_narx, _sana(t))
         return {
             "ok": True, "amal": "chiqish", "mijoz": m["ism"], "mijoz_id": mijoz_id,
