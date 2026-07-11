@@ -1,5 +1,6 @@
 """Ijara hisobi — Telegram bot."""
 import os
+import re
 import asyncio
 import logging
 from dotenv import load_dotenv
@@ -149,8 +150,30 @@ async def _finish(update: Update, mijoz_id, t):
     await update.effective_message.reply_text(text, parse_mode="Markdown", reply_markup=kb)
 
 
+def _arrow_dir(s):
+    s = s or ""
+    if "⬆" in s or "🔼" in s or "☝" in s:
+        return "chiqish"
+    if "⬇" in s or "🔽" in s or "👇" in s:
+        return "qaytarish"
+    return None
+
+
+def _only_arrows(s):
+    return _arrow_dir(s) is not None and re.sub(r"[⬆⬇🔼🔽☝👇\uFE0F\s]", "", s or "") == ""
+
+
 # ---------- Amalni yo'naltirish ----------
 async def bajar(update: Update, ctx: ContextTypes.DEFAULT_TYPE, t):
+    # ⬆️/⬇️ stiker orqali yo'nalish tanlangan bo'lsa — o'shani qo'llaymiz
+    yon = ctx.user_data.pop("yonalish", None)
+    if yon:
+        try:
+            t.amal = ai.Amal(yon)
+            t.tushunildi = True
+        except Exception:
+            pass
+
     if not t.tushunildi or not t.amal or not t.mijoz:
         await update.message.reply_text(f"Tushunolmadim 🤔 Qaytaring.\nEshitganim: «{t.transkript}»")
         return
@@ -259,12 +282,37 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await guard(update):
         return
+    txt = update.message.text or ""
+    if _only_arrows(txt):
+        return await _set_yonalish(update, ctx, _arrow_dir(txt))
     try:
-        t = ai.from_text(update.message.text)
+        t = ai.from_text(txt)
         await bajar(update, ctx, t)
     except Exception:
         log.exception("text xatolik")
         await update.message.reply_text("Xatolik yuz berdi. Qaytadan urinib ko'ring.")
+
+
+async def _set_yonalish(update: Update, ctx: ContextTypes.DEFAULT_TYPE, yon):
+    if yon == "chiqish":
+        ctx.user_data["yonalish"] = "chiqish"
+        await update.message.reply_text(
+            "📤 *Chiqish* rejimi. Endi mijoz va tafsilotlarni yozing/ayting.\n"
+            "Masalan: «Abbos 50 ta lesa, kuniga 2000»", parse_mode="Markdown")
+    elif yon == "qaytarish":
+        ctx.user_data["yonalish"] = "qaytarish"
+        await update.message.reply_text(
+            "📥 *Qaytarish* rejimi. Endi mijoz va sonini yozing/ayting.\n"
+            "Masalan: «Abbos 1-partiyadan 30 ta»", parse_mode="Markdown")
+    else:
+        await update.message.reply_text("⬆️ (chiqish) yoki ⬇️ (qaytarish) stikerini yuboring.")
+
+
+async def handle_sticker(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await guard(update):
+        return
+    emoji = update.message.sticker.emoji if update.message.sticker else ""
+    await _set_yonalish(update, ctx, _arrow_dir(emoji))
 
 
 async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -340,6 +388,7 @@ async def run():
     app.add_handler(CommandHandler("app", app_cmd))
     app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
+    app.add_handler(MessageHandler(filters.Sticker.ALL, handle_sticker))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     port = int(os.getenv("PORT", "8080"))

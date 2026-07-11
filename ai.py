@@ -63,6 +63,8 @@ AMALLAR:
   izoh=mijoz aytgan gap. O'sha kuni ertalab bot eslatadi.
 
 QOIDALAR:
+- Agar xabarda ⬆️ (yuqoriga strelka) bo'lsa — bu CHIQISH belgisi (amal=chiqish).
+  ⬇️ (pastga strelka) bo'lsa — QAYTARISH belgisi (amal=qaytarish).
 - Sonlarni raqam qil: "100 ta"=100, "2 ming"=2000, "yarim million"=500000.
 - kunlik_narx — bitta dona uchun BIR KUNLIK narx (so'mda). Tekin/bepul bo'lsa kunlik_narx=0.
 - "hammasini/hammasi/butunlay/to'liq qaytardi" bo'lsa hammasi=true, miqdor=null.

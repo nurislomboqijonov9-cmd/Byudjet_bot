@@ -198,7 +198,6 @@
       <div class="hero"><div class="arc"></div><div class="lbl">${neg?'Mijozning haqi':'Qolgan qarzi'}</div>
         <div class="amt num">${som(Math.abs(d.qolgan_qarz))} <small>so'm</small></div>
         <div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan</div></div>
-      ${eslCard}
       ${statHtml}
       <div class="card">
         <div class="brk"><span class="k">Hisoblangan</span><b class="num">${som(d.hisoblangan)} so'm</b></div>
@@ -207,6 +206,7 @@
         <div class="brk"><span class="k">To'langan</span><b class="num" style="color:var(--pos)">${som(d.tolangan)} so'm</b></div>
         <div class="brk"><span class="k">${neg?'Ortiqcha (haqi)':'Qolgan qarz'}</span><b class="num" style="color:${neg?'var(--pos)':'var(--ink)'}">${som(Math.abs(d.qolgan_qarz))} so'm</b></div>
       </div>
+      ${eslCard}
       <div class="addbox"><div class="t">➕ Shu mijozga qo'shish</div>
         <div class="inrow"><input class="f" id="addtext" placeholder="«20 ta lesa, kuniga 2000» / «1-partiyadan 5 ta qaytardi» / «10 kunlik berdi»">
           <button class="mic" id="micbtn" onclick="recToggle(${d.id})">🎤</button></div>
