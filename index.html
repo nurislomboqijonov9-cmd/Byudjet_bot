@@ -146,7 +146,7 @@
     const bugun=new Date().toLocaleDateString('en-CA');
     const ps=(d.partiyalar||[]).map(p=>{const done=p.qolgan<=0;
       const rets=(p.qaytarishlar||[]).map(rr=>`<div class="rlist">↩️ ${son(rr.miqdor)} ta · ${dmy(rr.qaytgan_sana)}<button class="x" onclick="delRet(${rr.id},${d.id})">×</button></div>`).join('');
-      return `<div class="card"><div class="p-head"><div class="p-badge">${p.partiya_raqam}</div>
+      return `<div class="card pcard" data-nom="${esc((p.mahsulot||'').toLowerCase())}"><div class="p-head"><div class="p-badge">${p.partiya_raqam}</div>
           <div><div class="p-title">${esc(p.mahsulot)}</div><div class="p-sana">📅 ${dmy(p.chiqgan_sana)}${done?' · <span class="done">qaytgan ✓</span>':''}</div></div></div>
         <div class="p-grid"><div class="box"><div class="k">Qolgan</div><div class="v">${son(p.qolgan)}/${son(p.miqdor)}</div></div>
           <div class="box"><div class="k">Kunlik</div><div class="v">${som(p.kunlik_narx)}</div></div>
@@ -228,11 +228,17 @@
       <div class="addbox"><div class="t">📍 Manzil</div>
         <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
         <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
-      ${ps}
+      ${(d.partiyalar||[]).length>1?'<div class="search"><input id="psearch" placeholder="🔍 Partiya qidirish (lesa, lulka...)" oninput="filterPartiya(this.value)"></div>':''}
+      <div id="plist">${ps}</div>
       <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>`;
   };
 
   window.tgl=function(id){const el=document.getElementById(id); if(el) el.style.display=el.style.display==='none'?'block':'none';};
+  window.filterPartiya=function(q){
+    q=(q||'').toLowerCase().trim();
+    document.querySelectorAll('#plist .pcard').forEach(el=>{
+      el.style.display=(!q||(el.getAttribute('data-nom')||'').includes(q))?'':'none';});
+  };
 
   window.savePartiya=async function(pid,mid){
     const mah=(document.getElementById('e_mah'+pid).value||'').trim();
