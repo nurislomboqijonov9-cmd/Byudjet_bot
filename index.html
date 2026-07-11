@@ -199,6 +199,7 @@
         <div class="amt num">${som(Math.abs(d.qolgan_qarz))} <small>so'm</small></div>
         <div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan</div></div>
       ${statHtml}
+      ${(d.partiyalar||[]).length>1?'<div class="search"><input id="psearch" placeholder="🔍 Partiya qidirish (lesa, lulka...)" oninput="filterPartiya(this.value)"></div>':''}
       <div class="card">
         <div class="brk"><span class="k">Hisoblangan</span><b class="num">${som(d.hisoblangan)} so'm</b></div>
         <div class="brk"><span class="k">🚚 Yo'lkira</span><b class="num">${som(d.yolkira||0)} so'm</b></div>
@@ -228,7 +229,6 @@
       <div class="addbox"><div class="t">📍 Manzil</div>
         <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
         <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
-      ${(d.partiyalar||[]).length>1?'<div class="search"><input id="psearch" placeholder="🔍 Partiya qidirish (lesa, lulka...)" oninput="filterPartiya(this.value)"></div>':''}
       <div id="plist">${ps}</div>
       <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>`;
   };
