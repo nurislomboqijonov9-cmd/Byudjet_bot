@@ -179,6 +179,12 @@
     const elist=(d.eslatmalar||[]).map(e=>`<div class="tlist"><span style="color:${e.yuborildi?'var(--soft)':'var(--brand2)'};font-weight:600;white-space:nowrap">📅 ${dmy(e.vada_sana)}</span>
         <span style="color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.izoh?esc(e.izoh):''}</span>
         <button class="x" onclick="delEsl(${e.id},${d.id})">×</button></div>`).join('');
+    const eslCard=`<div class="addbox"><div class="t">📞 To'lov va'dasi</div>
+        <input class="f" id="eizoh" placeholder="«15-iyulda beraman dedi»" style="margin-bottom:8px">
+        <div class="inrow"><input class="f" id="evada" type="date" value="${bugun}">
+          <button class="mini-btn" onclick="saveEsl(${d.id})">➕ Qo'shish</button></div>
+        <div class="hint">Va'da kuni ertalab 11:00 da bot to'liq ma'lumot bilan eslatadi.</div>
+        ${elist?'<div style="margin-top:10px">'+elist+'</div>':''}</div>`;
     const sm=STAT[d.status];
     const statHtml=`<div class="card statrow">
         ${sm?`<span class="stbadge" style="color:${sm.c};background:${sm.bg}">● ${sm.t}</span>`:'<span style="color:var(--soft);font-size:13.5px">Status belgilanmagan</span>'}
@@ -192,6 +198,7 @@
       <div class="hero"><div class="arc"></div><div class="lbl">${neg?'Mijozning haqi':'Qolgan qarzi'}</div>
         <div class="amt num">${som(Math.abs(d.qolgan_qarz))} <small>so'm</small></div>
         <div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan</div></div>
+      ${eslCard}
       ${statHtml}
       <div class="card">
         <div class="brk"><span class="k">Hisoblangan</span><b class="num">${som(d.hisoblangan)} so'm</b></div>
@@ -218,12 +225,6 @@
           <button class="mini-btn" onclick="saveQosh('remont',${d.id})">🔧 Remont</button></div>
         <div class="hint">Summani yozib, turini tanlang. Qarzga qo'shiladi.</div>
         ${qlist?'<div style="margin-top:10px">'+qlist+'</div>':''}</div>
-      <div class="addbox"><div class="t">📞 To'lov va'dasi</div>
-        <input class="f" id="eizoh" placeholder="«15-iyulda beraman dedi»" style="margin-bottom:8px">
-        <div class="inrow"><input class="f" id="evada" type="date" value="${bugun}">
-          <button class="mini-btn" onclick="saveEsl(${d.id})">➕ Qo'shish</button></div>
-        <div class="hint">Va'da kuni ertalab 11:00 da bot to'liq ma'lumot bilan eslatadi.</div>
-        ${elist?'<div style="margin-top:10px">'+elist+'</div>':''}</div>
       <div class="addbox"><div class="t">📍 Manzil</div>
         <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
         <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
