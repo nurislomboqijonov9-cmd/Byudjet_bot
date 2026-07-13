@@ -103,14 +103,43 @@ def clean_phone(s):
     return d or None
 
 
+def clean_phones(s):
+    """Bir nechta raqamni vergul bilan ajratib saqlaydi (bittasi ichida bo'sh joy bo'lishi mumkin)."""
+    if not s:
+        return None
+    import re
+    out = []
+    for p in re.split(r"[,;\n/]+", str(s)):
+        d = "".join(c for c in p if c.isdigit())
+        if d:
+            out.append(d)
+    return ", ".join(out) or None
+
+
+def phone_list(s):
+    """Mijozning raqamlari ro'yxati (faqat raqamlar)."""
+    if not s:
+        return []
+    import re
+    return [d for p in re.split(r"[,;\n/]+", str(s)) if (d := "".join(c for c in p if c.isdigit()))]
+
+
 def add_mijoz(ism, telefon=None):
     con = _con()
     cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan) VALUES (?, ?, ?)",
-                      (ism.strip(), clean_phone(telefon), now_tk().isoformat()))
+                      (ism.strip(), clean_phones(telefon), now_tk().isoformat()))
     con.commit()
     mid = cur.lastrowid
     con.close()
     return mid
+
+
+def update_mijoz(mijoz_id, ism, telefon):
+    con = _con()
+    con.execute("UPDATE mijozlar SET ism = ?, telefon = ? WHERE id = ?",
+                (ism.strip(), clean_phones(telefon), mijoz_id))
+    con.commit()
+    con.close()
 
 
 def get_mijoz(mijoz_id):

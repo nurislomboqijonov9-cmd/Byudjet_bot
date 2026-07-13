@@ -100,6 +100,21 @@ def make_web_app(bot_token, allowed=None):
         mid = db.add_mijoz(ism, body.get("telefon"))
         return web.json_response({"ok": True, "id": mid})
 
+    async def api_mijoz_edit(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            body = await request.json()
+            mid = int(body.get("mijoz_id"))
+            ism = (body.get("ism") or "").strip()
+            if not ism:
+                return web.json_response({"ok": False, "xabar": "Ism kerak"})
+            db.update_mijoz(mid, ism, body.get("telefon"))
+            return web.json_response({"ok": True})
+        except Exception as e:
+            return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
+
     async def api_qoshish(request):
         uid, err = check(request)
         if err:
@@ -326,6 +341,7 @@ def make_web_app(bot_token, allowed=None):
     app.router.add_get("/api/mijozlar", api_mijozlar)
     app.router.add_get("/api/mijoz", api_mijoz)
     app.router.add_post("/api/mijoz_qosh", api_mijoz_qosh)
+    app.router.add_post("/api/mijoz_edit", api_mijoz_edit)
     app.router.add_post("/api/qoshish", api_qoshish)
     app.router.add_post("/api/qoshish_audio", api_qoshish_audio)
     app.router.add_post("/api/ochirish", api_ochirish)

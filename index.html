@@ -95,6 +95,7 @@
   const ini=s=>(s||'?').trim().charAt(0).toUpperCase();
   const dmy=s=>{if(!s)return'';const p=(''+s).slice(0,10).split('-');return p.length===3?p[2]+'.'+p[1]+'.'+p[0].slice(2):s;};
   const STAT={faol:{t:'Faol',c:'#2E7D5B',bg:'rgba(46,125,91,.13)'},nofaol:{t:'Nofaol',c:'#C0674F',bg:'rgba(192,103,79,.13)'},sotuv:{t:'Sotuv',c:'#2D6CB2',bg:'rgba(45,108,178,.13)'}};
+  const phones=s=>(s||'').split(',').map(x=>x.trim()).filter(Boolean).join(' · ');
   function toast(m){const t=document.getElementById('toast');t.innerHTML='<div class="toast">'+esc(m)+'</div>';setTimeout(()=>t.innerHTML='',3500);}
   function errScreen(){app.innerHTML='<div class="center"><div>Ma\'lumot yuklanmadi.<br><br>Botdagi <b>«📊 Hisob»</b> tugmasi orqali oching.</div></div>';}
 
@@ -118,7 +119,7 @@
     let cards=list.map(m=>`<div class="card"><div class="mijoz" onclick="loadMijoz(${m.id})">
         <div class="av">${ini(m.mijoz)}</div>
         <div><div class="nm">${m.status&&STAT[m.status]?`<span class="stdot" style="background:${STAT[m.status].c}"></span>`:''}${esc(m.mijoz)}</div>
-          <div class="mt">${m.telefon?('📞 '+esc(m.telefon)+' · '):''}${son(m.jami_qolgan)} dona qolgan</div></div>
+          <div class="mt">${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan</div></div>
         <div class="val"><b>${som(m.qolgan_qarz)}</b><span>so'm</span></div><div class="chev">›</div></div></div>`).join('');
     if(!list.length) cards='<div class="empty">'+(q?'Topilmadi':'Hozircha mijoz yo\'q. «➕ Yangi» bosing.')+'</div>';
     document.getElementById('cards').innerHTML=cards;
@@ -129,7 +130,7 @@
     if(f.innerHTML){f.innerHTML='';return;}
     f.innerHTML=`<div class="addbox form"><div class="t">➕ Yangi mijoz</div>
       <input class="f" id="n_ism" placeholder="Ism (masalan Abbos)">
-      <input class="f" id="n_tel" placeholder="Telefon (ixtiyoriy)" inputmode="tel">
+      <input class="f" id="n_tel" placeholder="Telefon (bir nechta bo'lsa vergul bilan)" inputmode="tel">
       <button class="send" onclick="saveNew()">Saqlash</button></div>`;
   };
   window.saveNew=async function(){
@@ -193,8 +194,13 @@
         <button class="mini-btn" style="color:#2E7D5B;border-color:#2E7D5B" onclick="setStatus(${d.id},'faol')">🟢 Faol</button>
         <button class="mini-btn" style="color:#C0674F;border-color:#C0674F" onclick="setStatus(${d.id},'nofaol')">🔴 Nofaol</button>
         <button class="mini-btn" style="color:#2D6CB2;border-color:#2D6CB2" onclick="setStatus(${d.id},'sotuv')">🔵 Sotuv</button></div></div>`;
-    app.innerHTML=`<header><div><button class="back" onclick="loadList()">‹ Orqaga</button>
-        <div class="eyebrow">Mijoz${d.telefon?' · 📞 '+esc(d.telefon):''}</div><h1>${esc(d.mijoz)}</h1></div></header>
+    app.innerHTML=`<header><div style="flex:1"><button class="back" onclick="loadList()">‹ Orqaga</button>
+        <div class="eyebrow">Mijoz${d.telefon?' · 📞 '+esc(phones(d.telefon)):''}</div><h1>${esc(d.mijoz)}</h1></div>
+        <button class="edit-status" onclick="tgl('medit')">✏️ Tahrir</button></header>
+      <div id="medit" class="addbox" style="display:none">
+        <input class="f" id="m_ism" value="${esc(d.mijoz)}" placeholder="Ism" style="margin-bottom:8px">
+        <input class="f" id="m_tel" value="${esc(d.telefon||'')}" placeholder="Telefon (bir nechta bo'lsa vergul bilan)">
+        <button class="send" onclick="saveMijoz(${d.id})">Saqlash</button></div>
       <div class="hero"><div class="arc"></div><div class="lbl">${neg?'Mijozning haqi':'Qolgan qarzi'}</div>
         <div class="amt num">${som(Math.abs(d.qolgan_qarz))} <small>so'm</small></div>
         <div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan</div></div>
@@ -283,6 +289,13 @@
       if(!r.ok || !d || !d.ok){ toast((d&&d.xabar)||('Xato '+r.status)); return; }
       loadMijoz(mid);
     }catch(e){ toast('Tarmoq xatosi'); }
+  };
+  window.saveMijoz=async function(mid){
+    const ism=(document.getElementById('m_ism').value||'').trim();
+    const tel=(document.getElementById('m_tel').value||'').trim();
+    if(!ism){toast('Ism kiriting');return;}
+    try{const r=await fetch('/api/mijoz_edit',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,ism,telefon:tel})});
+      const d=await r.json(); if(d.ok){toast('✏️ Saqlandi');loadMijoz(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
   };
   window.saveEsl=async function(mid){
     const izoh=(document.getElementById('eizoh').value||'').trim();

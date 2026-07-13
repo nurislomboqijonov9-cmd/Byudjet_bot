@@ -182,7 +182,7 @@ async def bajar(update: Update, ctx: ContextTypes.DEFAULT_TYPE, t):
     tel = db.clean_phone(getattr(t, "telefon", None))
     matches = db.mijozlar_by_name(t.mijoz)
     if tel:
-        byphone = [m for m in matches if m["telefon"] == tel]
+        byphone = [m for m in matches if tel in db.phone_list(m["telefon"])]
         if byphone:
             matches = byphone
 
