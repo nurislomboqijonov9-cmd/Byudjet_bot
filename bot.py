@@ -6,7 +6,7 @@ import logging
 from dotenv import load_dotenv
 from aiohttp import web as aioweb
 from telegram import (
-    Update, InlineKeyboardButton, InlineKeyboardMarkup, MenuButtonWebApp, WebAppInfo,
+    Update, InlineKeyboardButton, InlineKeyboardMarkup, MenuButtonWebApp, WebAppInfo, InputFile,
 )
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
@@ -16,6 +16,7 @@ from telegram.ext import (
 import db
 import ai
 import logic
+import excel
 from miniapp import make_web_app
 
 load_dotenv()
@@ -24,7 +25,7 @@ log = logging.getLogger("arenda")
 
 _allowed = os.getenv("ALLOWED_USER_IDS", "").replace(" ", "")
 ALLOWED = {int(x) for x in _allowed.split(",") if x} if _allowed else None
-APP_VERSION = "10"
+APP_VERSION = "22"
 
 
 def som(n):
@@ -111,6 +112,16 @@ def fmt(res):
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("↩️ Bekor qilish", callback_data=f"delt:{res['tolov_id']}")]])
         return text, kb
     # qaytarish
+    if res.get("aggregate"):
+        qq = res["qolgan_qarz"]
+        holat = f"💰 Qolgan qarz: {som(qq)} so'm" if qq >= 0 else f"💰 {som(-qq)} so'm — haqi bor"
+        kam = "\n(shuncha ochiq edi, shuncha yozildi)" if res.get("kam") else ""
+        satrlar = "\n".join(f"  {x['partiya_raqam']}-partiya: {son(x['qty'])} ta" for x in res["taqsim"])
+        text = (f"✅ *{res['mijoz']}* — {son(res['qty'])} ta {res['mahsulot']} qaytdi{kam}\n"
+                f"{satrlar}\n{holat}")
+        ids = ",".join(str(i) for i in res["return_ids"])
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("↩️ Bekor qilish", callback_data=f"delr:{ids}")]]) if len(ids) <= 55 else None
+        return text, kb
     ortdi = "\n(qolgani shuncha edi, shuncha yozildi)" if res.get("ortdi") else ""
     qq = res["qolgan_qarz"]
     holat = f"💰 Qolgan qarz: {som(qq)} so'm" if qq >= 0 else f"💰 {som(-qq)} so'm — haqi bor"
@@ -128,7 +139,8 @@ def _pending_dict(t):
             "mahsulot": t.mahsulot, "miqdor": t.miqdor, "kunlik_narx": t.kunlik_narx,
             "partiya": t.partiya, "hammasi": t.hammasi, "sana": t.sana,
             "summa": getattr(t, "summa", None), "kun": getattr(t, "kun", None),
-            "izoh": getattr(t, "izoh", None)}
+            "izoh": getattr(t, "izoh", None),
+            "tushunildi": True, "transkript": getattr(t, "transkript", "") or ""}
 
 
 class _T:
@@ -148,6 +160,13 @@ async def _finish(update: Update, mijoz_id, t):
     res = logic.apply(mijoz_id, t)
     text, kb = fmt(res)
     await update.effective_message.reply_text(text, parse_mode="Markdown", reply_markup=kb)
+    if res.get("ok") and res.get("amal") == "malumot":
+        try:
+            bio = excel.mijoz_excel(res["detail"])
+            nom = "".join(c for c in res["detail"]["mijoz"] if c.isalnum() or c in " _-").strip() or "mijoz"
+            await update.effective_message.reply_document(document=InputFile(bio, filename=f"{nom}.xlsx"))
+        except Exception:
+            log.exception("excel yuborishda xatolik")
 
 
 def _arrow_dir(s):
@@ -175,7 +194,7 @@ async def bajar(update: Update, ctx: ContextTypes.DEFAULT_TYPE, t):
             pass
 
     if not t.tushunildi or not t.amal or not t.mijoz:
-        await update.message.reply_text(f"Tushunolmadim 🤔 Qaytaring.\nEshitganim: «{t.transkript}»")
+        await update.effective_message.reply_text(f"Tushunolmadim 🤔 Qaytaring.\nEshitganim: «{t.transkript}»")
         return
 
     amal = t.amal.value if hasattr(t.amal, "value") else t.amal
@@ -192,7 +211,7 @@ async def bajar(update: Update, ctx: ContextTypes.DEFAULT_TYPE, t):
         return
     if len(matches) > 1:
         ctx.user_data["pending"] = _pending_dict(t)
-        await update.message.reply_text(
+        await update.effective_message.reply_text(
             f"«{t.mijoz}» ismli bir nechta mijoz bor. Qaysi biri? 👇",
             reply_markup=_disamb_kb(matches),
         )
@@ -207,7 +226,7 @@ async def bajar(update: Update, ctx: ContextTypes.DEFAULT_TYPE, t):
     fuzzy = db.similar_mijozlar(t.mijoz)
     if fuzzy:
         ctx.user_data["pending"] = _pending_dict(t)
-        await update.message.reply_text(
+        await update.effective_message.reply_text(
             f"«{t.mijoz}» topilmadi, lekin o'xshash mijoz bor. O'shami yoki yangimi? 👇",
             reply_markup=_disamb_kb(fuzzy, allow_new=(amal == "chiqish"), ism=t.mijoz),
         )
@@ -217,7 +236,7 @@ async def bajar(update: Update, ctx: ContextTypes.DEFAULT_TYPE, t):
     if amal == "chiqish":
         await _finish(update, db.add_mijoz(t.mijoz, tel), t)
         return
-    await update.message.reply_text(f"«{t.mijoz}» topilmadi.")
+    await update.effective_message.reply_text(f"«{t.mijoz}» topilmadi.")
 
 
 # ---------- Komandalar ----------
@@ -232,7 +251,7 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "📤 «Abbosga 100 ta lesa chiqdi, kuniga 2000 so'm»\n"
         "📥 «Abbos 1-partiyadan 30 ta qaytardi»\n\n"
         "Bir xil ismli mijoz bo'lsa — «qaysi biri?» deb so'rayman.\n\n"
-        "/mijozlar — barcha qarzlar\n/app — hisobni ochish",
+        "/mijozlar — barcha qarzlar\n/kunlik — bugungi hisobot\n/xarajat — AI sarfi\n/app — hisobni ochish",
         parse_mode="Markdown", reply_markup=kb,
     )
 
@@ -263,7 +282,82 @@ async def app_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Ijara hisobini ochish 👇", reply_markup=kb)
 
 
+async def kunlik_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await guard(update):
+        return
+    k = db.kunlik()
+    sana = k["sana"].split("-")
+    sana = f"{sana[2]}.{sana[1]}.{sana[0][2:]}" if len(sana) == 3 else k["sana"]
+    lines = [f"📅 *Bugungi hisobot* ({sana})\n"]
+    if k["chiqish"]:
+        lines.append("📤 *Chiqqan:*")
+        for c in k["chiqish"]:
+            lines.append(f"• {c['mijoz']}: {son(c['miqdor'])} ta {c['mahsulot']} · kuniga {som(c['kunlik_narx'])} so'm")
+    if k["qaytish"]:
+        lines.append("\n📥 *Qaytgan:*")
+        for c in k["qaytish"]:
+            lines.append(f"• {c['mijoz']}: {son(c['miqdor'])} ta {c['mahsulot']}")
+    if not k["chiqish"] and not k["qaytish"]:
+        lines.append("Bugun harakat bo'lmadi.")
+    else:
+        tc = sum(c["miqdor"] for c in k["chiqish"])
+        tq = sum(c["miqdor"] for c in k["qaytish"])
+        lines.append(f"\n📊 Jami: chiqqan {son(tc)} dona · qaytgan {son(tq)} dona")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
+async def xarajat_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await guard(update):
+        return
+    s = db.oylik_sarf()
+    in_price = float(os.getenv("GEMINI_IN_USD", "0.30"))
+    out_price = float(os.getenv("GEMINI_OUT_USD", "2.50"))
+    kurs = float(os.getenv("USD_UZS", "12650"))
+    usd = s["in_tok"] / 1_000_000 * in_price + s["out_tok"] / 1_000_000 * out_price
+    somm = usd * kurs
+    model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+    lines = [
+        f"📊 *Gemini (AI) sarfi* — {s['oy']}\n",
+        f"So'rovlar: {s['req']} ta",
+        f"Kirish tokenlar: {som(s['in_tok'])}",
+        f"Chiqish tokenlar: {som(s['out_tok'])}",
+        f"\n💵 Taxminiy narx: *${usd:.2f}* (~{som(somm)} so'm)",
+        f"Model: {model}",
+        "\nℹ️ Google AI Studio *bepul* rejimida bo'lsangiz — narx 0 (limit bor). "
+        "Aniq to'lov: AI Studio / Cloud Billing dashboardida.\n"
+        "🖥 Server (Railway) haqi alohida — Railway dashboardida.",
+    ]
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
 # ---------- Xabarlar ----------
+def _amal_str(a):
+    x = getattr(a, "amal", None)
+    return x.value if hasattr(x, "value") else x
+
+
+def _tasdiq_matni(actions):
+    lines = ["🎙 *Tushundim — tasdiqlaysizmi?*\n"]
+    for a in actions:
+        am = _amal_str(a)
+        mij = a.mijoz or "?"
+        if am == "chiqish":
+            lines.append(f"📤 {mij}: {son(a.miqdor or 0)} ta {a.mahsulot or '?'} · kuniga {som(a.kunlik_narx or 0)} so'm")
+        elif am == "qaytarish":
+            lines.append(f"📥 {mij}: {son(a.miqdor or 0)} ta {a.mahsulot or ''} qaytdi")
+        elif am == "tolov":
+            lines.append(f"💵 {mij}: to'lov {som(a.summa or 0)} so'm")
+        else:
+            lines.append(f"• {mij}: {am}")
+    return "\n".join(lines)
+
+
+_TASDIQ_KB = InlineKeyboardMarkup([[
+    InlineKeyboardButton("✅ Tasdiqlash", callback_data="tasdiq:ok"),
+    InlineKeyboardButton("❌ Bekor", callback_data="tasdiq:no"),
+]])
+
+
 async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await guard(update):
         return
@@ -271,12 +365,23 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         f = await ctx.bot.get_file(update.message.voice.file_id)
         audio = bytes(await f.download_as_bytearray())
-        t = ai.from_audio(audio, mime_type="audio/ogg")
+        actions = ai.from_audio(audio, mime_type="audio/ogg")
         await msg.delete()
-        await bajar(update, ctx, t)
     except Exception:
         log.exception("voice xatolik")
         await msg.edit_text("Xatolik yuz berdi. Qaytadan urinib ko'ring.")
+        return
+    actions = [a for a in actions if a.tushunildi and a.amal]
+    if not actions:
+        await update.message.reply_text("Tushunolmadim 🤔 Qaytaring.")
+        return
+    # Mol chiqishi bo'lsa — avval tasdiqlatamiz
+    if any(_amal_str(a) == "chiqish" for a in actions):
+        ctx.user_data["tasdiq"] = [_pending_dict(a) for a in actions]
+        await update.message.reply_text(_tasdiq_matni(actions), parse_mode="Markdown", reply_markup=_TASDIQ_KB)
+    else:
+        for a in actions:
+            await bajar(update, ctx, a)
 
 
 async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -286,11 +391,17 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if _only_arrows(txt):
         return await _set_yonalish(update, ctx, _arrow_dir(txt))
     try:
-        t = ai.from_text(txt)
-        await bajar(update, ctx, t)
+        actions = ai.from_text(txt)
     except Exception:
         log.exception("text xatolik")
         await update.message.reply_text("Xatolik yuz berdi. Qaytadan urinib ko'ring.")
+        return
+    actions = [a for a in actions if a.tushunildi and a.amal] or actions[:1]
+    if not actions:
+        await update.message.reply_text("Tushunolmadim 🤔 Qaytaring.")
+        return
+    for a in actions:
+        await bajar(update, ctx, a)
 
 
 async def _set_yonalish(update: Update, ctx: ContextTypes.DEFAULT_TYPE, yon):
@@ -341,7 +452,9 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         db.delete_partiya(int(data.split(":")[1]))
         await q.edit_message_text("🗑 Partiya bekor qilindi.")
     elif data.startswith("delr:"):
-        db.delete_return(int(data.split(":")[1]))
+        for x in data.split(":", 1)[1].split(","):
+            if x.strip().isdigit():
+                db.delete_return(int(x))
         await q.edit_message_text("🗑 Qaytarish bekor qilindi.")
     elif data.startswith("delt:"):
         db.delete_tolov(int(data.split(":")[1]))
@@ -349,6 +462,17 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("dele:"):
         db.delete_eslatma(int(data.split(":")[1]))
         await q.edit_message_text("🗑 Eslatma bekor qilindi.")
+    elif data == "tasdiq:ok":
+        pending = ctx.user_data.pop("tasdiq", None)
+        if not pending:
+            await q.edit_message_text("Amal eskirdi. Qaytadan yuboring.")
+            return
+        await q.edit_message_text("✅ Tasdiqlandi.")
+        for pd in pending:
+            await bajar(update, ctx, _T(pd))
+    elif data == "tasdiq:no":
+        ctx.user_data.pop("tasdiq", None)
+        await q.edit_message_text("❌ Bekor qilindi.")
 
 
 # ---------- Ishga tushirish ----------
@@ -386,7 +510,9 @@ async def run():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("mijozlar", mijozlar_cmd))
     app.add_handler(CommandHandler("app", app_cmd))
-    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:)"))
+    app.add_handler(CommandHandler("kunlik", kunlik_cmd))
+    app.add_handler(CommandHandler("xarajat", xarajat_cmd))
+    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.Sticker.ALL, handle_sticker))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))

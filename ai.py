@@ -29,7 +29,7 @@ class IjaraAmal(BaseModel):
     amal: Amal | None = Field(default=None, description="'chiqish' (ijaraga berildi) yoki 'qaytarish'")
     mijoz: str | None = Field(default=None, description="Mijoz ismi (bosh harf bilan)")
     telefon: str | None = Field(default=None, description="Mijoz telefon raqami, aytilsa (masalan 'raqami 998901234567'). Aytilmasa null.")
-    mahsulot: str | None = Field(default=None, description="Mahsulot nomi (masalan: lesa, temir ustun). Faqat chiqishda.")
+    mahsulot: str | None = Field(default=None, description="Mahsulot nomi (masalan: lesa, temir ustun). Chiqishda majburiy; qaytarishda umumiy qaytarilsa ham yoziladi.")
     miqdor: float | None = Field(default=None, description="Dona soni. Qaytarishda 'hammasi' bo'lsa null.")
     hammasi: bool = Field(default=False, description="Qaytarishda hamma qolgan mahsulot qaytarilsa True")
     kunlik_narx: float | None = Field(default=None, description="Bitta dona uchun BIR KUNLIK ijara narxi (so'mda). Faqat chiqishda.")
@@ -51,6 +51,8 @@ AMALLAR:
 - "qaytarish": mijoz mahsulotni qaytardi.
   Masalan: "Abbos 1-partiyadan 30 ta qaytardi" -> amal=qaytarish, mijoz=Abbos, partiya=1, miqdor=30
   "Karim 2-partiyadan hammasini qaytardi" -> amal=qaytarish, mijoz=Karim, partiya=2, hammasi=true
+  "Nig'matulladan 500 ta lesa qaytdi" -> amal=qaytarish, mijoz=Nig'matulla, mahsulot=lesa, miqdor=500 (partiya=null;
+    bot o'zi shu mahsulotning partiyalaridan eng eskisidan boshlab ayiradi)
 - "tolov": mijoz oldindan yoki keyin pul to'ladi (predoplata / to'lov / qarzini yopdi).
   Masalan: "Abbos 1 million predoplata berdi" -> amal=tolov, mijoz=Abbos, summa=1000000
   "Karim 10 kunlik berdi" -> amal=tolov, mijoz=Karim, kun=10
@@ -63,6 +65,9 @@ AMALLAR:
   izoh=mijoz aytgan gap. O'sha kuni ertalab bot eslatadi.
 
 QOIDALAR:
+- Agar bir nechta mahsulot yoki amal aytilsa, HAR BIRINI alohida amal qilib "amallar" ro'yxatiga qo'sh.
+  Masalan: "Abbosga 50 ta lesa 3 mingdan va 50 ta tayrot 900 dan" -> 2 ta chiqish amali (ikkisida ham mijoz=Abbos).
+  Bitta amal bo'lsa ham "amallar" ichida bitta element bo'ladi.
 - Agar xabarda ⬆️ (yuqoriga strelka) bo'lsa — bu CHIQISH belgisi (amal=chiqish).
   ⬇️ (pastga strelka) bo'lsa — QAYTARISH belgisi (amal=qaytarish).
 - Sonlarni raqam qil: "100 ta"=100, "2 ming"=2000, "yarim million"=500000.
@@ -77,20 +82,38 @@ QOIDALAR:
 """
 
 
+class Javob(BaseModel):
+    amallar: list[IjaraAmal] = Field(default_factory=list, description="Bir yoki bir nechta amal")
+
+
 def _extract(parts):
     resp = client().models.generate_content(
         model=MODEL,
         contents=parts,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=IjaraAmal,
+            response_schema=Javob,
             system_instruction=PROMPT,
         ),
     )
     if getattr(resp, "parsed", None) is not None:
-        return resp.parsed
+        _log_usage(resp)
+        return list(resp.parsed.amallar)
     import json
-    return IjaraAmal(**json.loads(resp.text))
+    _log_usage(resp)
+    return list(Javob(**json.loads(resp.text)).amallar)
+
+
+def _log_usage(resp):
+    try:
+        um = getattr(resp, "usage_metadata", None)
+        if um is None:
+            return
+        import db
+        db.log_usage(MODEL, getattr(um, "prompt_token_count", 0) or 0,
+                     getattr(um, "candidates_token_count", 0) or 0)
+    except Exception:
+        pass
 
 
 def _now_context():
@@ -104,10 +127,10 @@ def _now_context():
     return f"Hozirgi sana (Toshkent): {now.strftime('%Y-%m-%d')}, hafta kuni: {kunlar[now.weekday()]}."
 
 
-def from_audio(audio_bytes: bytes, mime_type: str = "audio/ogg") -> IjaraAmal:
+def from_audio(audio_bytes: bytes, mime_type: str = "audio/ogg") -> list:
     part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
     return _extract([_now_context(), part, "Yuqoridagi ovozli xabarni tahlil qil."])
 
 
-def from_text(text: str) -> IjaraAmal:
+def from_text(text: str) -> list:
     return _extract([_now_context(), text])

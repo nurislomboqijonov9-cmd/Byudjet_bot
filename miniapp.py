@@ -125,9 +125,17 @@ def make_web_app(bot_token, allowed=None):
             matn = (body.get("matn") or "").strip()
             if not matn:
                 return web.json_response({"ok": False, "xabar": "Matn bo'sh"})
-            t = ai.from_text(matn)
-            res = logic.apply(mid, t)
-            return web.json_response({"ok": res.get("ok", False), "xabar": web_msg(res)})
+            actions = ai.from_text(matn)
+            actions = [a for a in actions if a.tushunildi and a.amal] or actions[:1]
+            if not actions:
+                return web.json_response({"ok": False, "xabar": "Tushunolmadim"})
+            msgs, ok = [], False
+            for a in actions:
+                res = logic.apply(mid, a)
+                if res.get("ok"):
+                    ok = True
+                msgs.append(web_msg(res))
+            return web.json_response({"ok": ok, "xabar": " | ".join(msgs)})
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -141,9 +149,17 @@ def make_web_app(bot_token, allowed=None):
             mid = int(request.headers.get("X-Mijoz-Id"))
             audio = await request.read()
             mime = request.headers.get("Content-Type", "audio/ogg").split(";")[0]
-            t = ai.from_audio(audio, mime_type=mime)
-            res = logic.apply(mid, t)
-            return web.json_response({"ok": res.get("ok", False), "xabar": web_msg(res)})
+            actions = ai.from_audio(audio, mime_type=mime)
+            actions = [a for a in actions if a.tushunildi and a.amal] or actions[:1]
+            if not actions:
+                return web.json_response({"ok": False, "xabar": "Tushunolmadim"})
+            msgs, ok = [], False
+            for a in actions:
+                res = logic.apply(mid, a)
+                if res.get("ok"):
+                    ok = True
+                msgs.append(web_msg(res))
+            return web.json_response({"ok": ok, "xabar": " | ".join(msgs)})
         except Exception as e:
             import traceback
             traceback.print_exc()

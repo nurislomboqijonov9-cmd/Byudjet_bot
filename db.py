@@ -57,6 +57,9 @@ def init_db():
     con.execute("""CREATE TABLE IF NOT EXISTS eslatmalar (
         id INTEGER PRIMARY KEY AUTOINCREMENT, mijoz_id INTEGER NOT NULL,
         vada_sana TEXT NOT NULL, izoh TEXT, yuborildi INTEGER DEFAULT 0, yaratilgan TEXT NOT NULL)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS api_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, sana TEXT, model TEXT,
+        in_tok INTEGER DEFAULT 0, out_tok INTEGER DEFAULT 0)""")
 
     # Eski versiyalardan ko'chirish: agar 'mijoz' (matn) ustuni bo'lsa —
     # mijoz_id ni to'ldirib, eski majburiy 'mijoz' ustunini butunlay olib tashlaymiz.
@@ -492,3 +495,48 @@ def mijozlar(today=None):
         })
     res.sort(key=lambda x: -x["qolgan_qarz"])
     return res
+
+
+def kunlik(sana=None):
+    """Berilgan kun (default bugun) bo'yicha chiqqan va qaytgan mollar."""
+    sana = str(sana or today_tk().isoformat())[:10]
+    con = _con()
+    prows = con.execute(
+        """SELECT p.partiya_raqam, p.mahsulot, p.miqdor, p.kunlik_narx, m.ism AS mijoz
+           FROM partiyalar p JOIN mijozlar m ON m.id = p.mijoz_id
+           WHERE substr(p.chiqgan_sana,1,10) = ? ORDER BY m.ism""",
+        (sana,)).fetchall()
+    rrows = con.execute(
+        """SELECT q.miqdor, p.mahsulot, m.ism AS mijoz
+           FROM qaytarishlar q JOIN partiyalar p ON p.id = q.partiya_id
+           JOIN mijozlar m ON m.id = p.mijoz_id
+           WHERE substr(q.qaytgan_sana,1,10) = ? ORDER BY m.ism""",
+        (sana,)).fetchall()
+    con.close()
+    return {
+        "sana": sana,
+        "chiqish": [dict(r) for r in prows],
+        "qaytish": [dict(r) for r in rrows],
+    }
+
+
+# ---------- Gemini (AI) sarfini kuzatish ----------
+def log_usage(model, in_tok, out_tok):
+    try:
+        con = _con()
+        con.execute("INSERT INTO api_usage (sana, model, in_tok, out_tok) VALUES (?, ?, ?, ?)",
+                    (today_tk().isoformat(), model or "", int(in_tok or 0), int(out_tok or 0)))
+        con.commit()
+        con.close()
+    except Exception:
+        pass
+
+
+def oylik_sarf(oy=None):
+    oy = oy or now_tk().strftime("%Y-%m")
+    con = _con()
+    r = con.execute(
+        "SELECT COUNT(*), COALESCE(SUM(in_tok),0), COALESCE(SUM(out_tok),0) FROM api_usage WHERE substr(sana,1,7)=?",
+        (oy,)).fetchone()
+    con.close()
+    return {"oy": oy, "req": r[0] or 0, "in_tok": r[1] or 0, "out_tok": r[2] or 0}
