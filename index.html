@@ -130,7 +130,7 @@
     if(f.innerHTML){f.innerHTML='';return;}
     f.innerHTML=`<div class="addbox form"><div class="t">➕ Yangi mijoz</div>
       <input class="f" id="n_ism" placeholder="Ism (masalan Abbos)">
-      <input class="f" id="n_tel" placeholder="Telefon (bir nechta bo'lsa vergul bilan)" inputmode="tel">
+      <input class="f" id="n_tel" placeholder="Telefon (bir nechta bo'lsa probel yoki vergul bilan)" inputmode="tel">
       <button class="send" onclick="saveNew()">Saqlash</button></div>`;
   };
   window.saveNew=async function(){
@@ -199,7 +199,7 @@
         <button class="edit-status" onclick="tgl('medit')">✏️ Tahrir</button></header>
       <div id="medit" class="addbox" style="display:none">
         <input class="f" id="m_ism" value="${esc(d.mijoz)}" placeholder="Ism" style="margin-bottom:8px">
-        <input class="f" id="m_tel" value="${esc(d.telefon||'')}" placeholder="Telefon (bir nechta bo'lsa vergul bilan)">
+        <input class="f" id="m_tel" value="${esc(d.telefon||'')}" placeholder="Telefon (bir nechta bo'lsa probel yoki vergul bilan)">
         <button class="send" onclick="saveMijoz(${d.id})">Saqlash</button></div>
       <div class="hero"><div class="arc"></div><div class="lbl">${neg?'Mijozning haqi':'Qolgan qarzi'}</div>
         <div class="amt num">${som(Math.abs(d.qolgan_qarz))} <small>so'm</small></div>

@@ -104,16 +104,23 @@ def clean_phone(s):
 
 
 def clean_phones(s):
-    """Bir nechta raqamni vergul bilan ajratib saqlaydi (bittasi ichida bo'sh joy bo'lishi mumkin)."""
+    """Bir nechta raqamni ajratadi. Vergul, probel, tire — hammasi bo'ladi.
+    Standart raqam uzunligi (9 yoki 12 xona) bo'yicha guruhlaydi, shunda
+    '90 123 45 67' bitta raqam, '935053646 933979230' ikkita raqam bo'ladi."""
     if not s:
         return None
     import re
-    out = []
-    for p in re.split(r"[,;\n/]+", str(s)):
-        d = "".join(c for c in p if c.isdigit())
-        if d:
-            out.append(d)
-    return ", ".join(out) or None
+    tokens = [t for t in re.split(r"\D+", str(s)) if t]  # faqat raqam bo'laklari
+    numbers = []
+    cur = ""
+    for tok in tokens:
+        cur += tok
+        if len(cur) == 9 or len(cur) >= 12:  # to'liq raqam yig'ildi
+            numbers.append(cur)
+            cur = ""
+    if cur:
+        numbers.append(cur)
+    return ", ".join(numbers) or None
 
 
 def phone_list(s):
