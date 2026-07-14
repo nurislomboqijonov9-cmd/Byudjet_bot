@@ -156,17 +156,21 @@ def _disamb_kb(matches, allow_new=False, ism=None):
     return InlineKeyboardMarkup(rows)
 
 
+async def _send_excel(message, detail):
+    try:
+        bio = excel.mijoz_excel(detail)
+        nom = "".join(c for c in detail["mijoz"] if c.isalnum() or c in " _-").strip() or "mijoz"
+        await message.reply_document(document=InputFile(bio, filename=f"{nom}.xlsx"))
+    except Exception:
+        log.exception("excel yuborishda xatolik")
+
+
 async def _finish(update: Update, mijoz_id, t):
     res = logic.apply(mijoz_id, t)
     text, kb = fmt(res)
     await update.effective_message.reply_text(text, parse_mode="Markdown", reply_markup=kb)
     if res.get("ok") and res.get("amal") == "malumot":
-        try:
-            bio = excel.mijoz_excel(res["detail"])
-            nom = "".join(c for c in res["detail"]["mijoz"] if c.isalnum() or c in " _-").strip() or "mijoz"
-            await update.effective_message.reply_document(document=InputFile(bio, filename=f"{nom}.xlsx"))
-        except Exception:
-            log.exception("excel yuborishda xatolik")
+        await _send_excel(update.effective_message, res["detail"])
 
 
 def _arrow_dir(s):
@@ -352,10 +356,22 @@ def _tasdiq_matni(actions):
     return "\n".join(lines)
 
 
-_TASDIQ_KB = InlineKeyboardMarkup([[
-    InlineKeyboardButton("✅ Tasdiqlash", callback_data="tasdiq:ok"),
-    InlineKeyboardButton("❌ Bekor", callback_data="tasdiq:no"),
-]])
+_TASDIQ_KB = InlineKeyboardMarkup([
+    [InlineKeyboardButton("✅ Tasdiqlash", callback_data="tasdiq:ok")],
+    [InlineKeyboardButton("✏️ Tahrirlash", callback_data="tasdiq:edit"),
+     InlineKeyboardButton("❌ Bekor", callback_data="tasdiq:no")],
+])
+
+
+async def _show_tasdiq(update: Update, ctx: ContextTypes.DEFAULT_TYPE, actions):
+    ctx.user_data["tasdiq"] = [_pending_dict(a) for a in actions]
+    tr = ""
+    for a in actions:
+        if getattr(a, "transkript", None):
+            tr = a.transkript
+            break
+    ctx.user_data["tasdiq_transkript"] = tr
+    await update.effective_message.reply_text(_tasdiq_matni(actions), parse_mode="Markdown", reply_markup=_TASDIQ_KB)
 
 
 async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -377,8 +393,7 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     # Mol chiqishi bo'lsa — avval tasdiqlatamiz
     if any(_amal_str(a) == "chiqish" for a in actions):
-        ctx.user_data["tasdiq"] = [_pending_dict(a) for a in actions]
-        await update.message.reply_text(_tasdiq_matni(actions), parse_mode="Markdown", reply_markup=_TASDIQ_KB)
+        await _show_tasdiq(update, ctx, actions)
     else:
         for a in actions:
             await bajar(update, ctx, a)
@@ -388,6 +403,18 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await guard(update):
         return
     txt = update.message.text or ""
+    if ctx.user_data.pop("await_edit", False):
+        try:
+            actions = ai.from_text(txt)
+        except Exception:
+            log.exception("tahrir xatolik")
+            await update.message.reply_text("Xatolik. Qaytadan urinib ko'ring.")
+            return
+        actions = [a for a in actions if a.tushunildi and a.amal]
+        if not actions:
+            await update.message.reply_text("Tushunolmadim 🤔 Qaytaring.")
+            return
+        return await _show_tasdiq(update, ctx, actions)
     if _only_arrows(txt):
         return await _set_yonalish(update, ctx, _arrow_dir(txt))
     try:
@@ -439,6 +466,8 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         res = logic.apply(mijoz_id, _T(pending))
         text, kb = fmt(res)
         await q.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
+        if res.get("ok") and res.get("amal") == "malumot":
+            await _send_excel(q.message, res["detail"])
     elif data == "picknew":
         pending = ctx.user_data.pop("pending", None)
         if not pending:
@@ -473,6 +502,14 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data == "tasdiq:no":
         ctx.user_data.pop("tasdiq", None)
         await q.edit_message_text("❌ Bekor qilindi.")
+    elif data == "tasdiq:edit":
+        tr = ctx.user_data.get("tasdiq_transkript", "")
+        ctx.user_data.pop("tasdiq", None)
+        ctx.user_data["await_edit"] = True
+        msg = "✏️ To'g'rilab, *matn* ko'rinishida qayta yuboring."
+        if tr:
+            msg += f"\n\nEshitganim: «{tr}»"
+        await q.edit_message_text(msg, parse_mode="Markdown")
 
 
 # ---------- Ishga tushirish ----------
