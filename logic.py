@@ -3,12 +3,23 @@
 apply() — MA'LUM mijoz_id uchun chiqish/qaytarishni bajaradi.
 Mijozni topish (ism -> id) chaqiruvchi tomonda hal qilinadi.
 """
+import re
 import db
 from datetime import date
 
 
 def _sana(t):
     return (getattr(t, "sana", None) or date.today().isoformat())[:10]
+
+
+def _norm(s):
+    """Mahsulot nomini solishtirish uchun bir xillaydi.
+    'stoyka 4 m', 'stoyka 4m', 'stoyka 4m lik', 'stoyka 4 metrlik' -> 'stoyka 4m'.
+    Lekin 'lesa' != 'lesa 5m', '4 m' != '4.5 m' (raqam saqlanadi)."""
+    s = (s or "").strip().lower()
+    s = re.sub(r"(\d[\d.,]*)\s*m(?:\s*lik|etrlik|etrli|etr|eter|lik)?\b", r"\1m", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
 
 
 def apply(mijoz_id, t):
@@ -69,10 +80,10 @@ def apply(mijoz_id, t):
         if not aktiv:
             return {"ok": False, "xato": f"{m['ism']}da qaytariladigan mahsulot yo'q"}
 
-        mahsulot = (getattr(t, "mahsulot", None) or "").strip().lower()
+        mahsulot = _norm(getattr(t, "mahsulot", None))
         prods = {}
         for p, h in aktiv:
-            prods.setdefault((p["mahsulot"] or "").strip().lower(), []).append((p, h))
+            prods.setdefault(_norm(p["mahsulot"]), []).append((p, h))
 
         if mahsulot:
             target = prods.get(mahsulot)
@@ -85,7 +96,18 @@ def apply(mijoz_id, t):
             bor = ", ".join(sorted(set(p["mahsulot"] for p, h in aktiv)))
             return {"ok": False, "xato": f"Qaysi mahsulot qaytdi? ({bor})"}
 
+        target = list(target)
         target.sort(key=lambda x: x[0]["partiya_raqam"])  # eng eski partiyadan
+
+        # Narx aytilgan bo'lsa — aynan shu narxdagi partiyalardan ayiramiz
+        narx = getattr(t, "kunlik_narx", None)
+        if narx:
+            f = [(p, h) for p, h in target if abs((p["kunlik_narx"] or 0) - narx) < 0.5]
+            if not f:
+                nx = ", ".join(sorted(set(str(int(p["kunlik_narx"])) for p, h in target)))
+                return {"ok": False, "xato": f"«{target[0][0]['mahsulot']}» {int(narx)} so'mdan topilmadi. Narxlar: {nx}"}
+            target = f
+
         jami_qolgan = sum(h["qolgan"] for p, h in target)
         qty = jami_qolgan if getattr(t, "hammasi", False) else t.miqdor
         if not qty:

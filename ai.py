@@ -32,7 +32,7 @@ class IjaraAmal(BaseModel):
     mahsulot: str | None = Field(default=None, description="Mahsulot nomi (masalan: lesa, temir ustun). Chiqishda majburiy; qaytarishda umumiy qaytarilsa ham yoziladi.")
     miqdor: float | None = Field(default=None, description="Dona soni. Qaytarishda 'hammasi' bo'lsa null.")
     hammasi: bool = Field(default=False, description="Qaytarishda hamma qolgan mahsulot qaytarilsa True")
-    kunlik_narx: float | None = Field(default=None, description="Bitta dona uchun BIR KUNLIK ijara narxi (so'mda). Faqat chiqishda.")
+    kunlik_narx: float | None = Field(default=None, description="Bitta dona uchun BIR KUNLIK ijara narxi (so'mda). Chiqishda majburiy. Qaytarishda narx aytilsa (masalan '800 so'mdan') shu narxdagi partiyani belgilash uchun yoziladi.")
     partiya: int | None = Field(default=None, description="Qaytarishda qaysi partiya raqami (masalan '1-partiya' -> 1). Aytilmasa null.")
     summa: float | None = Field(default=None, description="To'lov/predoplata puli so'mda (masalan '1 million' -> 1000000). Faqat to'lovda.")
     kun: int | None = Field(default=None, description="To'lov kun bilan aytilsa nechta kun (masalan '10 kunlik' -> 10). Faqat to'lovda.")
@@ -53,6 +53,8 @@ AMALLAR:
   "Karim 2-partiyadan hammasini qaytardi" -> amal=qaytarish, mijoz=Karim, partiya=2, hammasi=true
   "Nig'matulladan 500 ta lesa qaytdi" -> amal=qaytarish, mijoz=Nig'matulla, mahsulot=lesa, miqdor=500 (partiya=null;
     bot o'zi shu mahsulotning partiyalaridan eng eskisidan boshlab ayiradi)
+  "1500 ta stoyka 4m 800 so'mdan qaytdi" -> amal=qaytarish, mahsulot="stoyka 4m", miqdor=1500, kunlik_narx=800
+    (narx aytilsa — aynan shu narxdagi partiyadan ayiradi)
 - "tolov": mijoz oldindan yoki keyin pul to'ladi (predoplata / to'lov / qarzini yopdi).
   Masalan: "Abbos 1 million predoplata berdi" -> amal=tolov, mijoz=Abbos, summa=1000000
   "Karim 10 kunlik berdi" -> amal=tolov, mijoz=Karim, kun=10
