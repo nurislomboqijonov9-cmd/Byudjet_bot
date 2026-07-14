@@ -36,40 +36,85 @@ def apply(mijoz_id, t):
         partiyalar = db.partiyalar_of(mijoz_id)
         if not partiyalar:
             return {"ok": False, "xato": f"{m['ism']}da partiya yo'q"}
-        p = None
+
+        # 1) Aniq partiya raqami aytilgan bo'lsa — o'sha partiyadan
         if getattr(t, "partiya", None):
             p = db.get_partiya(mijoz_id, t.partiya)
             if not p:
                 return {"ok": False, "xato": f"{t.partiya}-partiya topilmadi"}
-        else:
-            aktiv = [x for x in partiyalar if db.partiya_hisob(x)["qolgan"] > 0]
-            if len(aktiv) == 1:
-                p = aktiv[0]
-            elif not aktiv:
-                return {"ok": False, "xato": f"{m['ism']}da qaytariladigan mahsulot yo'q"}
-            else:
-                ro = ", ".join(f"{x['partiya_raqam']}-{x['mahsulot']}" for x in aktiv)
-                return {"ok": False, "xato": f"Qaysi partiya? ({ro}) — raqamini ayting"}
+            h = db.partiya_hisob(p)
+            qolgan = h["qolgan"]
+            if qolgan <= 0:
+                return {"ok": False, "xato": f"{p['partiya_raqam']}-partiya allaqachon to'liq qaytarilgan"}
+            qty = qolgan if getattr(t, "hammasi", False) else t.miqdor
+            if not qty:
+                return {"ok": False, "xato": "Nechta qaytarganini ayting"}
+            ortdi = False
+            if qty > qolgan:
+                qty = qolgan
+                ortdi = True
+            rid = db.add_return(p["id"], qty, _sana(t))
+            h2 = db.partiya_hisob(p)
+            d = db.mijoz_detail(mijoz_id)
+            return {
+                "ok": True, "amal": "qaytarish", "mijoz": m["ism"], "mijoz_id": mijoz_id,
+                "return_id": rid, "partiya_raqam": p["partiya_raqam"], "mahsulot": p["mahsulot"],
+                "qty": qty, "qolgan": h2["qolgan"], "partiya_narx": h2["narx"],
+                "jami": d["jami"], "qolgan_qarz": d["qolgan_qarz"], "ortdi": ortdi,
+            }
 
-        h = db.partiya_hisob(p)
-        qolgan = h["qolgan"]
-        if qolgan <= 0:
-            return {"ok": False, "xato": f"{p['partiya_raqam']}-partiya allaqachon to'liq qaytarilgan"}
-        qty = qolgan if getattr(t, "hammasi", False) else t.miqdor
+        # 2) Mahsulot bo'yicha umumiy qaytarish (eng eski partiyadan boshlab)
+        aktiv = [(p, db.partiya_hisob(p)) for p in partiyalar]
+        aktiv = [(p, h) for p, h in aktiv if h["qolgan"] > 0]
+        if not aktiv:
+            return {"ok": False, "xato": f"{m['ism']}da qaytariladigan mahsulot yo'q"}
+
+        mahsulot = (getattr(t, "mahsulot", None) or "").strip().lower()
+        prods = {}
+        for p, h in aktiv:
+            prods.setdefault((p["mahsulot"] or "").strip().lower(), []).append((p, h))
+
+        if mahsulot:
+            target = prods.get(mahsulot)
+            if not target:
+                bor = ", ".join(sorted(set(p["mahsulot"] for p, h in aktiv)))
+                return {"ok": False, "xato": f"«{getattr(t,'mahsulot','')}» aniq topilmadi. Aniq nomini yozing. Mavjud: {bor}"}
+        elif len(prods) == 1:
+            target = list(prods.values())[0]
+        else:
+            bor = ", ".join(sorted(set(p["mahsulot"] for p, h in aktiv)))
+            return {"ok": False, "xato": f"Qaysi mahsulot qaytdi? ({bor})"}
+
+        target.sort(key=lambda x: x[0]["partiya_raqam"])  # eng eski partiyadan
+        jami_qolgan = sum(h["qolgan"] for p, h in target)
+        qty = jami_qolgan if getattr(t, "hammasi", False) else t.miqdor
         if not qty:
             return {"ok": False, "xato": "Nechta qaytarganini ayting"}
-        ortdi = False
-        if qty > qolgan:
-            qty = qolgan
-            ortdi = True
-        rid = db.add_return(p["id"], qty, _sana(t))
-        h2 = db.partiya_hisob(p)
+        kam = False
+        if qty > jami_qolgan:
+            qty = jami_qolgan
+            kam = True
+
+        remaining = qty
+        sana = _sana(t)
+        return_ids, taqsim = [], []
+        for p, h in target:
+            if remaining <= 0:
+                break
+            take = min(remaining, h["qolgan"])
+            if take <= 0:
+                continue
+            rid = db.add_return(p["id"], take, sana)
+            return_ids.append(rid)
+            taqsim.append({"partiya_raqam": p["partiya_raqam"], "qty": take})
+            remaining -= take
+
         d = db.mijoz_detail(mijoz_id)
+        prodname = target[0][0]["mahsulot"]
         return {
-            "ok": True, "amal": "qaytarish", "mijoz": m["ism"], "mijoz_id": mijoz_id,
-            "return_id": rid, "partiya_raqam": p["partiya_raqam"], "mahsulot": p["mahsulot"],
-            "qty": qty, "qolgan": h2["qolgan"], "partiya_narx": h2["narx"],
-            "jami": d["jami"], "qolgan_qarz": d["qolgan_qarz"], "ortdi": ortdi,
+            "ok": True, "amal": "qaytarish", "aggregate": True, "mijoz": m["ism"], "mijoz_id": mijoz_id,
+            "mahsulot": prodname, "qty": qty, "return_ids": return_ids, "taqsim": taqsim,
+            "jami": d["jami"], "qolgan_qarz": d["qolgan_qarz"], "kam": kam,
         }
 
     # ----- TO'LOV / PREDOPLATA -----
