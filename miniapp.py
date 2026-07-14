@@ -26,11 +26,23 @@ def _son(n):
 def web_msg(res):
     if not res.get("ok"):
         return res.get("xato", "Xatolik")
-    if res["amal"] == "chiqish":
+    amal = res.get("amal")
+    if amal == "chiqish":
         return (f"✅ {res['raqam']}-partiya ochildi: {_son(res['miqdor'])} ta {res['mahsulot']}, "
                 f"kuniga {_som(res['kunlik_narx'])} so'm")
-    return (f"✅ {res['partiya_raqam']}-partiya: {_son(res['qty'])} ta {res['mahsulot']} qaytdi. "
-            f"Qolgan: {_son(res['qolgan'])} ta · Jami: {_som(res['jami'])} so'm")
+    if amal == "qaytarish":
+        if res.get("aggregate"):
+            return (f"✅ {_son(res['qty'])} ta {res['mahsulot']} qaytdi · "
+                    f"Qolgan qarz: {_som(res.get('qolgan_qarz', 0))} so'm")
+        return (f"✅ {res['partiya_raqam']}-partiya: {_son(res['qty'])} ta {res['mahsulot']} qaytdi. "
+                f"Qolgan: {_son(res['qolgan'])} ta")
+    if amal == "tolov":
+        return f"✅ To'lov {_som(res.get('summa', 0))} so'm · Qolgan qarz: {_som(res.get('qolgan_qarz', 0))} so'm"
+    if amal == "eslatma":
+        return f"✅ Eslatma qo'shildi ({res.get('vada_sana', '')})"
+    if amal == "malumot":
+        return "✅ Ma'lumot tayyor"
+    return "✅ Bajarildi"
 
 
 def validate_init_data(init_data, bot_token):
