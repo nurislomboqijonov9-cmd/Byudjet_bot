@@ -3,6 +3,7 @@ import os
 import re
 import asyncio
 import logging
+from io import BytesIO
 from datetime import date
 from dotenv import load_dotenv
 from aiohttp import web as aioweb
@@ -275,7 +276,8 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "📤 «Abbosga 100 ta lesa chiqdi, kuniga 2000 so'm»\n"
         "📥 «Abbos 1-partiyadan 30 ta qaytardi»\n\n"
         "Bir xil ismli mijoz bo'lsa — «qaysi biri?» deb so'rayman.\n\n"
-        "/mijozlar — barcha qarzlar\n/qarzdorlar — pul yig'ish ro'yxati\n"
+        "/mijozlar — barcha qarzlar\n/qarzdorlar — pul yig'ish ro'yxati (Excel)\n"
+        "/hisobot — umumiy Excel hisobot\n"
         "/kunlik — bugungi hisobot\n/xarajat — AI sarfi\n/app — hisobni ochish"
         f"{admin_qatri}\n\n"
         f"🆔 Sizning ID: `{uid}`",
@@ -358,6 +360,24 @@ async def xarajat_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 # ---------- Qarzdorlar / chegara ----------
+async def hisobot_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await guard(update):
+        return
+    ml = db.mijozlar()
+    if not ml:
+        await update.message.reply_text("Hozircha mijoz yo'q.")
+        return
+    jami_qarz = sum(m["qolgan_qarz"] for m in ml)
+    try:
+        bio = excel.umumiy_excel(ml, sana=db.today_tk().isoformat())
+        await update.message.reply_document(
+            document=InputFile(bio, filename="umumiy_hisobot.xlsx"),
+            caption=f"📊 Umumiy hisobot · {len(ml)} ta mijoz · umumiy qarz {som(jami_qarz)} so'm")
+    except Exception:
+        log.exception("umumiy excel xatolik")
+        await update.message.reply_text("Excel yaratishda xatolik.")
+
+
 async def qarzdorlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await guard(update):
         return
@@ -376,6 +396,11 @@ async def qarzdorlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     lines.append(f"\n🔴 Yig'ish kerak: {len(over)} ta · 🟡 Kuzatuvda: {len(lst) - len(over)} ta")
     lines.append(f"💰 Umumiy qarz: {som(sum(x['qarz'] for x in lst))} so'm")
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    try:
+        bio = excel.qarzdorlar_excel(lst, limit_kun, sana=db.today_tk().isoformat())
+        await update.message.reply_document(document=InputFile(bio, filename="qarzdorlar.xlsx"))
+    except Exception:
+        log.exception("qarzdorlar excel xatolik")
 
 
 async def limit_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -680,9 +705,16 @@ async def _send_yigish(app, due, limit_kun):
     lines += [_yig_qatri(x) for x in due]
     lines.append(f"\n💰 Jami: *{som(jami)} so'm*")
     text = "\n".join(lines)
+    try:
+        data = excel.qarzdorlar_excel(due, limit_kun, sana=db.today_tk().isoformat()).getvalue()
+    except Exception:
+        log.exception("yig'ish excel xatolik")
+        data = None
     for uid in db.xodim_ids():
         try:
             await app.bot.send_message(chat_id=uid, text=text, parse_mode="Markdown")
+            if data:
+                await app.bot.send_document(chat_id=uid, document=InputFile(BytesIO(data), filename="qarzdorlar.xlsx"))
         except Exception:
             log.exception("yig'ish eslatma yuborishda xatolik")
 
@@ -732,6 +764,7 @@ async def run():
     app.add_handler(CommandHandler("kunlik", kunlik_cmd))
     app.add_handler(CommandHandler("xarajat", xarajat_cmd))
     app.add_handler(CommandHandler("qarzdorlar", qarzdorlar_cmd))
+    app.add_handler(CommandHandler("hisobot", hisobot_cmd))
     app.add_handler(CommandHandler("limit", limit_cmd))
     app.add_handler(CommandHandler("xodimlar", xodimlar_cmd))
     app.add_handler(CommandHandler("xodim_qosh", xodim_qosh_cmd))

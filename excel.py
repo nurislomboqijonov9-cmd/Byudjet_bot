@@ -6,6 +6,8 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 BRAND = "1F4B45"
 LIGHT = "EEF2F0"
+REDBG = "F6E1DA"
+REDINK = "B24A31"
 _thin = Side(style="thin", color="D9DFDD")
 BORDER = Border(left=_thin, right=_thin, top=_thin, bottom=_thin)
 
@@ -18,6 +20,28 @@ def _dmy(s):
 
 def _som(n):
     return f"{round(n or 0):,}".replace(",", " ")
+
+
+def _status_uz(s):
+    return {"faol": "Faol", "nofaol": "Nofaol", "sotuv": "Sotuv"}.get(s, "-")
+
+
+def _banner(ws, text, row, span=8, fill=BRAND, color="FFFFFF", size=13):
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=span)
+    c = ws.cell(row=row, column=1, value=text)
+    c.font = Font(bold=True, color=color, size=size)
+    c.fill = PatternFill("solid", fgColor=fill)
+    c.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[row].height = 22
+
+
+def _header_row(ws, row, heads):
+    for i, h in enumerate(heads, 1):
+        c = ws.cell(row=row, column=i, value=h)
+        c.font = Font(bold=True)
+        c.fill = PatternFill("solid", fgColor=LIGHT)
+        c.border = BORDER
+        c.alignment = Alignment(horizontal="center", vertical="center")
 
 
 def mijoz_excel(d):
@@ -40,7 +64,7 @@ def mijoz_excel(d):
     r = 1
     title(f"MIJOZ: {d['mijoz']}", r); r += 1
     for lbl, val in [("Telefon", d.get("telefon") or "-"), ("Manzil", d.get("adres") or "-"),
-                     ("Status", d.get("status") or "-")]:
+                     ("Status", _status_uz(d.get("status")))]:
         ws.cell(row=r, column=1, value=lbl).font = Font(bold=True)
         ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=8)
         ws.cell(row=r, column=2, value=val)
@@ -121,6 +145,108 @@ def mijoz_excel(d):
             for col in (1, 2, 3):
                 ws.cell(row=r, column=col).fill = PatternFill("solid", fgColor=LIGHT)
         r += 1
+
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    return bio
+
+
+def umumiy_excel(mlist, sana=None):
+    """Butun mijozlar bazasi bitta jadvalda (db.mijozlar() natijasi)."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Umumiy"
+    for c, w in {"A": 5, "B": 24, "C": 16, "D": 9, "E": 11, "F": 15, "G": 14, "H": 16}.items():
+        ws.column_dimensions[c].width = w
+
+    r = 1
+    sarlavha = "UMUMIY MIJOZLAR RO'YXATI"
+    if sana:
+        sarlavha += f" ({_dmy(sana)})"
+    _banner(ws, sarlavha, r, span=8); r += 1
+    heads = ["№", "Mijoz", "Telefon", "Status", "Qolgan dona", "Hisoblangan", "To'langan", "Qolgan qarz"]
+    _header_row(ws, r, heads); r += 1
+
+    n = 0
+    t_his = t_tol = t_qarz = 0.0
+    for m in mlist:
+        n += 1
+        t_his += m.get("jami", 0) or 0
+        t_tol += m.get("tolangan", 0) or 0
+        t_qarz += m.get("qolgan_qarz", 0) or 0
+        vals = [n, m.get("mijoz", ""), m.get("telefon") or "-", _status_uz(m.get("status")),
+                m.get("jami_qolgan", 0), round(m.get("jami", 0) or 0),
+                round(m.get("tolangan", 0) or 0), round(m.get("qolgan_qarz", 0) or 0)]
+        for i, v in enumerate(vals, 1):
+            c = ws.cell(row=r, column=i, value=v)
+            c.border = BORDER
+            if i in (5, 6, 7, 8):
+                c.alignment = Alignment(horizontal="right")
+        r += 1
+
+    # Jami qatori
+    ws.cell(row=r, column=1, value="JAMI").font = Font(bold=True)
+    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=5)
+    for i, v in [(6, t_his), (7, t_tol), (8, t_qarz)]:
+        c = ws.cell(row=r, column=i, value=round(v))
+        c.font = Font(bold=True)
+        c.alignment = Alignment(horizontal="right")
+    for col in range(1, 9):
+        ws.cell(row=r, column=col).fill = PatternFill("solid", fgColor=LIGHT)
+
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    return bio
+
+
+def qarzdorlar_excel(qlist, limit_kun, sana=None):
+    """Qarzdorlar ro'yxati (db.qarzdorlar() natijasi). Chegaradan oshganlar qizil belgilanadi."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Qarzdorlar"
+    for c, w in {"A": 5, "B": 14, "C": 24, "D": 16, "E": 16, "F": 14, "G": 13, "H": 10}.items():
+        ws.column_dimensions[c].width = w
+
+    r = 1
+    sarlavha = f"QARZDORLAR RO'YXATI · chegara {limit_kun} kunlik ijara"
+    if sana:
+        sarlavha += f" ({_dmy(sana)})"
+    _banner(ws, sarlavha, r, span=8); r += 1
+    heads = ["№", "Holat", "Mijoz", "Telefon", "Qarz (so'm)", "Kunlik ijara", "Necha kunlik", "Status"]
+    _header_row(ws, r, heads); r += 1
+
+    n = 0
+    t_qarz = 0.0
+    for x in qlist:
+        n += 1
+        t_qarz += x.get("qarz", 0) or 0
+        over = x.get("over")
+        holat = "Yig'ish kerak" if over else "Kuzatuvda"
+        kun = "rental yo'q" if x.get("kun") is None else round(x["kun"])
+        vals = [n, holat, x.get("ism", ""), x.get("telefon") or "-",
+                round(x.get("qarz", 0) or 0), round(x.get("rate", 0) or 0),
+                kun, _status_uz(x.get("status"))]
+        for i, v in enumerate(vals, 1):
+            c = ws.cell(row=r, column=i, value=v)
+            c.border = BORDER
+            if i in (5, 6, 7):
+                c.alignment = Alignment(horizontal="right")
+            if over:
+                c.fill = PatternFill("solid", fgColor=REDBG)
+                if i == 2:
+                    c.font = Font(bold=True, color=REDINK)
+        r += 1
+
+    # Jami qatori
+    ws.cell(row=r, column=1, value="JAMI").font = Font(bold=True)
+    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=4)
+    c = ws.cell(row=r, column=5, value=round(t_qarz))
+    c.font = Font(bold=True)
+    c.alignment = Alignment(horizontal="right")
+    for col in range(1, 9):
+        ws.cell(row=r, column=col).fill = PatternFill("solid", fgColor=LIGHT)
 
     bio = BytesIO()
     wb.save(bio)
