@@ -66,7 +66,7 @@ def validate_init_data(init_data, bot_token):
         return None
 
 
-def make_web_app(bot_token, allowed=None):
+def make_web_app(bot_token):
 
     def check(request):
         uid = validate_init_data(request.headers.get("X-Init-Data", ""), bot_token)
@@ -75,7 +75,7 @@ def make_web_app(bot_token, allowed=None):
             uid = int(dbg) if dbg else None
         if uid is None:
             return None, web.json_response({"xato": "Telegram ichida oching"}, status=401)
-        if allowed and uid not in allowed:
+        if not db.is_allowed(uid):
             return None, web.json_response({"xato": "Ruxsat yo'q"}, status=403)
         return uid, None
 

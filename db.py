@@ -17,6 +17,9 @@ DATA_DIR = Path(os.getenv("DATA_DIR", Path(__file__).parent))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "arenda.db"
 
+# Birinchi admin (ega) — bazada bo'lsa ham, bo'lmasa ham DOIM admin, o'chib ketmaydi.
+OWNER_ID = int(os.getenv("OWNER_ID", "7589459697"))
+
 
 def now_tk():
     if TASHKENT:
@@ -94,6 +97,28 @@ def init_db():
         con.execute("ALTER TABLE mijozlar ADD COLUMN adres TEXT")
     if "status" not in mcols:
         con.execute("ALTER TABLE mijozlar ADD COLUMN status TEXT")
+
+    # Xodimlar (botga kirish huquqi). rol: 'admin' yoki 'xodim'.
+    con.execute("""CREATE TABLE IF NOT EXISTS xodimlar (
+        id INTEGER PRIMARY KEY,
+        ism TEXT, rol TEXT NOT NULL DEFAULT 'xodim',
+        qoshgan_id INTEGER, yaratilgan TEXT NOT NULL)""")
+    # Ega doim admin
+    con.execute("INSERT OR IGNORE INTO xodimlar (id, ism, rol, qoshgan_id, yaratilgan) VALUES (?, ?, 'admin', ?, ?)",
+                (OWNER_ID, "Ega", OWNER_ID, now_tk().isoformat()))
+    con.execute("UPDATE xodimlar SET rol='admin' WHERE id=?", (OWNER_ID,))
+    # Eski ALLOWED_USER_IDS ni bir marta ko'chirish (xodim sifatida) — mavjud xodimlar kirishdan chiqib qolmasin
+    for tok in os.getenv("ALLOWED_USER_IDS", "").replace(" ", "").split(","):
+        if tok.isdigit() and int(tok) != OWNER_ID:
+            con.execute("INSERT OR IGNORE INTO xodimlar (id, ism, rol, qoshgan_id, yaratilgan) VALUES (?, NULL, 'xodim', ?, ?)",
+                        (int(tok), OWNER_ID, now_tk().isoformat()))
+
+    # Sozlamalar (masalan pul yig'ish chegarasi — necha kunlik ijara)
+    con.execute("CREATE TABLE IF NOT EXISTS sozlamalar (kalit TEXT PRIMARY KEY, qiymat TEXT)")
+    # Pul yig'ish eslatmasi oxirgi yuborilgan sana (har mijozga)
+    mcols2 = [r[1] for r in con.execute("PRAGMA table_info(mijozlar)").fetchall()]
+    if "yig_sana" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN yig_sana TEXT")
     con.commit()
     con.close()
 
@@ -217,6 +242,80 @@ def delete_mijoz(mijoz_id):
     con.execute("DELETE FROM mijozlar WHERE id = ?", (mijoz_id,))
     con.commit()
     con.close()
+
+
+# ---------- Xodimlar / ruxsat ----------
+def is_allowed(uid):
+    """Botga kirish huquqi bormi (ega, admin yoki xodim)."""
+    if uid == OWNER_ID:
+        return True
+    con = _con()
+    r = con.execute("SELECT 1 FROM xodimlar WHERE id = ?", (uid,)).fetchone()
+    con.close()
+    return r is not None
+
+
+def is_admin(uid):
+    if uid == OWNER_ID:
+        return True
+    con = _con()
+    r = con.execute("SELECT rol FROM xodimlar WHERE id = ?", (uid,)).fetchone()
+    con.close()
+    return bool(r) and r[0] == "admin"
+
+
+def is_owner(uid):
+    return uid == OWNER_ID
+
+
+def get_xodim(uid):
+    con = _con()
+    r = con.execute("SELECT * FROM xodimlar WHERE id = ?", (uid,)).fetchone()
+    con.close()
+    return dict(r) if r else None
+
+
+def add_xodim(uid, ism=None, rol="xodim", qoshgan_id=None):
+    """Yangi xodim/admin qo'shadi yoki mavjudini yangilaydi (rol/ism)."""
+    if rol not in ("xodim", "admin"):
+        rol = "xodim"
+    con = _con()
+    ex = con.execute("SELECT id FROM xodimlar WHERE id = ?", (uid,)).fetchone()
+    if ex:
+        con.execute("UPDATE xodimlar SET ism = COALESCE(?, ism), rol = ? WHERE id = ?", (ism or None, rol, uid))
+    else:
+        con.execute("INSERT INTO xodimlar (id, ism, rol, qoshgan_id, yaratilgan) VALUES (?, ?, ?, ?, ?)",
+                    (uid, ism or None, rol, qoshgan_id, now_tk().isoformat()))
+    con.commit()
+    con.close()
+
+
+def remove_xodim(uid):
+    """Egani hech qachon o'chirmaydi."""
+    if uid == OWNER_ID:
+        return False
+    con = _con()
+    con.execute("DELETE FROM xodimlar WHERE id = ?", (uid,))
+    con.commit()
+    con.close()
+    return True
+
+
+def all_xodimlar():
+    con = _con()
+    rows = con.execute("SELECT * FROM xodimlar ORDER BY (rol='admin') DESC, id").fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def xodim_ids():
+    """Eslatma yuboriladigan hamma ID (ega ham albatta)."""
+    con = _con()
+    ids = [r[0] for r in con.execute("SELECT id FROM xodimlar").fetchall()]
+    con.close()
+    if OWNER_ID not in ids:
+        ids.append(OWNER_ID)
+    return ids
 
 
 # ---------- Partiyalar ----------
@@ -540,3 +639,74 @@ def oylik_sarf(oy=None):
         (oy,)).fetchone()
     con.close()
     return {"oy": oy, "req": r[0] or 0, "in_tok": r[1] or 0, "out_tok": r[2] or 0}
+
+
+# ---------- Sozlamalar ----------
+def get_sozlama(kalit, default=None):
+    con = _con()
+    r = con.execute("SELECT qiymat FROM sozlamalar WHERE kalit = ?", (kalit,)).fetchone()
+    con.close()
+    return r[0] if r else default
+
+
+def set_sozlama(kalit, qiymat):
+    con = _con()
+    if con.execute("SELECT 1 FROM sozlamalar WHERE kalit = ?", (kalit,)).fetchone():
+        con.execute("UPDATE sozlamalar SET qiymat = ? WHERE kalit = ?", (str(qiymat), kalit))
+    else:
+        con.execute("INSERT INTO sozlamalar (kalit, qiymat) VALUES (?, ?)", (kalit, str(qiymat)))
+    con.commit()
+    con.close()
+
+
+def get_limit_kun():
+    """Pul yig'ish chegarasi — qarz necha kunlik ijaraga tenglashsa eslatiladi."""
+    v = get_sozlama("limit_kun")
+    if v is None:
+        try:
+            return int(os.getenv("LIMIT_KUN", "15"))
+        except Exception:
+            return 15
+    try:
+        return int(v)
+    except Exception:
+        return 15
+
+
+def set_limit_kun(n):
+    set_sozlama("limit_kun", int(n))
+
+
+# ---------- Qarzdorlar (pul yig'ish) ----------
+def set_yig_sana(mijoz_id, sana):
+    con = _con()
+    con.execute("UPDATE mijozlar SET yig_sana = ? WHERE id = ?", (str(sana)[:10] if sana else None, mijoz_id))
+    con.commit()
+    con.close()
+
+
+def qarzdorlar(limit_kun=None, today=None):
+    """Qarzi bor mijozlar. Har biriga: qarz, kunlik ijara, qarz necha kunlik ijaraga teng,
+    va chegaradan oshgani (over) belgisi. Chegaradan oshganlar birinchi, qarz kattaligi bo'yicha."""
+    limit_kun = get_limit_kun() if limit_kun is None else limit_kun
+    today = today or today_tk()
+    con = _con()
+    rows = con.execute("SELECT id, yig_sana FROM mijozlar ORDER BY id").fetchall()
+    con.close()
+    out = []
+    for row in rows:
+        mid = row["id"]
+        d = mijoz_detail(mid, today)
+        qarz = d["qolgan_qarz"]
+        if qarz <= 0:
+            continue
+        rate = daily_rate(mid, today)          # hozirgi kunlik ijara
+        kun = (qarz / rate) if rate > 0 else None   # None = rental yo'q, lekin qarz bor
+        over = (kun is None) or (kun >= limit_kun)
+        out.append({
+            "id": mid, "ism": d["mijoz"], "telefon": d["telefon"], "status": d["status"],
+            "qarz": qarz, "rate": rate, "kun": kun, "over": over,
+            "yig_sana": row["yig_sana"], "jami_qolgan": d["jami_qolgan"],
+        })
+    out.sort(key=lambda x: (not x["over"], -(x["kun"] if x["kun"] is not None else 1e9), -x["qarz"]))
+    return out

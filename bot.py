@@ -3,6 +3,7 @@ import os
 import re
 import asyncio
 import logging
+from datetime import date
 from dotenv import load_dotenv
 from aiohttp import web as aioweb
 from telegram import (
@@ -23,9 +24,11 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-_allowed = os.getenv("ALLOWED_USER_IDS", "").replace(" ", "")
-ALLOWED = {int(x) for x in _allowed.split(",") if x} if _allowed else None
 APP_VERSION = "22"
+
+# Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
+YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
+QAYTA_ESLAT_KUN = int(os.getenv("QAYTA_ESLAT_KUN", "7"))
 
 
 def som(n):
@@ -65,12 +68,27 @@ def _malumot_text(d):
 
 
 def ruxsat(uid):
-    return ALLOWED is None or uid in ALLOWED
+    return db.is_allowed(uid)
 
 
 async def guard(update: Update):
-    if not ruxsat(update.effective_user.id):
-        await update.message.reply_text("Kechirasiz, bu korxona boti.")
+    uid = update.effective_user.id
+    if not db.is_allowed(uid):
+        await update.message.reply_text(
+            "Kechirasiz, bu korxona boti. 🔒\n\n"
+            f"Sizning ID: `{uid}`\n"
+            "Bu raqamni adminga yuboring — u sizni qo'shadi.",
+            parse_mode="Markdown",
+        )
+        return False
+    return True
+
+
+async def admin_guard(update: Update):
+    if not await guard(update):
+        return False
+    if not db.is_admin(update.effective_user.id):
+        await update.message.reply_text("Bu buyruq faqat adminlar uchun.")
         return False
     return True
 
@@ -247,15 +265,20 @@ async def bajar(update: Update, ctx: ContextTypes.DEFAULT_TYPE, t):
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await guard(update):
         return
+    uid = update.effective_user.id
     url = webapp_url()
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("📊 Hisobni ochish", web_app=WebAppInfo(url=url))]]) if url else None
+    admin_qatri = "\n/xodimlar — xodimlar · /limit — yig'ish chegarasi" if db.is_admin(uid) else ""
     await update.message.reply_text(
         "Salom! Men ijara hisobi botiman. 🏗\n\n"
         "*Ovoz* yoki *matn* yuboring:\n\n"
         "📤 «Abbosga 100 ta lesa chiqdi, kuniga 2000 so'm»\n"
         "📥 «Abbos 1-partiyadan 30 ta qaytardi»\n\n"
         "Bir xil ismli mijoz bo'lsa — «qaysi biri?» deb so'rayman.\n\n"
-        "/mijozlar — barcha qarzlar\n/kunlik — bugungi hisobot\n/xarajat — AI sarfi\n/app — hisobni ochish",
+        "/mijozlar — barcha qarzlar\n/qarzdorlar — pul yig'ish ro'yxati\n"
+        "/kunlik — bugungi hisobot\n/xarajat — AI sarfi\n/app — hisobni ochish"
+        f"{admin_qatri}\n\n"
+        f"🆔 Sizning ID: `{uid}`",
         parse_mode="Markdown", reply_markup=kb,
     )
 
@@ -332,6 +355,121 @@ async def xarajat_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "🖥 Server (Railway) haqi alohida — Railway dashboardida.",
     ]
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
+# ---------- Qarzdorlar / chegara ----------
+async def qarzdorlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await guard(update):
+        return
+    lst = db.qarzdorlar()
+    if not lst:
+        await update.message.reply_text("Qarzdor yo'q. 👍")
+        return
+    limit_kun = db.get_limit_kun()
+    over = [x for x in lst if x["over"]]
+    lines = [f"📋 *Qarzdorlar* ({len(lst)} ta) · chegara {limit_kun} kunlik ijara\n"]
+    for x in lst:
+        bel = "🔴" if x["over"] else "🟡"
+        kun = "rental yo'q" if x["kun"] is None else f"{round(x['kun'])} kunlik"
+        tel = f" · {x['telefon']}" if x["telefon"] else ""
+        lines.append(f"{bel} *{x['ism']}*{tel}\n   {som(x['qarz'])} so'm · {kun}")
+    lines.append(f"\n🔴 Yig'ish kerak: {len(over)} ta · 🟡 Kuzatuvda: {len(lst) - len(over)} ta")
+    lines.append(f"💰 Umumiy qarz: {som(sum(x['qarz'] for x in lst))} so'm")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
+async def limit_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    if ctx.args and ctx.args[0].lstrip("-").isdigit():
+        n = int(ctx.args[0])
+        if n < 1:
+            await update.message.reply_text("Chegara kamida 1 kun bo'lsin.")
+            return
+        db.set_limit_kun(n)
+        await update.message.reply_text(
+            f"✅ Chegara o'zgartirildi: *{n} kunlik ijara*.\n"
+            "Qarzi shu chegaradan oshgan mijozlar uchun pul yig'ish eslatmasi keladi.",
+            parse_mode="Markdown")
+        return
+    cur = db.get_limit_kun()
+    await update.message.reply_text(
+        f"📏 Hozirgi chegara: *{cur} kunlik ijara*.\n\n"
+        "Mijozning qarzi shuncha kunlik ijarasiga tenglashsa — «pul yig'ish kerak» deb belgilanadi. "
+        "Katta mijozga chegara balandroq, kichigiga past — o'zi miqyosga moslashadi.\n\n"
+        "O'zgartirish: `/limit 30`", parse_mode="Markdown")
+
+
+# ---------- Xodimlarni boshqarish (faqat admin) ----------
+def _parse_id_ism(args):
+    """'12345 Akmal Aka' -> (12345, 'Akmal Aka'). ID bo'lmasa (None, None)."""
+    if not args or not args[0].lstrip("-").isdigit():
+        return None, None
+    return int(args[0]), (" ".join(args[1:]).strip() or None)
+
+
+async def xodimlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    xs = db.all_xodimlar()
+    lines = ["👥 *Xodimlar:*\n"]
+    for x in xs:
+        rol = "👑 Admin" if x["rol"] == "admin" else "👷 Xodim"
+        ega = " · ega" if x["id"] == db.OWNER_ID else ""
+        ism = x.get("ism") or "—"
+        lines.append(f"{rol}{ega} · {ism}\n   🆔 `{x['id']}`")
+    lines.append(
+        "\n*Boshqarish:*\n"
+        "➕ `/xodim_qosh <id> <ism>`\n"
+        "👑 `/admin_qosh <id> <ism>`\n"
+        "🗑 `/ochir <id>`"
+    )
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
+async def xodim_qosh_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    uid, ism = _parse_id_ism(ctx.args)
+    if not uid:
+        await update.message.reply_text("Format: `/xodim_qosh <id> <ism>`\nMasalan: `/xodim_qosh 12345678 Akmal`", parse_mode="Markdown")
+        return
+    db.add_xodim(uid, ism, "xodim", update.effective_user.id)
+    await update.message.reply_text(f"✅ 👷 Xodim qo'shildi: *{ism or uid}*\n🆔 `{uid}`", parse_mode="Markdown")
+
+
+async def admin_qosh_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    uid, ism = _parse_id_ism(ctx.args)
+    if not uid:
+        await update.message.reply_text("Format: `/admin_qosh <id> <ism>`", parse_mode="Markdown")
+        return
+    db.add_xodim(uid, ism, "admin", update.effective_user.id)
+    await update.message.reply_text(f"✅ 👑 Admin qo'shildi: *{ism or uid}*\n🆔 `{uid}`", parse_mode="Markdown")
+
+
+async def ochir_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    uid, _ = _parse_id_ism(ctx.args)
+    if not uid:
+        await update.message.reply_text("Format: `/ochir <id>`", parse_mode="Markdown")
+        return
+    if uid == db.OWNER_ID:
+        await update.message.reply_text("Egani o'chirib bo'lmaydi. 🔒")
+        return
+    target = db.get_xodim(uid)
+    if not target:
+        await update.message.reply_text("Bunday xodim ro'yxatda yo'q.")
+        return
+    # Adminni faqat ega o'chira oladi
+    if target["rol"] == "admin" and not db.is_owner(update.effective_user.id):
+        await update.message.reply_text("Adminni faqat ega (birinchi admin) o'chira oladi.")
+        return
+    db.remove_xodim(uid)
+    holat = "👑 Admin" if target["rol"] == "admin" else "👷 Xodim"
+    await update.message.reply_text(f"🗑 {holat} o'chirildi: *{target.get('ism') or uid}*", parse_mode="Markdown")
 
 
 # ---------- Xabarlar ----------
@@ -522,11 +660,54 @@ async def _send_eslatma(app, r):
               f"📝 «{r.get('izoh') or ''}»\n"
               f"📅 Va'da sanasi: {vada}\n\n")
     text = header + _malumot_text(d)
-    for uid in (ALLOWED or []):
+    for uid in db.xodim_ids():
         try:
             await app.bot.send_message(chat_id=uid, text=text, parse_mode="Markdown")
         except Exception:
             log.exception("eslatma yuborishda xatolik")
+
+
+def _yig_qatri(x):
+    tel = f" · 📞 {x['telefon']}" if x["telefon"] else ""
+    kun = "rental yo'q" if x["kun"] is None else f"~{round(x['kun'])} kunlik ijara"
+    return f"👤 *{x['ism']}*{tel}\n   💰 {som(x['qarz'])} so'm · {kun}"
+
+
+async def _send_yigish(app, due, limit_kun):
+    jami = sum(x["qarz"] for x in due)
+    lines = [f"🔴 *PUL YIG'ISH KERAK* ({len(due)} ta)",
+             f"_Chegara: {limit_kun} kunlik ijara_\n"]
+    lines += [_yig_qatri(x) for x in due]
+    lines.append(f"\n💰 Jami: *{som(jami)} so'm*")
+    text = "\n".join(lines)
+    for uid in db.xodim_ids():
+        try:
+            await app.bot.send_message(chat_id=uid, text=text, parse_mode="Markdown")
+        except Exception:
+            log.exception("yig'ish eslatma yuborishda xatolik")
+
+
+async def _collection_check(app):
+    """Kuniga bir marta (YIGISH_SOAT dan keyin): chegaradan oshgan qarzdorlarni topib eslatadi."""
+    now = db.now_tk()
+    if now.hour < YIGISH_SOAT:
+        return
+    if db.get_sozlama("yig_oxirgi_kun") == now.date().isoformat():
+        return  # bugun allaqachon tekshirildi
+    limit_kun = db.get_limit_kun()
+    due = []
+    for x in db.qarzdorlar(limit_kun):
+        if x["over"]:
+            last = x["yig_sana"]
+            need = (not last) or ((db.today_tk() - date.fromisoformat(str(last)[:10])).days >= QAYTA_ESLAT_KUN)
+            if need:
+                due.append(x)
+                db.set_yig_sana(x["id"], db.today_tk().isoformat())
+        elif x["yig_sana"]:
+            db.set_yig_sana(x["id"], None)  # chegaradan tushdi — soat qaytadan boshlanadi
+    db.set_sozlama("yig_oxirgi_kun", now.date().isoformat())
+    if due:
+        await _send_yigish(app, due, limit_kun)
 
 
 async def reminder_loop(app):
@@ -535,6 +716,7 @@ async def reminder_loop(app):
             for r in db.due_eslatmalar():
                 await _send_eslatma(app, r)
                 db.mark_eslatma_sent(r["id"])
+            await _collection_check(app)
         except Exception:
             log.exception("eslatma tekshiruvi xatolik")
         await asyncio.sleep(60)
@@ -549,13 +731,19 @@ async def run():
     app.add_handler(CommandHandler("app", app_cmd))
     app.add_handler(CommandHandler("kunlik", kunlik_cmd))
     app.add_handler(CommandHandler("xarajat", xarajat_cmd))
+    app.add_handler(CommandHandler("qarzdorlar", qarzdorlar_cmd))
+    app.add_handler(CommandHandler("limit", limit_cmd))
+    app.add_handler(CommandHandler("xodimlar", xodimlar_cmd))
+    app.add_handler(CommandHandler("xodim_qosh", xodim_qosh_cmd))
+    app.add_handler(CommandHandler("admin_qosh", admin_qosh_cmd))
+    app.add_handler(CommandHandler("ochir", ochir_cmd))
     app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.Sticker.ALL, handle_sticker))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     port = int(os.getenv("PORT", "8080"))
-    runner = aioweb.AppRunner(make_web_app(token, ALLOWED))
+    runner = aioweb.AppRunner(make_web_app(token))
     await runner.setup()
     site = aioweb.TCPSite(runner, "0.0.0.0", port)
 
