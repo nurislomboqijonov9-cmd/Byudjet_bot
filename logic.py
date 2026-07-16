@@ -97,30 +97,36 @@ def apply(mijoz_id, t):
             return {"ok": False, "xato": f"Qaysi mahsulot qaytdi? ({bor})"}
 
         target = list(target)
-        target.sort(key=lambda x: x[0]["partiya_raqam"])  # eng eski partiyadan
+        target.sort(key=lambda x: x[0]["partiya_raqam"])  # eng eski chiqishdan
 
-        # Narx aytilgan bo'lsa — aynan shu narxdagi partiyalardan ayiramiz
+        # Narx aytilgan bo'lsa: avval aynan shu narxdagilardan (eng eskisidan),
+        # yetmasa qolganini eng eski chiqishlardan (boshqa narxdagilardan) ayiramiz.
         narx = getattr(t, "kunlik_narx", None)
         if narx:
-            f = [(p, h) for p, h in target if abs((p["kunlik_narx"] or 0) - narx) < 0.5]
-            if not f:
+            priced = [(p, h) for p, h in target if abs((p["kunlik_narx"] or 0) - narx) < 0.5]
+            boshqa = [(p, h) for p, h in target if abs((p["kunlik_narx"] or 0) - narx) >= 0.5]
+            if not priced:
                 nx = ", ".join(sorted(set(str(int(p["kunlik_narx"])) for p, h in target)))
                 return {"ok": False, "xato": f"«{target[0][0]['mahsulot']}» {int(narx)} so'mdan topilmadi. Narxlar: {nx}"}
-            target = f
+            order = priced + boshqa               # narxdagilar oldin, keyin eng eskilar
+            cap_all = sum(h["qolgan"] for p, h in priced)   # «hammasi» narx bilan = faqat shu narx
+        else:
+            order = target
+            cap_all = sum(h["qolgan"] for p, h in order)
 
-        jami_qolgan = sum(h["qolgan"] for p, h in target)
-        qty = jami_qolgan if getattr(t, "hammasi", False) else t.miqdor
+        cap_max = sum(h["qolgan"] for p, h in order)  # raqam berilsa — fallback bilan yetadigan maksimum
+        qty = cap_all if getattr(t, "hammasi", False) else t.miqdor
         if not qty:
             return {"ok": False, "xato": "Nechta qaytarganini ayting"}
         kam = False
-        if qty > jami_qolgan:
-            qty = jami_qolgan
+        if qty > cap_max:
+            qty = cap_max
             kam = True
 
         remaining = qty
         sana = _sana(t)
         return_ids, taqsim = [], []
-        for p, h in target:
+        for p, h in order:
             if remaining <= 0:
                 break
             take = min(remaining, h["qolgan"])

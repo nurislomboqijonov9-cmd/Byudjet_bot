@@ -119,6 +119,30 @@ def init_db():
     mcols2 = [r[1] for r in con.execute("PRAGMA table_info(mijozlar)").fetchall()]
     if "yig_sana" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN yig_sana TEXT")
+
+    # Zakazlar (2 qavatli model): mahsulot bo'yicha umumiy buyurtma. Chiqishlar (partiyalar) shunga bog'lanadi.
+    con.execute("""CREATE TABLE IF NOT EXISTS zakazlar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, mijoz_id INTEGER NOT NULL,
+        mahsulot TEXT NOT NULL, jami_miqdor REAL NOT NULL DEFAULT 0, yaratilgan TEXT NOT NULL)""")
+    pcols = [r[1] for r in con.execute("PRAGMA table_info(partiyalar)").fetchall()]
+    if "zakaz_id" not in pcols:
+        con.execute("ALTER TABLE partiyalar ADD COLUMN zakaz_id INTEGER")
+    # Eski partiyalarni zakazga bog'lash: har (mijoz, mahsulot) uchun bitta zakaz, jami = chiqqanlar yig'indisi
+    orphans = con.execute(
+        "SELECT DISTINCT mijoz_id, mahsulot FROM partiyalar WHERE zakaz_id IS NULL").fetchall()
+    for mid, mah in orphans:
+        z = con.execute("SELECT id FROM zakazlar WHERE mijoz_id=? AND LOWER(TRIM(mahsulot))=LOWER(TRIM(?)) LIMIT 1",
+                        (mid, mah)).fetchone()
+        if z:
+            zid = z[0]
+        else:
+            summ = con.execute("SELECT COALESCE(SUM(miqdor),0) FROM partiyalar WHERE mijoz_id=? AND mahsulot=?",
+                               (mid, mah)).fetchone()[0]
+            zid = con.execute("INSERT INTO zakazlar (mijoz_id, mahsulot, jami_miqdor, yaratilgan) VALUES (?,?,?,?)",
+                              (mid, mah, summ, now_tk().isoformat())).lastrowid
+        con.execute("UPDATE partiyalar SET zakaz_id=? WHERE mijoz_id=? AND mahsulot=? AND zakaz_id IS NULL",
+                    (zid, mid, mah))
+
     con.commit()
     con.close()
 
@@ -319,6 +343,50 @@ def xodim_ids():
 
 
 # ---------- Partiyalar ----------
+def find_or_create_zakaz(mijoz_id, mahsulot, con=None):
+    """(mijoz, mahsulot) uchun mavjud zakazni topadi yoki yangi ochadi. zakaz_id qaytaradi."""
+    own = con is None
+    if own:
+        con = _con()
+    z = con.execute("SELECT id FROM zakazlar WHERE mijoz_id=? AND LOWER(TRIM(mahsulot))=LOWER(TRIM(?)) LIMIT 1",
+                    (mijoz_id, mahsulot)).fetchone()
+    if z:
+        zid = z[0]
+    else:
+        zid = con.execute("INSERT INTO zakazlar (mijoz_id, mahsulot, jami_miqdor, yaratilgan) VALUES (?,?,0,?)",
+                          (mijoz_id, mahsulot, now_tk().isoformat())).lastrowid
+    if own:
+        con.commit()
+        con.close()
+    return zid
+
+
+def set_zakaz_total(zakaz_id, jami_miqdor):
+    con = _con()
+    con.execute("UPDATE zakazlar SET jami_miqdor=? WHERE id=?", (float(jami_miqdor or 0), zakaz_id))
+    con.commit()
+    con.close()
+
+
+def get_zakaz(zakaz_id):
+    con = _con()
+    r = con.execute("SELECT * FROM zakazlar WHERE id=?", (zakaz_id,)).fetchone()
+    con.close()
+    return dict(r) if r else None
+
+
+def delete_zakaz(zakaz_id):
+    """Zakaz va uning barcha chiqishlari (partiyalari) hamda qaytarishlarini o'chiradi."""
+    con = _con()
+    pids = [r[0] for r in con.execute("SELECT id FROM partiyalar WHERE zakaz_id=?", (zakaz_id,)).fetchall()]
+    for pid in pids:
+        con.execute("DELETE FROM qaytarishlar WHERE partiya_id=?", (pid,))
+    con.execute("DELETE FROM partiyalar WHERE zakaz_id=?", (zakaz_id,))
+    con.execute("DELETE FROM zakazlar WHERE id=?", (zakaz_id,))
+    con.commit()
+    con.close()
+
+
 def next_raqam(mijoz_id):
     con = _con()
     r = con.execute("SELECT MAX(partiya_raqam) FROM partiyalar WHERE mijoz_id = ?", (mijoz_id,)).fetchone()
@@ -326,13 +394,15 @@ def next_raqam(mijoz_id):
     return (r[0] or 0) + 1
 
 
-def add_partiya(mijoz_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana):
+def add_partiya(mijoz_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana, zakaz_id=None):
     raqam = next_raqam(mijoz_id)
     con = _con()
+    if zakaz_id is None:
+        zakaz_id = find_or_create_zakaz(mijoz_id, mahsulot, con)
     cur = con.execute(
-        """INSERT INTO partiyalar (mijoz_id, partiya_raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, yaratilgan)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (mijoz_id, raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, now_tk().isoformat()),
+        """INSERT INTO partiyalar (mijoz_id, partiya_raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, yaratilgan, zakaz_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (mijoz_id, raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, now_tk().isoformat(), zakaz_id),
     )
     con.commit()
     pid = cur.lastrowid
@@ -367,6 +437,13 @@ def update_partiya(partiya_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana):
 def partiyalar_of(mijoz_id):
     con = _con()
     rows = con.execute("SELECT * FROM partiyalar WHERE mijoz_id = ? ORDER BY partiya_raqam", (mijoz_id,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def zakazlar_of(mijoz_id):
+    con = _con()
+    rows = con.execute("SELECT * FROM zakazlar WHERE mijoz_id = ? ORDER BY id", (mijoz_id,)).fetchall()
     con.close()
     return [dict(r) for r in rows]
 
@@ -555,16 +632,47 @@ def mijoz_detail(mijoz_id, today=None):
     m = get_mijoz(mijoz_id)
     if not m:
         return None
-    ps = [partiya_hisob(p, today) for p in partiyalar_of(mijoz_id)]
+    raw = partiyalar_of(mijoz_id)
+    ps = []
+    for p in raw:
+        h = partiya_hisob(p, today)
+        h["zakaz_id"] = p.get("zakaz_id")
+        ps.append(h)
     hisoblangan = sum(x["narx"] for x in ps)
     tolangan = jami_tolov(mijoz_id)
     qo = qoshimcha_of(mijoz_id)
     yolkira = sum(x["summa"] for x in qo if x["tur"] == "yolkira")
     remont = sum(x["summa"] for x in qo if x["tur"] == "remont")
+
+    # 2 qavatli guruh: zakaz (mahsulot bo'yicha jami) -> ichida chiqishlar
+    zmap = {}
+    for z in zakazlar_of(mijoz_id):
+        zmap[z["id"]] = {
+            "id": z["id"], "mahsulot": z["mahsulot"], "jami_miqdor": z["jami_miqdor"],
+            "chiqishlar": [], "chiqdi": 0.0, "qolgan": 0.0, "narx": 0.0,
+        }
+    for h in ps:
+        g = zmap.get(h.get("zakaz_id"))
+        if not g:
+            continue
+        g["chiqishlar"].append(h)
+        g["chiqdi"] += h["miqdor"]
+        g["qolgan"] += h["qolgan"]
+        g["narx"] += h["narx"]
+    zakazlar_list = []
+    for g in zmap.values():
+        if not g["chiqishlar"] and (g["jami_miqdor"] or 0) <= 0:
+            continue
+        g["chiqishlar"].sort(key=lambda x: x["partiya_raqam"])
+        g["qoldi"] = max(0.0, (g["jami_miqdor"] or 0) - g["chiqdi"])  # hali chiqarilmagan
+        zakazlar_list.append(g)
+    zakazlar_list.sort(key=lambda x: (x["mahsulot"] or "").lower())
+
     return {
         "id": mijoz_id, "mijoz": m["ism"], "telefon": m["telefon"], "adres": m.get("adres"),
         "status": m.get("status"),
         "partiyalar": ps,
+        "zakazlar": zakazlar_list,
         "jami": hisoblangan,
         "hisoblangan": hisoblangan,
         "yolkira": yolkira,
