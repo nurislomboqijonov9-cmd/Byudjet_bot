@@ -36,6 +36,7 @@ def apply(mijoz_id, t):
         if not t.mahsulot or not t.miqdor or t.miqdor <= 0 or t.kunlik_narx is None or t.kunlik_narx < 0:
             return {"ok": False, "xato": "Chiqish uchun mahsulot, soni va kunlik narx kerak (tekin bo'lsa 0)"}
         pid, raqam = db.add_partiya(mijoz_id, t.mahsulot, t.miqdor, t.kunlik_narx, _sana(t))
+        db.ombor_apply_by_name(t.mahsulot, "out", t.miqdor)  # ombordan avtomat minus
         return {
             "ok": True, "amal": "chiqish", "mijoz": m["ism"], "mijoz_id": mijoz_id,
             "partiya_id": pid, "raqam": raqam, "mahsulot": t.mahsulot,
@@ -65,6 +66,7 @@ def apply(mijoz_id, t):
                 qty = qolgan
                 ortdi = True
             rid = db.add_return(p["id"], qty, _sana(t))
+            db.ombor_apply_by_name(p["mahsulot"], "ret", qty)  # omborga avtomat plus
             h2 = db.partiya_hisob(p)
             d = db.mijoz_detail(mijoz_id)
             return {
@@ -139,6 +141,7 @@ def apply(mijoz_id, t):
 
         d = db.mijoz_detail(mijoz_id)
         prodname = target[0][0]["mahsulot"]
+        db.ombor_apply_by_name(prodname, "ret", qty - max(0, remaining))  # omborga avtomat plus
         return {
             "ok": True, "amal": "qaytarish", "aggregate": True, "mijoz": m["ism"], "mijoz_id": mijoz_id,
             "mahsulot": prodname, "qty": qty, "return_ids": return_ids, "taqsim": taqsim,

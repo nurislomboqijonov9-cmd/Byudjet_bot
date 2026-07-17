@@ -383,6 +383,71 @@ def make_web_app(bot_token):
         except Exception as e:
             return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
 
+    async def api_ombor(request):
+        uid, err = check(request)
+        if err:
+            return err
+        return web.json_response({"mahsulotlar": db.ombor_list()})
+
+    async def api_ombor_move(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            res = db.ombor_move(b.get("id"), b.get("tur"), b.get("miqdor"))
+            return web.json_response(res)
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
+    async def api_ombor_total(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            return web.json_response(db.ombor_set_total(b.get("id"), b.get("total")))
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
+    async def api_ombor_add(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            return web.json_response(db.ombor_add(b.get("name"), b.get("total") or 0))
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
+    async def api_ombor_del(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            db.ombor_delete(b.get("id"))
+            return web.json_response({"ok": True})
+        except Exception:
+            return web.json_response({"ok": False}, status=400)
+
+    async def api_ombor_rename(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            return web.json_response(db.ombor_rename(b.get("id"), b.get("name")))
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
+    async def api_ombor_tarix(request):
+        uid, err = check(request)
+        if err:
+            return err
+        pid = request.query.get("id") or None
+        return web.json_response({"tarix": db.ombor_history(pid, 200)})
+
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)
     app.router.add_get("/api/mijozlar", api_mijozlar)
@@ -405,4 +470,11 @@ def make_web_app(bot_token):
     app.router.add_post("/api/eslatma", api_eslatma)
     app.router.add_post("/api/eslatma_del", api_eslatma_del)
     app.router.add_post("/api/sms", api_sms)
+    app.router.add_get("/api/ombor", api_ombor)
+    app.router.add_post("/api/ombor_move", api_ombor_move)
+    app.router.add_post("/api/ombor_total", api_ombor_total)
+    app.router.add_post("/api/ombor_add", api_ombor_add)
+    app.router.add_post("/api/ombor_del", api_ombor_del)
+    app.router.add_post("/api/ombor_rename", api_ombor_rename)
+    app.router.add_get("/api/ombor_tarix", api_ombor_tarix)
     return app

@@ -93,6 +93,33 @@
   .retg-i b{font-family:'Space Grotesk';}
   .retg-i .x{color:#B7C3BD;background:none;border:none;font-size:17px;cursor:pointer;}
   .smsbtn{width:100%;padding:12px;background:#fff;border:1px solid var(--brand);color:var(--brand);border-radius:12px;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;margin-bottom:10px;}
+  .omb-wrap{background:#0B1017;margin:0 -14px;padding:14px;min-height:100vh;}
+  .omb-h{padding:4px 2px 12px;}
+  .omb-h .t{font-family:'Space Grotesk';font-size:21px;font-weight:700;color:#fff;}
+  .omb-h .s{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#5B6B7A;margin-top:2px;}
+  .omb-stats{display:flex;gap:8px;margin-bottom:12px;}
+  .omb-stat{flex:1;background:#131C26;border-radius:12px;padding:12px;}
+  .omb-stat .v{font-family:'Space Grotesk';font-weight:700;font-size:19px;color:#fff;}
+  .omb-stat .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5B6B7A;margin-top:3px;}
+  .omb-search input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #1E2A36;background:#131C26;color:#fff;font-size:15px;font-family:inherit;outline:none;margin-bottom:12px;}
+  .omb-card{background:#131C26;border-radius:14px;margin-bottom:10px;overflow:hidden;}
+  .omb-top{display:flex;align-items:center;padding:12px 14px;}
+  .omb-nm{color:#fff;font-weight:600;font-size:15px;}
+  .omb-jami{margin-left:auto;color:#5B6B7A;font-size:12.5px;font-family:'Space Grotesk';}
+  .omb-edit{background:none;border:none;color:#5B6B7A;font-size:15px;margin-left:12px;cursor:pointer;}
+  .omb-grid{display:flex;border-top:1px solid #1E2A36;}
+  .omb-col{flex:1;text-align:center;padding:12px;}
+  .omb-col:first-child{border-right:1px solid #1E2A36;}
+  .omb-col .v{font-family:'Space Grotesk';font-weight:700;font-size:24px;}
+  .omb-col .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#5B6B7A;margin-top:3px;}
+  .omb-a{color:#E8B44A;} .omb-o{color:#3FBF87;} .omb-z{color:#E0574A;}
+  .omb-acts{padding:11px 14px;border-top:1px solid #1E2A36;}
+  .omb-btn{width:100%;padding:11px;border-radius:10px;border:1px solid #2A3B4A;background:#1A2632;color:#CFE3EE;font-family:inherit;font-weight:600;font-size:13.5px;cursor:pointer;margin-bottom:7px;}
+  .omb-in{width:100%;padding:11px;border-radius:10px;border:1px solid #2A3B4A;background:#0E151D;color:#fff;font-size:15px;font-family:inherit;outline:none;margin-bottom:7px;}
+  .omb-tabs{display:flex;gap:8px;margin-bottom:12px;}
+  .omb-tab{flex:1;padding:11px;border-radius:11px;border:none;background:#131C26;color:#8A9AA8;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;}
+  .omb-tab.on{background:#F3F5F4;color:#0B1017;}
+  .ombnav{margin-left:auto;background:#12202B;color:#fff;border:none;border-radius:11px;padding:9px 13px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -120,7 +147,8 @@
     let d; try{const r=await fetch('/api/mijozlar',{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+m.qolgan_qarz,0);
     app.innerHTML=`<header><div><div class="eyebrow">Ijara hisobi</div><h1>Mijozlar</h1></div>
-        <button class="plus" onclick="showNew()">➕ Yangi</button></header>
+        <button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>
+        <button class="plus" style="margin-left:8px" onclick="showNew()">➕</button></header>
       <div class="hero"><div class="arc"></div><div class="lbl">Umumiy qarz</div>
         <div class="amt num">${som(jami)} <small>so'm</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
       <div id="newform"></div>
@@ -415,6 +443,93 @@
       let j=null; try{j=await r.json();}catch(_){}
       if(j&&j.ok){toast('✅ SMS yuborildi');} else {toast('❌ '+((j&&j.xabar)||('Xato '+r.status)));}
     }catch(e){toast('Tarmoq xatosi');}
+  };
+
+  // ======== OMBOR ========
+  window.loadOmbor=async function(){
+    app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
+    let d; try{const r=await fetch('/api/ombor',{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
+    window._omb=d.mahsulotlar||[]; renderOmborView();
+  };
+  function renderOmborView(){
+    const list=window._omb||[];
+    const arend=list.reduce((s,x)=>s+x.out,0);
+    const tugagan=list.filter(x=>x.total>0&&x.omborda<=0).length;
+    app.innerHTML=`<div class="omb-wrap">
+      <button class="back" style="color:#5B6B7A" onclick="loadList()">‹ Mijozlarga</button>
+      <div class="omb-h"><div class="t">📦 Ombor hisobi</div><div class="s">Lesa jihozlari · arenda</div></div>
+      <div class="omb-stats">
+        <div class="omb-stat"><div class="v">${list.length}</div><div class="k">Turlar</div></div>
+        <div class="omb-stat"><div class="v omb-a">${som(arend)}</div><div class="k">Arendada</div></div>
+        <div class="omb-stat"><div class="v omb-z">${tugagan}</div><div class="k">Tugagan</div></div></div>
+      <div class="omb-tabs"><button class="omb-tab on" id="tabomb" onclick="omborTab('omb')">Ombor</button>
+        <button class="omb-tab" id="tabtar" onclick="omborTab('tar')">Tarix</button></div>
+      <div id="ombbody"></div></div>`;
+    omborTab('omb');
+  }
+  window.omborTab=function(w){
+    const a=document.getElementById('tabomb'), b=document.getElementById('tabtar');
+    a.classList.toggle('on',w==='omb'); b.classList.toggle('on',w==='tar');
+    const body=document.getElementById('ombbody');
+    if(w==='tar'){body.innerHTML='<div class="center" style="color:#5B6B7A">Yuklanmoqda…</div>';return loadOmborTarix();}
+    body.innerHTML=`<div class="omb-search"><input placeholder="🔍 Mahsulot qidirish…" oninput="renderOmborCards(this.value)"></div>
+      <button class="omb-btn" style="border-style:dashed;margin-bottom:10px" onclick="tgl('ombnew')">➕ Yangi tovar qo'shish</button>
+      <div id="ombnew" style="display:none;margin-bottom:10px">
+        <input class="omb-in" id="onew_nom" placeholder="Nomi (masalan: Stoyka 6 m)">
+        <input class="omb-in" id="onew_tot" inputmode="numeric" placeholder="Jami soni (ombordagi)">
+        <button class="omb-btn" onclick="omborAdd()">Qo'shish</button></div>
+      <div id="ombcards"></div>`;
+    renderOmborCards('');
+  };
+  window.renderOmborCards=function(q){
+    q=(q||'').toLowerCase().trim();
+    const list=(window._omb||[]).filter(x=>!q||(x.name||'').toLowerCase().includes(q));
+    document.getElementById('ombcards').innerHTML=list.map(x=>{const z=x.omborda<=0;
+      return `<div class="omb-card">
+        <div class="omb-top"><span class="omb-nm">${esc(x.name)}</span>
+          <span class="omb-jami">Jami ${som(x.total)}</span>
+          <button class="omb-edit" onclick="tgl('oa${x.id}')">✏️</button></div>
+        <div class="omb-grid">
+          <div class="omb-col"><div class="v omb-a">${som(x.out)}</div><div class="k">Arendada</div></div>
+          <div class="omb-col"><div class="v ${z?'omb-z':'omb-o'}">${som(x.omborda)}</div><div class="k">Omborda</div></div></div>
+        <div class="omb-acts" id="oa${x.id}" style="display:none">
+          <input class="omb-in" id="ot${x.id}" inputmode="numeric" placeholder="Soni (yangi mol / sindi)">
+          <button class="omb-btn" onclick="omborMove('${x.id}','add')">➕ Yangi mol keldi</button>
+          <button class="omb-btn" onclick="omborMove('${x.id}','writeoff')">🔧 Sindi / yaroqsiz</button>
+          <input class="omb-in" id="os${x.id}" inputmode="numeric" placeholder="Jamini to'g'rilash" value="${x.total}">
+          <button class="omb-btn" onclick="omborTotal('${x.id}')">✏️ Jamini saqlash</button>
+          <input class="omb-in" id="on${x.id}" placeholder="Nomi" value="${esc(x.name)}">
+          <button class="omb-btn" onclick="omborRename('${x.id}')">✏️ Nomni saqlash</button>
+          <button class="omb-btn" style="color:#E0574A;border-color:#5A2A28" onclick="omborDel('${x.id}')">🗑 O'chirish</button>
+        </div></div>`;}).join('')||'<div class="empty" style="color:#5B6B7A">Topilmadi</div>';
+  };
+  async function ombPost(url,body){const r=await fetch(url,{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify(body)});let j=null;try{j=await r.json();}catch(_){}return j;}
+  async function reloadOmbor(){try{const r=await fetch('/api/ombor',{headers:H});const d=await r.json();window._omb=d.mahsulotlar||[];}catch(e){}renderOmborView();}
+  window.omborMove=async function(id,tur){const v=parseFloat((document.getElementById('ot'+id).value||'').replace(/\s/g,''));
+    if(!v||v<=0){toast('Sonini yozing');return;} const j=await ombPost('/api/ombor_move',{id,tur,miqdor:v});
+    if(j&&j.ok){toast('✅ Saqlandi');reloadOmbor();}else{toast('❌ '+((j&&j.xato)||'Xato'));}};
+  window.omborTotal=async function(id){const v=parseFloat((document.getElementById('os'+id).value||'').replace(/\s/g,''));
+    if(isNaN(v)||v<0){toast('Son?');return;} const j=await ombPost('/api/ombor_total',{id,total:v});
+    if(j&&j.ok){toast('✅ Saqlandi');reloadOmbor();}else{toast('❌ Xato');}};
+  window.omborRename=async function(id){const v=(document.getElementById('on'+id).value||'').trim();
+    if(!v){toast('Nom?');return;} const j=await ombPost('/api/ombor_rename',{id,name:v});
+    if(j&&j.ok){toast('✅ Saqlandi');reloadOmbor();}else{toast('❌ Xato');}};
+  window.omborAdd=async function(){const nom=(document.getElementById('onew_nom').value||'').trim();
+    const tot=parseFloat((document.getElementById('onew_tot').value||'').replace(/\s/g,''))||0;
+    if(!nom){toast('Nom?');return;} const j=await ombPost('/api/ombor_add',{name:nom,total:tot});
+    if(j&&j.ok){toast('✅ Qo\'shildi');reloadOmbor();}else{toast('❌ Xato');}};
+  window.omborDel=async function(id){const ok=tg&&tg.showConfirm?await new Promise(r=>tg.showConfirm('Bu tovarni o\'chirasizmi?',r)):confirm('O\'chirasizmi?');
+    if(!ok)return; const j=await ombPost('/api/ombor_del',{id});
+    if(j&&j.ok){toast('🗑 O\'chirildi');reloadOmbor();}else{toast('❌ Xato');}};
+  window.loadOmborTarix=async function(){
+    let d; try{const r=await fetch('/api/ombor_tarix',{headers:H});d=await r.json();}catch(e){document.getElementById('ombbody').innerHTML='<div class="empty" style="color:#5B6B7A">Xato</div>';return;}
+    const TUR={out:'📤 Chiqdi',ret:'📥 Qaytdi',add:'➕ Keldi',writeoff:'🔧 Sindi',ij_out:'📤 Ijara chiqdi',ij_ret:'📥 Ijara qaytdi'};
+    document.getElementById('ombbody').innerHTML=(d.tarix||[]).map(h=>`<div class="omb-card" style="padding:11px 14px;margin-bottom:7px">
+      <div style="display:flex;justify-content:space-between;color:#fff;font-size:14px">
+        <span>${TUR[h.tur]||h.tur} · <b class="num">${som(h.miqdor)}</b></span>
+        <span style="color:#5B6B7A;font-size:12px">omborda ${som(h.ombor_after)}</span></div>
+      <div style="color:#8A9AA8;font-size:12.5px;margin-top:3px">${esc(h.mahsulot_nom)} · ${dmy((h.ts||'').slice(0,10))}</div></div>`).join('')
+      ||'<div class="empty" style="color:#5B6B7A">Tarix bo\'sh</div>';
   };
 
   loadList();

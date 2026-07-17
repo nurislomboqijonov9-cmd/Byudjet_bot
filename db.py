@@ -143,6 +143,34 @@ def init_db():
         con.execute("UPDATE partiyalar SET zakaz_id=? WHERE mijoz_id=? AND mahsulot=? AND zakaz_id IS NULL",
                     (zid, mid, mah))
 
+    # ---------- Ombor (ostatka) ----------
+    con.execute("""CREATE TABLE IF NOT EXISTS ombor_mahsulot (
+        id TEXT PRIMARY KEY, name TEXT NOT NULL,
+        total INTEGER NOT NULL DEFAULT 0, out_qty INTEGER NOT NULL DEFAULT 0,
+        sort_order INTEGER NOT NULL DEFAULT 0)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS ombor_tarix (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, mahsulot_id TEXT, mahsulot_nom TEXT,
+        tur TEXT, miqdor INTEGER, ombor_after INTEGER, ts TEXT NOT NULL)""")
+    c = con.execute("SELECT COUNT(*) FROM ombor_mahsulot").fetchone()[0]
+    if c == 0:
+        seed = [
+            ("Lyulka", 38, 28), ("Fasadni lesa (Yashil lesa)", 2626, 2235),
+            ("Fasad krest (yashil)", 48, 0), ("Stoyka 1.2 m", 202, 0),
+            ("Stoyka 1 m", 294, 0), ("Stoyka 4 m", 4087, 3928),
+            ("Stoyka 4.5 m", 818, 816), ("Stoyka 5 m", 4280, 3964),
+            ("Stoyka 5.5 m", 351, 290), ("Lesa 80", 130, 126),
+            ("Qizil havoza", 32, 0), ("Monolit lesa 1.5 m", 600, 425),
+            ("Monolit lesa 2 m", 2398, 2178), ("Soyedinitel", 6662, 3502),
+            ("Rezba", 9023, 5651), ("Univilka", 5773, 4399),
+            ("Tayrot 1 m", 2789, 1674), ("Tayrot 1.2 m", 466, 466),
+            ("Taxta", 2839, 2597), ("Balka 3 m", 2712, 1698),
+            ("Balka 3.3 m", 10, 0),
+        ]
+        for i, (nom, total, out) in enumerate(seed):
+            pid = _ombor_slug(nom) + f"-{i}"
+            con.execute("INSERT INTO ombor_mahsulot (id, name, total, out_qty, sort_order) VALUES (?,?,?,?,?)",
+                        (pid, nom, total, out, i))
+
     con.commit()
     con.close()
 
@@ -852,3 +880,167 @@ def qarzdorlar(limit_kun=None, today=None):
         })
     out.sort(key=lambda x: (not x["over"], -(x["kun"] if x["kun"] is not None else 1e9), -x["qarz"]))
     return out
+
+
+# ================= OMBOR (ostatka) =================
+def _ombor_norm(s):
+    """Nom mosligini tekshirish uchun: qavs ichini olib, faqat harf/raqam/nuqta, kichik harf."""
+    s = (s or "").lower()
+    out, depth = [], 0
+    for ch in s:
+        if ch == '(':
+            depth += 1
+        elif ch == ')':
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            out.append(ch)
+    return "".join(ch for ch in "".join(out) if ch.isalnum() or ch == '.')
+
+
+def _ombor_slug(s):
+    r = []
+    for ch in (s or "").lower():
+        r.append(ch if ch.isalnum() else '-')
+    return "".join(r).strip('-') or "tovar"
+
+
+def ombor_list():
+    con = _con()
+    rows = con.execute("SELECT id, name, total, out_qty FROM ombor_mahsulot ORDER BY sort_order, name").fetchall()
+    con.close()
+    return [{"id": r["id"], "name": r["name"], "total": r["total"], "out": r["out_qty"],
+             "omborda": r["total"] - r["out_qty"]} for r in rows]
+
+
+def ombor_by_name(nom):
+    key = _ombor_norm(nom)
+    if not key:
+        return None
+    con = _con()
+    rows = con.execute("SELECT id, name FROM ombor_mahsulot").fetchall()
+    con.close()
+    for r in rows:
+        if _ombor_norm(r["name"]) == key:
+            return r["id"]
+    return None
+
+
+def ombor_move(pid, tur, miqdor):
+    """Qo'lda harakat (guard bilan). tur: out/ret/add/writeoff."""
+    miqdor = int(round(float(miqdor or 0)))
+    if miqdor <= 0:
+        return {"ok": False, "xato": "Miqdor noto'g'ri"}
+    if tur not in ("out", "ret", "add", "writeoff"):
+        return {"ok": False, "xato": "tur"}
+    con = _con()
+    r = con.execute("SELECT total, out_qty, name FROM ombor_mahsulot WHERE id=?", (pid,)).fetchone()
+    if not r:
+        con.close()
+        return {"ok": False, "xato": "topilmadi"}
+    total, out, name = r["total"], r["out_qty"], r["name"]
+    if tur == "out":
+        if miqdor > total - out:
+            con.close(); return {"ok": False, "xato": "Omborda yetarli emas"}
+        out += miqdor
+    elif tur == "ret":
+        if miqdor > out:
+            con.close(); return {"ok": False, "xato": "Arendadagidan ko'p"}
+        out -= miqdor
+    elif tur == "add":
+        total += miqdor
+    elif tur == "writeoff":
+        if miqdor > total - out:
+            con.close(); return {"ok": False, "xato": "Omborda yetarli emas"}
+        total -= miqdor
+    con.execute("UPDATE ombor_mahsulot SET total=?, out_qty=? WHERE id=?", (total, out, pid))
+    ombor = total - out
+    con.execute("INSERT INTO ombor_tarix (mahsulot_id, mahsulot_nom, tur, miqdor, ombor_after, ts) VALUES (?,?,?,?,?,?)",
+                (pid, name, tur, miqdor, ombor, now_tk().isoformat()))
+    con.commit()
+    con.close()
+    return {"ok": True, "id": pid, "name": name, "total": total, "out": out, "omborda": ombor}
+
+
+def ombor_apply_by_name(nom, tur, miqdor):
+    """Ijaradan avtomat chaqiriladi: nom bo'yicha topib out +/- qiladi. Ijarani bloklamaydi."""
+    pid = ombor_by_name(nom)
+    if not pid:
+        return (False, None)
+    miqdor = int(round(float(miqdor or 0)))
+    if miqdor <= 0:
+        return (False, None)
+    con = _con()
+    r = con.execute("SELECT total, out_qty, name FROM ombor_mahsulot WHERE id=?", (pid,)).fetchone()
+    total, out, name = r["total"], r["out_qty"], r["name"]
+    if tur == "out":
+        out += miqdor
+    elif tur == "ret":
+        out = max(0, out - miqdor)
+    else:
+        con.close()
+        return (False, None)
+    con.execute("UPDATE ombor_mahsulot SET out_qty=? WHERE id=?", (out, pid))
+    ombor = total - out
+    con.execute("INSERT INTO ombor_tarix (mahsulot_id, mahsulot_nom, tur, miqdor, ombor_after, ts) VALUES (?,?,?,?,?,?)",
+                (pid, name, "ij_" + tur, miqdor, ombor, now_tk().isoformat()))
+    con.commit()
+    con.close()
+    return (True, name)
+
+
+def ombor_set_total(pid, total):
+    total = max(0, int(round(float(total or 0))))
+    con = _con()
+    r = con.execute("SELECT out_qty FROM ombor_mahsulot WHERE id=?", (pid,)).fetchone()
+    if not r:
+        con.close(); return {"ok": False, "xato": "topilmadi"}
+    out = min(r["out_qty"], total)
+    con.execute("UPDATE ombor_mahsulot SET total=?, out_qty=? WHERE id=?", (total, out, pid))
+    con.commit()
+    con.close()
+    return {"ok": True, "id": pid, "total": total, "out": out, "omborda": total - out}
+
+
+def ombor_add(name, total=0):
+    name = (name or "").strip()
+    if not name:
+        return {"ok": False, "xato": "nom"}
+    total = max(0, int(round(float(total or 0))))
+    con = _con()
+    n = con.execute("SELECT COALESCE(MAX(sort_order),0)+1 FROM ombor_mahsulot").fetchone()[0]
+    pid = _ombor_slug(name) + "-" + str(int(now_tk().timestamp()))
+    con.execute("INSERT INTO ombor_mahsulot (id, name, total, out_qty, sort_order) VALUES (?,?,?,0,?)",
+                (pid, name, total, n))
+    con.commit()
+    con.close()
+    return {"ok": True, "id": pid, "name": name, "total": total, "out": 0, "omborda": total}
+
+
+def ombor_delete(pid):
+    con = _con()
+    con.execute("DELETE FROM ombor_tarix WHERE mahsulot_id=?", (pid,))
+    con.execute("DELETE FROM ombor_mahsulot WHERE id=?", (pid,))
+    con.commit()
+    con.close()
+
+
+def ombor_rename(pid, name):
+    name = (name or "").strip()
+    if not name:
+        return {"ok": False, "xato": "nom"}
+    con = _con()
+    con.execute("UPDATE ombor_mahsulot SET name=? WHERE id=?", (name, pid))
+    con.execute("UPDATE ombor_tarix SET mahsulot_nom=? WHERE mahsulot_id=?", (name, pid))
+    con.commit()
+    con.close()
+    return {"ok": True}
+
+
+def ombor_history(pid=None, limit=200):
+    con = _con()
+    if pid:
+        rows = con.execute("SELECT * FROM ombor_tarix WHERE mahsulot_id=? ORDER BY id DESC LIMIT ?", (pid, limit)).fetchall()
+    else:
+        rows = con.execute("SELECT * FROM ombor_tarix ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
