@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from aiohttp import web as aioweb
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup, MenuButtonWebApp, WebAppInfo, InputFile,
+    BotCommand, BotCommandScopeChat,
 )
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
@@ -19,6 +20,7 @@ import db
 import ai
 import logic
 import excel
+import sms
 from miniapp import make_web_app
 
 load_dotenv()
@@ -395,12 +397,50 @@ async def qarzdorlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         lines.append(f"{bel} *{x['ism']}*{tel}\n   {som(x['qarz'])} so'm · {kun}")
     lines.append(f"\n🔴 Yig'ish kerak: {len(over)} ta · 🟡 Kuzatuvda: {len(lst) - len(over)} ta")
     lines.append(f"💰 Umumiy qarz: {som(sum(x['qarz'] for x in lst))} so'm")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    # Chegaradan oshganlarga SMS tugmasi
+    kb = None
+    if over:
+        rows = [[InlineKeyboardButton(f"📩 SMS: {x['ism']}", callback_data=f"sms:{x['id']}")]
+                for x in over[:20] if x["telefon"]]
+        if rows:
+            kb = InlineKeyboardMarkup(rows)
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown", reply_markup=kb)
     try:
         bio = excel.qarzdorlar_excel(lst, limit_kun, sana=db.today_tk().isoformat())
         await update.message.reply_document(document=InputFile(bio, filename="qarzdorlar.xlsx"))
     except Exception:
         log.exception("qarzdorlar excel xatolik")
+
+
+async def sms_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await guard(update):
+        return
+    if not ctx.args or not ctx.args[0].lstrip("-").isdigit():
+        await update.message.reply_text("Format: `/sms <mijoz_id>`\n(mijoz ID sini /qarzdorlar dagi tugmadan olish osonroq)", parse_mode="Markdown")
+        return
+    await _sms_sorov(update.effective_message, int(ctx.args[0]))
+
+
+async def _sms_sorov(message, mid):
+    d = db.mijoz_detail(mid)
+    if not d:
+        await message.reply_text("Mijoz topilmadi.")
+        return
+    if not sms.is_configured():
+        await message.reply_text("📵 SMS hali sozlanmagan. Railway'da ESKIZ_EMAIL, ESKIZ_PASSWORD, ESKIZ_FROM ni qo'shing.")
+        return
+    tel = sms.normalize_phone(d.get("telefon"))
+    if not tel:
+        await message.reply_text(f"«{d['mijoz']}» da to'g'ri telefon raqami yo'q.")
+        return
+    matn = sms.build_message(d)
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Ha, yubor", callback_data=f"smsok:{mid}"),
+        InlineKeyboardButton("❌ Yo'q", callback_data="smsno"),
+    ]])
+    await message.reply_text(
+        f"📩 *{d['mijoz']}* ({tel}) ga yuboriladi:\n\n«{matn}»\n\nYuborilsinmi?",
+        parse_mode="Markdown", reply_markup=kb)
 
 
 async def limit_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -665,6 +705,23 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data == "tasdiq:no":
         ctx.user_data.pop("tasdiq", None)
         await q.edit_message_text("❌ Bekor qilindi.")
+    elif data.startswith("sms:"):
+        await q.edit_message_reply_markup(reply_markup=None)
+        await _sms_sorov(q.message, int(data.split(":")[1]))
+    elif data == "smsno":
+        await q.edit_message_text("❌ SMS bekor qilindi.")
+    elif data.startswith("smsok:"):
+        mid = int(data.split(":")[1])
+        d = db.mijoz_detail(mid)
+        if not d:
+            await q.edit_message_text("Mijoz topilmadi.")
+            return
+        await q.edit_message_text("📤 Yuborilyapti…")
+        ok, info = await sms.send_sms(d.get("telefon"), sms.build_message(d))
+        if ok:
+            await q.edit_message_text(f"✅ SMS yuborildi: *{d['mijoz']}*", parse_mode="Markdown")
+        else:
+            await q.edit_message_text(f"❌ Yuborilmadi: {info}")
     elif data == "tasdiq:edit":
         tr = ctx.user_data.get("tasdiq_transkript", "")
         ctx.user_data.pop("tasdiq", None)
@@ -742,6 +799,39 @@ async def _collection_check(app):
         await _send_yigish(app, due, limit_kun)
 
 
+async def _set_commands(app):
+    # Hamma ko'radigan asosiy menyu (Telegram "/" tugmasida chiqadi)
+    umumiy = [
+        BotCommand("qarzdorlar", "🔴 Pul yig'ish ro'yxati"),
+        BotCommand("hisobot", "📊 Umumiy Excel hisobot"),
+        BotCommand("mijozlar", "👥 Barcha qarzlar"),
+        BotCommand("sms", "📩 Qarzdorga SMS"),
+        BotCommand("kunlik", "📅 Bugungi harakatlar"),
+        BotCommand("app", "📱 Hisobni ochish"),
+        BotCommand("xarajat", "💵 AI sarfi"),
+        BotCommand("start", "ℹ️ Yordam"),
+    ]
+    # Admin/ega qo'shimcha ko'radigan buyruqlar
+    admin_extra = umumiy + [
+        BotCommand("limit", "📏 Yig'ish chegarasi"),
+        BotCommand("xodimlar", "🧑‍🔧 Xodimlar"),
+        BotCommand("xodim_qosh", "➕ Xodim qo'shish"),
+        BotCommand("admin_qosh", "👑 Admin qo'shish"),
+        BotCommand("ochir", "🗑 Xodim o'chirish"),
+    ]
+    try:
+        await app.bot.set_my_commands(umumiy)
+        # Adminlarga (jadvaldagilar + ega) to'liq ro'yxat
+        for x in db.all_xodimlar():
+            if x["rol"] == "admin":
+                try:
+                    await app.bot.set_my_commands(admin_extra, scope=BotCommandScopeChat(chat_id=x["id"]))
+                except Exception:
+                    pass
+    except Exception:
+        log.exception("buyruq menyusini o'rnatishda xatolik")
+
+
 async def reminder_loop(app):
     while True:
         try:
@@ -766,11 +856,12 @@ async def run():
     app.add_handler(CommandHandler("qarzdorlar", qarzdorlar_cmd))
     app.add_handler(CommandHandler("hisobot", hisobot_cmd))
     app.add_handler(CommandHandler("limit", limit_cmd))
+    app.add_handler(CommandHandler("sms", sms_cmd))
     app.add_handler(CommandHandler("xodimlar", xodimlar_cmd))
     app.add_handler(CommandHandler("xodim_qosh", xodim_qosh_cmd))
     app.add_handler(CommandHandler("admin_qosh", admin_qosh_cmd))
     app.add_handler(CommandHandler("ochir", ochir_cmd))
-    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:)"))
+    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:|sms:|smsok:|smsno)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.Sticker.ALL, handle_sticker))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
@@ -794,6 +885,7 @@ async def run():
 
     await app.updater.start_polling()
     asyncio.create_task(reminder_loop(app))
+    await _set_commands(app)
     log.info("Ijara boti + Mini App ishga tushdi (port %s).", port)
     await asyncio.Event().wait()
 
