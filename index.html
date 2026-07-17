@@ -77,6 +77,22 @@
   .stbadge{font-weight:600;font-size:13.5px;padding:5px 12px;border-radius:20px;}
   .edit-status{margin-left:auto;background:none;border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-family:inherit;font-size:12.5px;font-weight:600;color:var(--soft);cursor:pointer;}
   .stdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:middle;}
+  .litems{margin-top:2px;}
+  .litem{padding:11px 0;border-top:1px solid var(--faint);}
+  .litem:first-child{border-top:none;padding-top:4px;}
+  .li-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+  .li-nm{font-size:14.5px;font-weight:600;}
+  .li-val{font-family:'Space Grotesk';font-size:12.5px;color:var(--soft);white-space:nowrap;}
+  .li-sub{display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:12px;color:var(--soft);}
+  .li-acts{display:flex;gap:6px;}
+  .li-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 11px;font-size:13px;cursor:pointer;color:var(--brand);font-family:inherit;}
+  .retg{padding:9px 0;border-top:1px solid var(--faint);}
+  .retg:first-child{border-top:none;padding-top:2px;}
+  .retg-d{font-size:12px;color:var(--brand2);font-weight:600;margin-bottom:5px;}
+  .retg-i{display:flex;align-items:center;justify-content:space-between;font-size:13.5px;padding:3px 0;}
+  .retg-i b{font-family:'Space Grotesk';}
+  .retg-i .x{color:#B7C3BD;background:none;border:none;font-size:17px;cursor:pointer;}
+  .smsbtn{width:100%;padding:12px;background:#fff;border:1px solid var(--brand);color:var(--brand);border-radius:12px;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;margin-bottom:10px;}
 </style>
 </head>
 <body>
@@ -145,31 +161,40 @@
     app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
     let d; try{const r=await fetch('/api/mijoz?id='+id,{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     const bugun=new Date().toLocaleDateString('en-CA');
-    const ps=(d.partiyalar||[]).map(p=>{const done=p.qolgan<=0;
-      const rets=(p.qaytarishlar||[]).map(rr=>`<div class="rlist">↩️ ${son(rr.miqdor)} ta · ${dmy(rr.qaytgan_sana)}<button class="x" onclick="delRet(${rr.id},${d.id})">×</button></div>`).join('');
-      return `<div class="card pcard" data-nom="${esc((p.mahsulot||'').toLowerCase())}"><div class="p-head"><div class="p-badge">${p.partiya_raqam}</div>
-          <div><div class="p-title">${esc(p.mahsulot)}</div><div class="p-sana">📅 ${dmy(p.chiqgan_sana)}${done?' · <span class="done">qaytgan ✓</span>':''}</div></div></div>
-        <div class="p-grid"><div class="box"><div class="k">Qolgan</div><div class="v">${son(p.qolgan)}/${son(p.miqdor)}</div></div>
-          <div class="box"><div class="k">Kunlik</div><div class="v">${som(p.kunlik_narx)}</div></div>
-          <div class="box"><div class="k">Kun</div><div class="v">${p.kunlar}</div></div></div>
-        <div class="p-narx"><span class="k">Shu partiya</span><b class="num">${som(p.narx)} so'm</b></div>
-        ${rets}
-        <div class="inrow" style="margin-top:10px">
-          <button class="mini-btn" onclick="tgl('edit${p.id}')">✏️ O'zgartirish</button>
-          ${p.qolgan>0?`<button class="mini-btn" onclick="tgl('ret${p.id}')">↩️ Qaytarish</button>`:''}</div>
-        <div id="edit${p.id}" style="display:none;margin-top:10px">
+    window._curMijoz=d;
+    // Bitta mahsulot satri (yetkazma ichida)
+    const itemHtml=p=>{const done=p.qolgan<=0;
+      return `<div class="litem pcard" data-nom="${esc((p.mahsulot||'').toLowerCase())}">
+        <div class="li-top"><span class="li-nm">${esc(p.mahsulot)}${done?' <span class="done">✓</span>':''}</span>
+          <span class="li-val">${son(p.qolgan)}/${son(p.miqdor)} · ${som(p.kunlik_narx)}/kun</span></div>
+        <div class="li-sub"><span>🧮 ${som(p.narx)} so'm · ${p.kunlar} kun</span>
+          <span class="li-acts"><button class="li-btn" onclick="tgl('edit${p.id}')">✏️</button>
+            ${p.qolgan>0?`<button class="li-btn" onclick="tgl('ret${p.id}')">↩️</button>`:''}</span></div>
+        <div id="edit${p.id}" style="display:none;margin-top:8px">
           <input class="f" id="e_mah${p.id}" value="${esc(p.mahsulot)}" placeholder="Mahsulot" style="margin-bottom:8px">
           <div class="inrow"><input class="f" id="e_miq${p.id}" value="${son(p.miqdor)}" inputmode="decimal" placeholder="Soni">
             <input class="f" id="e_narx${p.id}" value="${son(p.kunlik_narx)}" inputmode="numeric" placeholder="Kunlik narx"></div>
           <input class="f" id="e_sana${p.id}" type="date" value="${p.chiqgan_sana}" style="margin-top:8px">
           <button class="send" onclick="savePartiya(${p.id},${d.id})">Saqlash</button>
-          <button class="del" style="margin-top:8px" onclick="delPartiya(${p.id},${d.id})">🗑 Bu partiyani o'chirish</button></div>
-        <div id="ret${p.id}" style="display:none;margin-top:10px">
+          <button class="del" style="margin-top:8px" onclick="delPartiya(${p.id},${d.id})">🗑 Bu mahsulotni o'chirish</button></div>
+        <div id="ret${p.id}" style="display:none;margin-top:8px">
           <div class="inrow"><input class="f" id="r_miq${p.id}" inputmode="decimal" placeholder="Nechta qaytdi">
             <input class="f" id="r_sana${p.id}" type="date" value="${bugun}"></div>
           <button class="send" onclick="saveRet(${p.id},${d.id})">Qaytdi</button></div>
-      </div>`;
-    }).join('')||'<div class="empty">Partiya yo\'q. Pastdan qo\'shing.</div>';
+      </div>`;};
+    // Yetkazmalar (nakladnoy): bir kun = bir karta
+    const ps=(d.yetkazmalar||[]).map(y=>`<div class="card"><div class="p-head"><div class="p-badge">📦</div>
+        <div><div class="p-title">Yetkazma · ${y.items.length} mahsulot</div>
+          <div class="p-sana">📅 ${dmy(y.sana)} · ${son(y.qolgan_dona)}/${son(y.jami_dona)} dona qolgan</div></div>
+        <b class="num" style="margin-left:auto;font-size:15px">${som(y.jami_narx)}</b></div>
+        <div class="litems">${y.items.map(itemHtml).join('')}</div></div>`).join('')
+      ||'<div class="empty">Chiqarish yo\'q. Pastdan qo\'shing.</div>';
+    // Qaytarishlar (bir kunda qaytganlar bitta yozuvda)
+    const retCard=(d.qaytarishlar_guruh||[]).length?`<div class="addbox"><div class="t">↩️ Qaytgan mahsulotlar</div>${
+      (d.qaytarishlar_guruh||[]).map(g=>`<div class="retg"><div class="retg-d">📅 ${dmy(g.sana)}</div>${
+        g.items.map(it=>`<div class="retg-i"><span>${esc(it.mahsulot)} — <b>${son(it.miqdor)} ta</b></span>
+          <button class="x" onclick="delRet(${it.return_id},${d.id})">×</button></div>`).join('')}</div>`).join('')}</div>`:'';
+    const smsBtn=d.telefon?`<button class="smsbtn" onclick="smsPick(${d.id})">📩 Qarz eslatmasi SMS</button><div id="smsbox" class="addbox" style="display:none"></div>`:'';
     const neg=d.qolgan_qarz<0;
     const tlist=(d.tolovlar||[]).map(tv=>`<div class="tlist"><span class="s">+${som(tv.summa)}</span>
         <span style="color:var(--soft)">${dmy(tv.sana)}${tv.izoh?' · '+esc(tv.izoh):''}</span>
@@ -205,7 +230,8 @@
         <div class="amt num">${som(Math.abs(d.qolgan_qarz))} <small>so'm</small></div>
         <div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan</div></div>
       ${statHtml}
-      ${(d.partiyalar||[]).length>1?'<div class="search"><input id="psearch" placeholder="🔍 Partiya qidirish (lesa, lulka...)" oninput="filterPartiya(this.value)"></div>':''}
+      ${smsBtn}
+      ${(d.partiyalar||[]).length>1?'<div class="search"><input id="psearch" placeholder="🔍 Mahsulot qidirish (lesa, lulka...)" oninput="filterPartiya(this.value)"></div>':''}
       <div class="card">
         <div class="brk"><span class="k">Hisoblangan</span><b class="num">${som(d.hisoblangan)} so'm</b></div>
         <div class="brk"><span class="k">🚚 Yo'lkira</span><b class="num">${som(d.yolkira||0)} so'm</b></div>
@@ -236,6 +262,7 @@
         <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
         <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
       <div id="plist">${ps}</div>
+      ${retCard}
       <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>`;
   };
 
@@ -368,6 +395,26 @@
     if(!ok)return;
     try{const r=await fetch('/api/ochirish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:id})});
       if(!r.ok)throw 0; toast('O\'chirildi'); loadList();}catch(e){toast('O\'chirib bo\'lmadi');}
+  };
+
+  window.smsPick=function(mid){
+    const d=window._curMijoz; const ph=(d&&d.telefonlar)||[];
+    if(!ph.length){toast('Telefon raqami yo\'q');return;}
+    if(ph.length===1){return smsSend(mid,ph[0]);}
+    const box=document.getElementById('smsbox');
+    box.innerHTML='<div class="t">📩 Qaysi raqamga?</div>'+ph.map(p=>`<button class="mini-btn" style="width:100%;margin-bottom:6px" onclick="smsSend(${mid},'${esc(p)}')">📞 ${esc(p)}</button>`).join('');
+    box.style.display='block';
+  };
+  window.smsSend=async function(mid,tel){
+    const d=window._curMijoz; const nm=(d&&d.mijoz)||'';
+    const ok = tg&&tg.showConfirm ? await new Promise(r=>tg.showConfirm('«'+nm+'» ('+tel+') ga qarz eslatmasi SMS yuborilsinmi?',r)) : confirm('SMS yuborilsinmi?');
+    if(!ok)return;
+    const box=document.getElementById('smsbox'); if(box) box.style.display='none';
+    toast('📤 Yuborilyapti…');
+    try{const r=await fetch('/api/sms',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,telefon:tel})});
+      let j=null; try{j=await r.json();}catch(_){}
+      if(j&&j.ok){toast('✅ SMS yuborildi');} else {toast('❌ '+((j&&j.xabar)||('Xato '+r.status)));}
+    }catch(e){toast('Tarmoq xatosi');}
   };
 
   loadList();

@@ -10,6 +10,7 @@ from aiohttp import web
 import db
 import ai
 import logic
+import sms
 
 INDEX = Path(__file__).parent / "index.html"
 
@@ -364,6 +365,24 @@ def make_web_app(bot_token):
         except Exception:
             return web.json_response({"ok": False}, status=400)
 
+    async def api_sms(request):
+        uid, err = check(request)
+        if err:
+            return err
+        if not sms.is_configured():
+            return web.json_response({"ok": False, "xabar": "SMS sozlanmagan (ESKIZ kalitlari yo'q)"})
+        try:
+            b = await request.json()
+            mid = int(b.get("mijoz_id"))
+            d = db.mijoz_detail(mid)
+            if not d:
+                return web.json_response({"ok": False, "xabar": "Mijoz topilmadi"})
+            tel = (b.get("telefon") or d.get("telefon"))
+            ok, info = await sms.send_sms(tel, sms.build_message(d))
+            return web.json_response({"ok": ok, "xabar": info})
+        except Exception as e:
+            return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
+
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)
     app.router.add_get("/api/mijozlar", api_mijozlar)
@@ -385,4 +404,5 @@ def make_web_app(bot_token):
     app.router.add_post("/api/status", api_status)
     app.router.add_post("/api/eslatma", api_eslatma)
     app.router.add_post("/api/eslatma_del", api_eslatma_del)
+    app.router.add_post("/api/sms", api_sms)
     return app

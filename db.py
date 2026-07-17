@@ -668,11 +668,45 @@ def mijoz_detail(mijoz_id, today=None):
         zakazlar_list.append(g)
     zakazlar_list.sort(key=lambda x: (x["mahsulot"] or "").lower())
 
+    # Yetkazmalar: bir kunda chiqqan mahsulotlar = bitta karta (nakladnoy)
+    deliv = {}
+    for h in ps:
+        key = h["chiqgan_sana"][:10]
+        g = deliv.get(key)
+        if not g:
+            g = {"sana": key, "items": [], "jami_narx": 0.0, "jami_dona": 0.0, "qolgan_dona": 0.0}
+            deliv[key] = g
+        g["items"].append(h)
+        g["jami_narx"] += h["narx"]
+        g["jami_dona"] += h["miqdor"]
+        g["qolgan_dona"] += h["qolgan"]
+    for g in deliv.values():
+        g["items"].sort(key=lambda x: x["partiya_raqam"])
+    yetkazmalar = sorted(deliv.values(), key=lambda x: x["sana"], reverse=True)
+
+    # Qaytarishlar: bir kunda qaytgan mahsulotlar = bitta yozuv
+    rgr = {}
+    for h in ps:
+        for r in h.get("qaytarishlar", []):
+            key = r["qaytgan_sana"][:10]
+            g = rgr.get(key)
+            if not g:
+                g = {"sana": key, "items": []}
+                rgr[key] = g
+            g["items"].append({
+                "mahsulot": h["mahsulot"], "miqdor": r["miqdor"],
+                "partiya_raqam": h["partiya_raqam"], "return_id": r["id"],
+            })
+    qaytarishlar_guruh = sorted(rgr.values(), key=lambda x: x["sana"], reverse=True)
+
     return {
         "id": mijoz_id, "mijoz": m["ism"], "telefon": m["telefon"], "adres": m.get("adres"),
+        "telefonlar": phone_list(m["telefon"]),
         "status": m.get("status"),
         "partiyalar": ps,
         "zakazlar": zakazlar_list,
+        "yetkazmalar": yetkazmalar,
+        "qaytarishlar_guruh": qaytarishlar_guruh,
         "jami": hisoblangan,
         "hisoblangan": hisoblangan,
         "yolkira": yolkira,
