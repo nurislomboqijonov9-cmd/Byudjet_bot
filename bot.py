@@ -453,12 +453,62 @@ async def shablon_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"📝 Shablon Eskiz moderatsiyasiga yuborilmoqda:\n\n«{txt}»")
     ok, info = await sms.submit_template(txt)
     if ok:
-        await update.message.reply_text("✅ Shablon yuborildi. Endi Eskiz moderatsiyasini kuting (bir necha soat). Tasdiqlangach SMS ketadi.")
+        await update.message.reply_text("✅ Shablon yuborildi. Endi Eskiz moderatsiyasini kuting (bir necha soat). Holatni /shablonlar bilan tekshiring.")
     else:
         await update.message.reply_text(
             f"❌ Yuborilmadi: {info}\n\n"
             "Agar shartnoma/kontrakt haqida bo'lsa — avval Eskizda shartnomani to'liq faollashtiring "
             "(korxona hisobidan 300 000 balans), keyin qayta yuboring.")
+
+
+async def shablonlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    if not sms.is_configured():
+        await update.message.reply_text("📵 SMS sozlanmagan.")
+        return
+    ok, data = await sms.list_templates()
+    if not ok:
+        await update.message.reply_text(f"❌ Olinmadi: {data}")
+        return
+    items = data if isinstance(data, list) else []
+    if not items:
+        await update.message.reply_text("Hozircha shablon yo'q. /shablon bilan yuboring.")
+        return
+    lines = ["📝 *Shablonlar holati:*\n"]
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        txt = str(it.get("template") or it.get("text") or "")[:55]
+        st = str(it.get("status") or it.get("moderation") or it.get("original_status") or "—")
+        lines.append(f"• «{txt}…»\n  holat: *{st}*")
+    lines.append("\n_«active/tasdiqlangan» → tayyor · «moderation/на модерации» → kutilyapti_")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
+async def yiguvchi_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    if ctx.args:
+        a = ctx.args[0]
+        if a.lower() in ("off", "yoq", "ochir", "o'chir", "0"):
+            db.set_sozlama("yiguvchi_id", "")
+            await update.message.reply_text("✅ Pul yig'uvchi o'chirildi. Kunlik hisobot barcha xodimlarga boradi.")
+            return
+        if a.lstrip("-").isdigit():
+            db.set_sozlama("yiguvchi_id", a)
+            await update.message.reply_text(
+                f"✅ Pul yig'uvchi belgilandi: `{a}`\n\n"
+                f"Har kuni {YIGISH_SOAT}:00 da shu odamga boradi:\n"
+                "📋 Barcha qarzdorlar (Excel bilan)\n"
+                "🔴 Chegaradan oshganlar — alohida (Excel bilan)\n\n"
+                "⚠️ Bu odam botni bir marta ochsin (/start bossin) — shunda bot unga xabar yubora oladi.",
+                parse_mode="Markdown")
+            return
+    cur = db.get_sozlama("yiguvchi_id")
+    txt = f"🧾 Pul yig'uvchi: `{cur}`" if cur else "🧾 Pul yig'uvchi belgilanmagan (hisobot barcha xodimlarga boradi)."
+    await update.message.reply_text(
+        txt + "\n\nBelgilash: `/yiguvchi <id>` · O'chirish: `/yiguvchi off`", parse_mode="Markdown")
 
 
 async def tekshir_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -785,54 +835,70 @@ async def _send_eslatma(app, r):
             log.exception("eslatma yuborishda xatolik")
 
 
-def _yig_qatri(x):
+def _qarzdor_qatri(x):
     tel = f" · 📞 {x['telefon']}" if x["telefon"] else ""
-    kun = "rental yo'q" if x["kun"] is None else f"~{round(x['kun'])} kunlik ijara"
-    return f"👤 *{x['ism']}*{tel}\n   💰 {som(x['qarz'])} so'm · {kun}"
+    kun = "rental yo'q" if x["kun"] is None else f"~{round(x['kun'])} kunlik"
+    bel = "🔴" if x["over"] else "🟡"
+    return f"{bel} *{x['ism']}*{tel}\n   💰 {som(x['qarz'])} so'm · {kun}"
 
 
-async def _send_yigish(app, due, limit_kun):
-    jami = sum(x["qarz"] for x in due)
-    lines = [f"🔴 *PUL YIG'ISH KERAK* ({len(due)} ta)",
-             f"_Chegara: {limit_kun} kunlik ijara_\n"]
-    lines += [_yig_qatri(x) for x in due]
-    lines.append(f"\n💰 Jami: *{som(jami)} so'm*")
-    text = "\n".join(lines)
-    try:
-        data = excel.qarzdorlar_excel(due, limit_kun, sana=db.today_tk().isoformat()).getvalue()
-    except Exception:
-        log.exception("yig'ish excel xatolik")
-        data = None
-    for uid in db.xodim_ids():
-        try:
-            await app.bot.send_message(chat_id=uid, text=text, parse_mode="Markdown")
-            if data:
-                await app.bot.send_document(chat_id=uid, document=InputFile(BytesIO(data), filename="qarzdorlar.xlsx"))
-        except Exception:
-            log.exception("yig'ish eslatma yuborishda xatolik")
+def _qarzdor_matni(lst, limit_kun, sarlavha):
+    lines = [f"{sarlavha} ({len(lst)} ta)", f"_chegara: {limit_kun} kunlik ijara_\n"]
+    for x in lst[:30]:
+        lines.append(_qarzdor_qatri(x))
+    if len(lst) > 30:
+        lines.append(f"\n… va yana {len(lst) - 30} ta (to'liq ro'yxat Excelda)")
+    lines.append(f"\n💰 Jami: *{som(sum(x['qarz'] for x in lst))} so'm*")
+    return "\n".join(lines)
 
 
-async def _collection_check(app):
-    """Kuniga bir marta (YIGISH_SOAT dan keyin): chegaradan oshgan qarzdorlarni topib eslatadi."""
+def _yig_recipients():
+    """Pul yig'uvchi belgilangan bo'lsa — o'shanga, aks holda barcha xodimlarga."""
+    yid = db.get_sozlama("yiguvchi_id")
+    if yid and yid.lstrip("-").isdigit():
+        return [int(yid)]
+    return db.xodim_ids()
+
+
+async def _daily_report(app):
+    """Kuniga bir marta (YIGISH_SOAT dan keyin): pul yig'uvchiga qarzdorlar + chegaradan oshganlar (Excel bilan)."""
     now = db.now_tk()
     if now.hour < YIGISH_SOAT:
         return
     if db.get_sozlama("yig_oxirgi_kun") == now.date().isoformat():
-        return  # bugun allaqachon tekshirildi
-    limit_kun = db.get_limit_kun()
-    due = []
-    for x in db.qarzdorlar(limit_kun):
-        if x["over"]:
-            last = x["yig_sana"]
-            need = (not last) or ((db.today_tk() - date.fromisoformat(str(last)[:10])).days >= QAYTA_ESLAT_KUN)
-            if need:
-                due.append(x)
-                db.set_yig_sana(x["id"], db.today_tk().isoformat())
-        elif x["yig_sana"]:
-            db.set_yig_sana(x["id"], None)  # chegaradan tushdi — soat qaytadan boshlanadi
+        return  # bugun allaqachon yuborildi
     db.set_sozlama("yig_oxirgi_kun", now.date().isoformat())
-    if due:
-        await _send_yigish(app, due, limit_kun)
+    limit_kun = db.get_limit_kun()
+    lst = db.qarzdorlar(limit_kun)
+    if not lst:
+        return
+    over = [x for x in lst if x["over"]]
+    sana = db.today_tk().isoformat()
+
+    text1 = _qarzdor_matni(lst, limit_kun, "📋 *BUGUNGI QARZDORLAR*")
+    try:
+        data1 = excel.qarzdorlar_excel(lst, limit_kun, sana=sana).getvalue()
+    except Exception:
+        data1 = None
+    text2 = data2 = None
+    if over:
+        text2 = _qarzdor_matni(over, limit_kun, f"🔴 *CHEGARADAN OSHGANLAR — PUL YIG'ISH*")
+        try:
+            data2 = excel.qarzdorlar_excel(over, limit_kun, sana=sana).getvalue()
+        except Exception:
+            data2 = None
+
+    for uid in _yig_recipients():
+        try:
+            await app.bot.send_message(chat_id=uid, text=text1, parse_mode="Markdown")
+            if data1:
+                await app.bot.send_document(chat_id=uid, document=InputFile(BytesIO(data1), filename="qarzdorlar.xlsx"))
+            if text2:
+                await app.bot.send_message(chat_id=uid, text=text2, parse_mode="Markdown")
+                if data2:
+                    await app.bot.send_document(chat_id=uid, document=InputFile(BytesIO(data2), filename="chegaradan_oshgan.xlsx"))
+        except Exception:
+            log.exception("kunlik hisobot yuborishda xatolik")
 
 
 async def _set_commands(app):
@@ -874,7 +940,7 @@ async def reminder_loop(app):
             for r in db.due_eslatmalar():
                 await _send_eslatma(app, r)
                 db.mark_eslatma_sent(r["id"])
-            await _collection_check(app)
+            await _daily_report(app)
         except Exception:
             log.exception("eslatma tekshiruvi xatolik")
         await asyncio.sleep(60)
@@ -892,8 +958,10 @@ async def run():
     app.add_handler(CommandHandler("qarzdorlar", qarzdorlar_cmd))
     app.add_handler(CommandHandler("hisobot", hisobot_cmd))
     app.add_handler(CommandHandler("limit", limit_cmd))
+    app.add_handler(CommandHandler("yiguvchi", yiguvchi_cmd))
     app.add_handler(CommandHandler("tekshir", tekshir_cmd))
     app.add_handler(CommandHandler("shablon", shablon_cmd))
+    app.add_handler(CommandHandler("shablonlar", shablonlar_cmd))
     app.add_handler(CommandHandler("sms", sms_cmd))
     app.add_handler(CommandHandler("xodimlar", xodimlar_cmd))
     app.add_handler(CommandHandler("xodim_qosh", xodim_qosh_cmd))
