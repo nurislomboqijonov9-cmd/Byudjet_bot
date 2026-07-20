@@ -27,7 +27,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-APP_VERSION = "24"
+APP_VERSION = "25"
 
 # Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
 YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
@@ -443,6 +443,42 @@ async def _sms_sorov(message, mid):
         parse_mode="Markdown", reply_markup=kb)
 
 
+async def shablon_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    if not sms.is_configured():
+        await update.message.reply_text("📵 SMS sozlanmagan (ESKIZ kalitlari yo'q).")
+        return
+    txt = sms.sample_template()
+    await update.message.reply_text(f"📝 Shablon Eskiz moderatsiyasiga yuborilmoqda:\n\n«{txt}»")
+    ok, info = await sms.submit_template(txt)
+    if ok:
+        await update.message.reply_text("✅ Shablon yuborildi. Endi Eskiz moderatsiyasini kuting (bir necha soat). Tasdiqlangach SMS ketadi.")
+    else:
+        await update.message.reply_text(
+            f"❌ Yuborilmadi: {info}\n\n"
+            "Agar shartnoma/kontrakt haqida bo'lsa — avval Eskizda shartnomani to'liq faollashtiring "
+            "(korxona hisobidan 300 000 balans), keyin qayta yuboring.")
+
+
+async def tekshir_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    if ctx.args and ctx.args[0].lower() in ("on", "off", "ha", "yoq", "1", "0"):
+        on = ctx.args[0].lower() in ("on", "ha", "1")
+        db.set_sozlama("tovar_tekshir", "1" if on else "0")
+        await update.message.reply_text(
+            "✅ Tovar tekshiruvi *YOQILDI* — endi ijarada faqat ombordagi tovar nomlarini qabul qiladi, boshqasiga «to'g'ri yozing» deydi." if on
+            else "⏸ Tovar tekshiruvi *o'chirildi* — istalgan nom bilan chiqarish mumkin.", parse_mode="Markdown")
+        return
+    cur = db.get_sozlama("tovar_tekshir") == "1"
+    await update.message.reply_text(
+        f"🔎 Tovar tekshiruvi: *{'yoqilgan' if cur else 'oʻchiq'}*\n\n"
+        "Yoqilganda ijarada faqat ombordagi tovar nomlari qabul qilinadi. "
+        "Avval Mini App'da ombor ro'yxatini to'g'rilab oling, keyin yoqing.\n\n"
+        "Yoqish: `/tekshir on` · O'chirish: `/tekshir off`", parse_mode="Markdown")
+
+
 async def limit_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await admin_guard(update):
         return
@@ -856,6 +892,8 @@ async def run():
     app.add_handler(CommandHandler("qarzdorlar", qarzdorlar_cmd))
     app.add_handler(CommandHandler("hisobot", hisobot_cmd))
     app.add_handler(CommandHandler("limit", limit_cmd))
+    app.add_handler(CommandHandler("tekshir", tekshir_cmd))
+    app.add_handler(CommandHandler("shablon", shablon_cmd))
     app.add_handler(CommandHandler("sms", sms_cmd))
     app.add_handler(CommandHandler("xodimlar", xodimlar_cmd))
     app.add_handler(CommandHandler("xodim_qosh", xodim_qosh_cmd))

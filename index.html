@@ -222,7 +222,7 @@
       (d.qaytarishlar_guruh||[]).map(g=>`<div class="retg"><div class="retg-d">📅 ${dmy(g.sana)}</div>${
         g.items.map(it=>`<div class="retg-i"><span>${esc(it.mahsulot)} — <b>${son(it.miqdor)} ta</b></span>
           <button class="x" onclick="delRet(${it.return_id},${d.id})">×</button></div>`).join('')}</div>`).join('')}</div>`:'';
-    const smsBtn=d.telefon?`<button class="smsbtn" onclick="smsPick(${d.id})">📩 Qarz eslatmasi SMS</button><div id="smsbox" class="addbox" style="display:none"></div>`:'';
+    const smsBtn=`<button class="smsbtn" onclick="smsPick(${d.id})">📩 Qarz eslatmasi SMS</button><div id="smsbox" class="addbox" style="display:none"></div>`;
     const neg=d.qolgan_qarz<0;
     const tlist=(d.tolovlar||[]).map(tv=>`<div class="tlist"><span class="s">+${som(tv.summa)}</span>
         <span style="color:var(--soft)">${dmy(tv.sana)}${tv.izoh?' · '+esc(tv.izoh):''}</span>
@@ -427,11 +427,17 @@
 
   window.smsPick=function(mid){
     const d=window._curMijoz; const ph=(d&&d.telefonlar)||[];
-    if(!ph.length){toast('Telefon raqami yo\'q');return;}
-    if(ph.length===1){return smsSend(mid,ph[0]);}
     const box=document.getElementById('smsbox');
-    box.innerHTML='<div class="t">📩 Qaysi raqamga?</div>'+ph.map(p=>`<button class="mini-btn" style="width:100%;margin-bottom:6px" onclick="smsSend(${mid},'${esc(p)}')">📞 ${esc(p)}</button>`).join('');
-    box.style.display='block';
+    let h='<div class="t">📩 Qaysi raqamga?</div>';
+    h+=ph.map(p=>`<button class="mini-btn" style="width:100%;margin-bottom:6px" onclick="smsSend(${mid},'${esc(p)}')">📞 ${esc(p)}</button>`).join('');
+    h+=`<input class="f" id="smsphone" inputmode="tel" placeholder="Boshqa raqam (998901234567)" style="margin-bottom:6px">
+      <button class="mini-btn" style="width:100%" onclick="smsManual(${mid})">📤 Shu raqamga yuborish</button>`;
+    box.innerHTML=h; box.style.display='block';
+  };
+  window.smsManual=function(mid){
+    const v=(document.getElementById('smsphone').value||'').trim();
+    if(!v){toast('Raqam yozing');return;}
+    smsSend(mid,v);
   };
   window.smsSend=async function(mid,tel){
     const d=window._curMijoz; const nm=(d&&d.mijoz)||'';

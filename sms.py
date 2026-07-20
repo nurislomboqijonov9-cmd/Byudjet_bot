@@ -109,3 +109,38 @@ async def send_sms(phone, message):
     except Exception as e:
         log.exception("SMS yuborishda xatolik")
         return False, f"{type(e).__name__}: {str(e)[:150]}"
+
+
+def sample_template():
+    """Moderatsiyaga yuboriladigan shablon (namuna summa bilan)."""
+    shablon = os.getenv(
+        "SMS_MATN",
+        "Hurmatli mijoz! {firma} dan ijara qarzingiz {summa} som. "
+        "Iltimos tolovni amalga oshiring. Aloqa: {tel}",
+    )
+    return shablon.format(firma=os.getenv("FIRMA_NOM", "Ustaxona"),
+                          summa="100000", tel=os.getenv("FIRMA_TEL", ""), ism="mijoz")
+
+
+async def submit_template(text):
+    """Shablonni Eskiz moderatsiyasiga yuboradi (POST /user/template)."""
+    if not is_configured():
+        return (False, "SMS sozlanmagan")
+    try:
+        async with aiohttp.ClientSession() as session:
+            async def _do(tok):
+                data = aiohttp.FormData()
+                data.add_field("template", text)
+                async with session.post(f"{BASE}/user/template", data=data,
+                                        headers={"Authorization": f"Bearer {tok}"},
+                                        timeout=aiohttp.ClientTimeout(total=20)) as r:
+                    return r.status, await r.json(content_type=None)
+            token = await _get_token(session)
+            status, j = await _do(token)
+            if status in (401, 403):
+                token = await _get_token(session, force=True)
+                status, j = await _do(token)
+        ok = status in (200, 201) and not (isinstance(j, dict) and j.get("status") == "error")
+        return (ok, str(j)[:250])
+    except Exception as e:
+        return (False, f"{type(e).__name__}: {str(e)[:150]}")
