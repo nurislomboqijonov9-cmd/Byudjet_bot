@@ -210,10 +210,11 @@ def make_web_app(bot_token):
             body = await request.json()
             mid = int(body.get("mijoz_id"))
             summa = float(body.get("summa"))
-            if summa <= 0:
+            if summa == 0:
                 return web.json_response({"ok": False, "xabar": "Summa noto'g'ri"})
+            izoh = "qarz qo'shildi" if summa < 0 else None
             sana = (body.get("sana") or db.today_tk().isoformat())[:10]
-            db.add_tolov(mid, summa, sana, None)
+            db.add_tolov(mid, summa, sana, izoh)
             d = db.mijoz_detail(mid)
             return web.json_response({"ok": True, "qolgan_qarz": d["qolgan_qarz"]})
         except Exception as e:
