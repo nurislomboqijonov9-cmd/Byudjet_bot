@@ -245,7 +245,8 @@ def make_web_app(bot_token):
             if miqdor < qaytgan:
                 return web.json_response({"ok": False, "xabar": f"Soni {int(qaytgan)} tadan kam bo'lmasin (shuncha qaytgan)"})
             db.update_partiya(pid, (b.get("mahsulot") or p["mahsulot"]).strip(),
-                              miqdor, float(b.get("kunlik_narx")), b.get("sana") or p["chiqgan_sana"])
+                              miqdor, float(b.get("kunlik_narx")), b.get("sana") or p["chiqgan_sana"],
+                              manzil=(b.get("manzil") or None))
             return web.json_response({"ok": True})
         except Exception as e:
             return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})

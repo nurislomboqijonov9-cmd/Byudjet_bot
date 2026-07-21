@@ -127,6 +127,8 @@ def init_db():
     pcols = [r[1] for r in con.execute("PRAGMA table_info(partiyalar)").fetchall()]
     if "zakaz_id" not in pcols:
         con.execute("ALTER TABLE partiyalar ADD COLUMN zakaz_id INTEGER")
+    if "manzil" not in pcols:
+        con.execute("ALTER TABLE partiyalar ADD COLUMN manzil TEXT")
     # Eski partiyalarni zakazga bog'lash: har (mijoz, mahsulot) uchun bitta zakaz, jami = chiqqanlar yig'indisi
     orphans = con.execute(
         "SELECT DISTINCT mijoz_id, mahsulot FROM partiyalar WHERE zakaz_id IS NULL").fetchall()
@@ -422,15 +424,15 @@ def next_raqam(mijoz_id):
     return (r[0] or 0) + 1
 
 
-def add_partiya(mijoz_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana, zakaz_id=None):
+def add_partiya(mijoz_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana, zakaz_id=None, manzil=None):
     raqam = next_raqam(mijoz_id)
     con = _con()
     if zakaz_id is None:
         zakaz_id = find_or_create_zakaz(mijoz_id, mahsulot, con)
     cur = con.execute(
-        """INSERT INTO partiyalar (mijoz_id, partiya_raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, yaratilgan, zakaz_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (mijoz_id, raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, now_tk().isoformat(), zakaz_id),
+        """INSERT INTO partiyalar (mijoz_id, partiya_raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, yaratilgan, zakaz_id, manzil)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (mijoz_id, raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, now_tk().isoformat(), zakaz_id, (manzil or None)),
     )
     con.commit()
     pid = cur.lastrowid
@@ -452,11 +454,11 @@ def get_partiya_by_id(partiya_id):
     return dict(r) if r else None
 
 
-def update_partiya(partiya_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana):
+def update_partiya(partiya_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana, manzil=None):
     con = _con()
     con.execute(
-        "UPDATE partiyalar SET mahsulot=?, miqdor=?, kunlik_narx=?, chiqgan_sana=? WHERE id=?",
-        (mahsulot, miqdor, kunlik_narx, str(chiqgan_sana)[:10], partiya_id),
+        "UPDATE partiyalar SET mahsulot=?, miqdor=?, kunlik_narx=?, chiqgan_sana=?, manzil=? WHERE id=?",
+        (mahsulot, miqdor, kunlik_narx, str(chiqgan_sana)[:10], (manzil or None), partiya_id),
     )
     con.commit()
     con.close()
@@ -665,6 +667,7 @@ def mijoz_detail(mijoz_id, today=None):
     for p in raw:
         h = partiya_hisob(p, today)
         h["zakaz_id"] = p.get("zakaz_id")
+        h["manzil"] = p.get("manzil")
         ps.append(h)
     hisoblangan = sum(x["narx"] for x in ps)
     tolangan = jami_tolov(mijoz_id)
@@ -727,6 +730,23 @@ def mijoz_detail(mijoz_id, today=None):
             })
     qaytarishlar_guruh = sorted(rgr.values(), key=lambda x: x["sana"], reverse=True)
 
+    # Manzillar (ob'ektlar): qaysi tovar qaysi manzilda — faqat qolgani bor bo'lganlar
+    mgr = {}
+    for h in ps:
+        if h["qolgan"] <= 0:
+            continue
+        key = (h.get("manzil") or "").strip() or "Manzil belgilanmagan"
+        g = mgr.get(key)
+        if not g:
+            g = {"manzil": key, "items": [], "jami_narx": 0.0, "qolgan_dona": 0.0}
+            mgr[key] = g
+        g["items"].append(h)
+        g["jami_narx"] += h["narx"]
+        g["qolgan_dona"] += h["qolgan"]
+    for g in mgr.values():
+        g["items"].sort(key=lambda x: (x["mahsulot"] or "").lower())
+    manzillar = sorted(mgr.values(), key=lambda x: (x["manzil"] == "Manzil belgilanmagan", x["manzil"].lower()))
+
     return {
         "id": mijoz_id, "mijoz": m["ism"], "telefon": m["telefon"], "adres": m.get("adres"),
         "telefonlar": phone_list(m["telefon"]),
@@ -734,6 +754,7 @@ def mijoz_detail(mijoz_id, today=None):
         "partiyalar": ps,
         "zakazlar": zakazlar_list,
         "yetkazmalar": yetkazmalar,
+        "manzillar": manzillar,
         "qaytarishlar_guruh": qaytarishlar_guruh,
         "jami": hisoblangan,
         "hisoblangan": hisoblangan,
@@ -1044,3 +1065,10 @@ def ombor_history(pid=None, limit=200):
         rows = con.execute("SELECT * FROM ombor_tarix ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
     con.close()
     return [dict(r) for r in rows]
+
+
+def ombor_names():
+    con = _con()
+    rows = con.execute("SELECT name FROM ombor_mahsulot ORDER BY sort_order, name").fetchall()
+    con.close()
+    return [r["name"] for r in rows]

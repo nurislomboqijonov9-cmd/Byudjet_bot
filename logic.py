@@ -35,7 +35,11 @@ def apply(mijoz_id, t):
     if amal == "chiqish":
         if not t.mahsulot or not t.miqdor or t.miqdor <= 0 or t.kunlik_narx is None or t.kunlik_narx < 0:
             return {"ok": False, "xato": "Chiqish uchun mahsulot, soni va kunlik narx kerak (tekin bo'lsa 0)"}
-        pid, raqam = db.add_partiya(mijoz_id, t.mahsulot, t.miqdor, t.kunlik_narx, _sana(t))
+        # Tovar tekshiruvi yoqilgan bo'lsa — faqat ombor ro'yxatidagi nomlar
+        if db.get_sozlama("tovar_tekshir") == "1" and db.ombor_by_name(t.mahsulot) is None:
+            bor = ", ".join(db.ombor_names())
+            return {"ok": False, "xato": f"«{t.mahsulot}» ombordagi tovarlar ro'yxatida yo'q. Iltimos to'g'ri yozing.\n\nMavjud tovarlar: {bor}"}
+        pid, raqam = db.add_partiya(mijoz_id, t.mahsulot, t.miqdor, t.kunlik_narx, _sana(t), manzil=getattr(t, "manzil", None))
         db.ombor_apply_by_name(t.mahsulot, "out", t.miqdor)  # ombordan avtomat minus
         return {
             "ok": True, "amal": "chiqish", "mijoz": m["ism"], "mijoz_id": mijoz_id,
