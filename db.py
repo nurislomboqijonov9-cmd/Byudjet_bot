@@ -129,6 +129,10 @@ def init_db():
         con.execute("ALTER TABLE partiyalar ADD COLUMN zakaz_id INTEGER")
     if "manzil" not in pcols:
         con.execute("ALTER TABLE partiyalar ADD COLUMN manzil TEXT")
+    if "brov_kim" not in pcols:
+        con.execute("ALTER TABLE partiyalar ADD COLUMN brov_kim TEXT")
+    if "brov_miqdor" not in pcols:
+        con.execute("ALTER TABLE partiyalar ADD COLUMN brov_miqdor REAL")
     # Eski partiyalarni zakazga bog'lash: har (mijoz, mahsulot) uchun bitta zakaz, jami = chiqqanlar yig'indisi
     orphans = con.execute(
         "SELECT DISTINCT mijoz_id, mahsulot FROM partiyalar WHERE zakaz_id IS NULL").fetchall()
@@ -424,15 +428,22 @@ def next_raqam(mijoz_id):
     return (r[0] or 0) + 1
 
 
-def add_partiya(mijoz_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana, zakaz_id=None, manzil=None):
+def add_partiya(mijoz_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana, zakaz_id=None, manzil=None,
+                brov_kim=None, brov_miqdor=None):
     raqam = next_raqam(mijoz_id)
+    brov_kim = (brov_kim or "").strip() or None
+    if brov_kim and not brov_miqdor:
+        brov_miqdor = miqdor          # soni aytilmasa — hammasi o'shandan
+    if not brov_kim:
+        brov_miqdor = None
     con = _con()
     if zakaz_id is None:
         zakaz_id = find_or_create_zakaz(mijoz_id, mahsulot, con)
     cur = con.execute(
-        """INSERT INTO partiyalar (mijoz_id, partiya_raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, yaratilgan, zakaz_id, manzil)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (mijoz_id, raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, now_tk().isoformat(), zakaz_id, (manzil or None)),
+        """INSERT INTO partiyalar (mijoz_id, partiya_raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, yaratilgan, zakaz_id, manzil, brov_kim, brov_miqdor)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (mijoz_id, raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, now_tk().isoformat(), zakaz_id,
+         (manzil or None), brov_kim, brov_miqdor),
     )
     con.commit()
     pid = cur.lastrowid
@@ -454,11 +465,17 @@ def get_partiya_by_id(partiya_id):
     return dict(r) if r else None
 
 
-def update_partiya(partiya_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana, manzil=None):
+def update_partiya(partiya_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana, manzil=None,
+                   brov_kim=None, brov_miqdor=None):
+    brov_kim = (brov_kim or "").strip() or None
+    if brov_kim and not brov_miqdor:
+        brov_miqdor = miqdor
+    if not brov_kim:
+        brov_miqdor = None
     con = _con()
     con.execute(
-        "UPDATE partiyalar SET mahsulot=?, miqdor=?, kunlik_narx=?, chiqgan_sana=?, manzil=? WHERE id=?",
-        (mahsulot, miqdor, kunlik_narx, str(chiqgan_sana)[:10], (manzil or None), partiya_id),
+        "UPDATE partiyalar SET mahsulot=?, miqdor=?, kunlik_narx=?, chiqgan_sana=?, manzil=?, brov_kim=?, brov_miqdor=? WHERE id=?",
+        (mahsulot, miqdor, kunlik_narx, str(chiqgan_sana)[:10], (manzil or None), brov_kim, brov_miqdor, partiya_id),
     )
     con.commit()
     con.close()
@@ -668,6 +685,8 @@ def mijoz_detail(mijoz_id, today=None):
         h = partiya_hisob(p, today)
         h["zakaz_id"] = p.get("zakaz_id")
         h["manzil"] = p.get("manzil")
+        h["brov_kim"] = p.get("brov_kim")
+        h["brov_miqdor"] = p.get("brov_miqdor")
         ps.append(h)
     hisoblangan = sum(x["narx"] for x in ps)
     tolangan = jami_tolov(mijoz_id)
@@ -747,6 +766,21 @@ def mijoz_detail(mijoz_id, today=None):
         g["items"].sort(key=lambda x: (x["mahsulot"] or "").lower())
     manzillar = sorted(mgr.values(), key=lambda x: (x["manzil"] == "Manzil belgilanmagan", x["manzil"].lower()))
 
+    # Brovdan olinganlar: kimdan qaysi tovardan qancha
+    bgr = {}
+    for h in ps:
+        kim = (h.get("brov_kim") or "").strip()
+        bm = float(h.get("brov_miqdor") or 0)
+        if not kim or bm <= 0:
+            continue
+        g = bgr.setdefault(kim, {"kim": kim, "items": [], "jami": 0.0})
+        g["items"].append({"mahsulot": h["mahsulot"], "miqdor": bm,
+                           "partiya_raqam": h["partiya_raqam"], "qolgan": h["qolgan"]})
+        g["jami"] += bm
+    for g in bgr.values():
+        g["items"].sort(key=lambda x: (x["mahsulot"] or "").lower())
+    brovdan = sorted(bgr.values(), key=lambda x: x["kim"].lower())
+
     jami_qolgan_ = sum(x["qolgan"] for x in ps)
     _st = m.get("status")
     if _st != "sotuv":  # 'sotuv' qo'lda qo'yiladi, avtomat o'zgarmaydi
@@ -760,6 +794,7 @@ def mijoz_detail(mijoz_id, today=None):
         "zakazlar": zakazlar_list,
         "yetkazmalar": yetkazmalar,
         "manzillar": manzillar,
+        "brovdan": brovdan,
         "qaytarishlar_guruh": qaytarishlar_guruh,
         "jami": hisoblangan,
         "hisoblangan": hisoblangan,

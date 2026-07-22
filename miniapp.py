@@ -142,6 +142,18 @@ def make_web_app(bot_token):
             actions = [a for a in actions if a.tushunildi and a.amal] or actions[:1]
             if not actions:
                 return web.json_response({"ok": False, "xabar": "Tushunolmadim"})
+            bkim = (body.get("brov_kim") or "").strip() or None
+            bmiq = body.get("brov_miqdor")
+            try:
+                bmiq = float(bmiq) if bmiq not in (None, "") else None
+            except Exception:
+                bmiq = None
+            if bkim:
+                for a in actions:
+                    am = a.amal.value if hasattr(a.amal, "value") else a.amal
+                    if am == "chiqish":
+                        a.brov_kim = bkim
+                        a.brov_miqdor = bmiq
             msgs, ok = [], False
             for a in actions:
                 res = logic.apply(mid, a)
@@ -249,9 +261,15 @@ def make_web_app(bot_token):
             togri, _aniq = db.ombor_match_name(mahsulot)
             if togri:
                 mahsulot = togri
+            _bm = b.get("brov_miqdor")
+            try:
+                _bm = float(_bm) if _bm not in (None, "") else None
+            except Exception:
+                _bm = None
             db.update_partiya(pid, mahsulot,
                               miqdor, float(b.get("kunlik_narx")), b.get("sana") or p["chiqgan_sana"],
-                              manzil=(b.get("manzil") or None))
+                              manzil=(b.get("manzil") or None),
+                              brov_kim=(b.get("brov_kim") or None), brov_miqdor=_bm)
             return web.json_response({"ok": True})
         except Exception as e:
             return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
