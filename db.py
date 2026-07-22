@@ -159,6 +159,8 @@ def init_db():
     bcols = [r[1] for r in con.execute("PRAGMA table_info(brovlar)").fetchall()]
     if "mijoz_id" not in bcols:
         con.execute("ALTER TABLE brovlar ADD COLUMN mijoz_id INTEGER")
+    if "kunlik_narx" not in bcols:
+        con.execute("ALTER TABLE brovlar ADD COLUMN kunlik_narx REAL DEFAULT 0")
     # O'zimiz uchun qaydlar (eslatmasiz, shunchaki yozib qo'yish)
     con.execute("""CREATE TABLE IF NOT EXISTS qaydlar (
         id INTEGER PRIMARY KEY AUTOINCREMENT, mijoz_id INTEGER NOT NULL,
@@ -1160,7 +1162,7 @@ def ombor_match_name(nom, cutoff=0.62):
 
 
 # ================= BROVDAN (boshqadan olib turilgan) =================
-def brov_add(kim, mahsulot, miqdor, sana=None, izoh=None, mijoz_id=None):
+def brov_add(kim, mahsulot, miqdor, sana=None, izoh=None, mijoz_id=None, kunlik_narx=0):
     kim = (kim or "").strip()
     mahsulot = (mahsulot or "").strip()
     try:
@@ -1171,8 +1173,12 @@ def brov_add(kim, mahsulot, miqdor, sana=None, izoh=None, mijoz_id=None):
         return {"ok": False, "xato": "Kim, mahsulot va soni kerak"}
     sana = str(sana or today_tk().isoformat())[:10]
     con = _con()
-    cur = con.execute("INSERT INTO brovlar (kim, mahsulot, miqdor, sana, izoh, yaratilgan, mijoz_id) VALUES (?,?,?,?,?,?,?)",
-                      (kim, mahsulot, miqdor, sana, (izoh or None), now_tk().isoformat(), mijoz_id))
+    try:
+        kunlik_narx = float(kunlik_narx or 0)
+    except Exception:
+        kunlik_narx = 0
+    cur = con.execute("INSERT INTO brovlar (kim, mahsulot, miqdor, sana, izoh, yaratilgan, mijoz_id, kunlik_narx) VALUES (?,?,?,?,?,?,?,?)",
+                      (kim, mahsulot, miqdor, sana, (izoh or None), now_tk().isoformat(), mijoz_id, kunlik_narx))
     con.commit()
     bid = cur.lastrowid
     con.close()
@@ -1231,17 +1237,37 @@ def brov_list(mijoz_id=None):
     rmap = {}
     for r in rets:
         rmap.setdefault(r["brov_id"], []).append(dict(r))
+    bugun = today_tk()
     gr = {}
     for b in rows:
         b = dict(b)
-        qaytgan = sum(x["miqdor"] for x in rmap.get(b["id"], []))
+        rets_b = rmap.get(b["id"], [])
+        qaytgan = sum(x["miqdor"] for x in rets_b)
         b["qaytgan"] = qaytgan
         b["qolgan"] = max(0.0, float(b["miqdor"]) - qaytgan)
-        b["qaytarishlar"] = rmap.get(b["id"], [])
-        g = gr.setdefault(b["kim"], {"kim": b["kim"], "items": [], "jami": 0.0, "qolgan": 0.0})
+        b["qaytarishlar"] = rets_b
+        # Pul: har qism o'z kuni bo'yicha (chiqgan va qaytgan kun hisobmas)
+        narx = float(b.get("kunlik_narx") or 0)
+        summa, kunlar = 0.0, 0
+        if narx > 0:
+            try:
+                d0 = date.fromisoformat(str(b["sana"])[:10])
+                for rr in rets_b:
+                    dr = date.fromisoformat(str(rr["sana"])[:10])
+                    k = max(0, (dr - d0).days - 1)
+                    summa += narx * float(rr["miqdor"]) * k
+                kq = max(0, (bugun - d0).days - 1)
+                summa += narx * b["qolgan"] * kq
+                kunlar = kq
+            except Exception:
+                pass
+        b["kunlar"] = kunlar
+        b["summa"] = summa
+        g = gr.setdefault(b["kim"], {"kim": b["kim"], "items": [], "jami": 0.0, "qolgan": 0.0, "summa": 0.0})
         g["items"].append(b)
         g["jami"] += float(b["miqdor"])
         g["qolgan"] += b["qolgan"]
+        g["summa"] += summa
     out = sorted(gr.values(), key=lambda x: (-x["qolgan"], x["kim"].lower()))
     return out
 

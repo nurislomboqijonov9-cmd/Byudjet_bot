@@ -239,13 +239,15 @@
         g.items.map(it=>`<div class="retg-i"><span>${esc(it.mahsulot)} — <b>${son(it.miqdor)} ta</b></span>
           <button class="x" onclick="delRet(${it.return_id},${d.id})">×</button></div>`).join('')}</div>`).join('')}</div>`:'';
     const brovIn=`<div class="addbox"><div class="t">🔁 Brovdan olindi (shu mijoz uchun)</div>${
+      ((d.brovlar||[]).reduce((s,g)=>s+(g.summa||0),0)>0)?`<div class="hint" style="margin:0 0 6px">To'lashimiz kerak: <b class="num">${som((d.brovlar||[]).reduce((s,g)=>s+(g.summa||0),0))} so'm</b></div>`:''}${
       (d.brovlar||[]).map(g=>g.items.map(b=>`<div class="tlist"><span style="font-weight:600;white-space:nowrap">${esc(g.kim)}</span>
-        <span style="color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.mahsulot)} · ${son(b.qolgan)}/${son(b.miqdor)} ta${b.izoh?' · '+esc(b.izoh):''}</span>
+        <span style="color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.mahsulot)} · ${son(b.qolgan)}/${son(b.miqdor)} ta${b.kunlik_narx>0?' · '+som(b.kunlik_narx)+'/kun = '+som(b.summa)+" so'm":''}</span>
         <button class="x" onclick="brovDelM(${b.id},${d.id})">×</button></div>`).join('')).join('')}
       <input class="f" id="bi_kim${d.id}" placeholder="Kimdan olindi" style="margin-top:8px">
       <input class="f" id="bi_mah${d.id}" placeholder="Mahsulot" list="tovarlist" autocomplete="off" style="margin-top:8px">
       <div class="inrow" style="margin-top:8px"><input class="f" id="bi_miq${d.id}" inputmode="decimal" placeholder="Nechta">
-        <input class="f" id="bi_sana${d.id}" type="date" value="${bugun}"></div>
+        <input class="f" id="bi_narx${d.id}" inputmode="numeric" placeholder="Kunlik narx"></div>
+      <input class="f" id="bi_sana${d.id}" type="date" value="${bugun}" style="margin-top:8px">
       <button class="send" onclick="brovAddM(${d.id})">Qo'shish</button>
       <div class="hint">Boshqadan olib turib shu mijozga bergan tovar. Omborga ta'sir qilmaydi.</div></div>`;
     const qaydCard=`<div class="addbox"><div class="t">📝 Qayd (o'zimiz uchun)</div>${
@@ -714,9 +716,10 @@
     const kim=(document.getElementById('bi_kim'+mid).value||'').trim();
     const mah=(document.getElementById('bi_mah'+mid).value||'').trim();
     const miq=parseFloat((document.getElementById('bi_miq'+mid).value||'').replace(/\s/g,''));
+    const narx=parseFloat((document.getElementById('bi_narx'+mid).value||'').replace(/\s/g,''))||0;
     const sana=document.getElementById('bi_sana'+mid).value;
     if(!kim||!mah||!miq||miq<=0){toast('Kim, mahsulot va sonini yozing');return;}
-    const j=await brovPost('/api/brov_add',{kim,mahsulot:mah,miqdor:miq,sana,mijoz_id:mid});
+    const j=await brovPost('/api/brov_add',{kim,mahsulot:mah,miqdor:miq,sana,mijoz_id:mid,kunlik_narx:narx});
     if(j&&j.ok){toast('🔁 Qo\'shildi');loadMijoz(mid);}else{toast('❌ '+((j&&j.xato)||'Xato'));}
   };
   window.brovDelM=async function(id,mid){
