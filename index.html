@@ -86,7 +86,8 @@
   .li-sub{display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:12px;color:var(--soft);}
   .li-acts{display:flex;gap:6px;}
   .li-manzil{font-size:12px;color:var(--brand);margin-top:3px;}
-  .ta{resize:vertical;overflow:hidden;min-height:104px;line-height:1.5;font-family:inherit;padding:12px 14px;}
+  .ta{flex:1 1 auto;width:100%;min-width:0;box-sizing:border-box;resize:none;overflow:hidden;height:46px;min-height:46px;line-height:1.45;font-family:inherit;padding:12px 14px;}
+  .mic-sm{height:46px;}
   .thint{font-size:12px;color:var(--brand2);margin:0 0 8px 2px;min-height:15px;}
   .thint b{cursor:pointer;text-decoration:underline;}
   .thint.ok{color:var(--pos);}
@@ -286,8 +287,8 @@
       </div>
       ${eslCard}
       <div class="addbox"><div class="t">➕ Shu mijozga qo'shish</div>
-        <div class="inrow" style="align-items:flex-start"><textarea class="f ta" id="addtext" rows="4" oninput="autoGrow(this)" placeholder="«20 ta lesa, kuniga 2000» / «1-partiyadan 5 ta qaytardi» / «10 kunlik berdi»"></textarea>
-          <button class="mic" id="micbtn" onclick="recToggle(${d.id})">🎤</button></div>
+        <div class="inrow" style="align-items:flex-start"><textarea class="f ta" id="addtext" rows="1" oninput="autoGrow(this)" placeholder="«20 ta lesa, kuniga 2000» / «1-partiyadan 5 ta qaytardi» / «10 kunlik berdi»"></textarea>
+          <button class="mic mic-sm" id="micbtn" onclick="recToggle(${d.id})">🎤</button></div>
         <button class="send" onclick="sendText(${d.id})">Qo'shish</button>
         <div class="hint">🎤 bosib gapiring, yoki yozib «Qo'shish».</div></div>
       <div class="addbox"><div class="t">💵 To'lov / predoplata (so'm)</div>
@@ -621,7 +622,7 @@
   }
   loadTovarlar();
 
-  window.autoGrow=function(el){el.style.height='auto';el.style.height=Math.max(104,Math.min(el.scrollHeight,340))+'px';};
+  window.autoGrow=function(el){el.style.height='auto';el.style.height=Math.max(46,Math.min(el.scrollHeight,340))+'px';};
 
   loadList();
 </script>
