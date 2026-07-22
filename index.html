@@ -28,7 +28,7 @@
   .av{width:44px;height:44px;border-radius:12px;background:var(--faint);color:var(--brand);flex-shrink:0;
     display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:700;font-size:17px;}
   .mijoz .nm{font-size:15.5px;font-weight:600;} .mijoz .mt{font-size:12.5px;color:var(--soft);margin-top:2px;}
-  .mijoz .val{margin-left:auto;text-align:right;} .mijoz .val b{font-family:'Space Grotesk';font-weight:700;font-size:15.5px;}
+  .mijoz .val{margin-left:auto;text-align:right;flex-shrink:0;white-space:nowrap;padding-left:10px;} .mijoz .val b{font-family:'Space Grotesk';font-weight:700;font-size:15.5px;white-space:nowrap;}
   .mijoz .val span{display:block;font-size:11px;color:var(--soft);} .chev{color:#B7C3BD;font-size:20px;margin-left:6px;}
   .back{display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--brand2);
     font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;padding:6px 0;margin-bottom:4px;}
@@ -160,8 +160,7 @@
     let d; try{const r=await fetch('/api/mijozlar',{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+m.qolgan_qarz,0);
     app.innerHTML=`<header><div><div class="eyebrow">Ijara hisobi</div><h1>Mijozlar</h1></div>
-        <button class="ombnav" onclick="loadBrov()">🔁 Brovdan</button>
-        <button class="ombnav" style="margin-left:6px" onclick="loadOmbor()">📦 Ombor</button>
+        <button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>
         <button class="plus" style="margin-left:8px" onclick="showNew()">➕</button></header>
       <div class="hero"><div class="arc"></div><div class="lbl">Umumiy qarz</div>
         <div class="amt num">${som(jami)} <small>so'm</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
