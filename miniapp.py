@@ -245,7 +245,11 @@ def make_web_app(bot_token):
             qaytgan = sum(r["miqdor"] for r in db.returns_for(pid))
             if miqdor < qaytgan:
                 return web.json_response({"ok": False, "xabar": f"Soni {int(qaytgan)} tadan kam bo'lmasin (shuncha qaytgan)"})
-            db.update_partiya(pid, (b.get("mahsulot") or p["mahsulot"]).strip(),
+            mahsulot = (b.get("mahsulot") or p["mahsulot"]).strip()
+            togri, _aniq = db.ombor_match_name(mahsulot)
+            if togri:
+                mahsulot = togri
+            db.update_partiya(pid, mahsulot,
                               miqdor, float(b.get("kunlik_narx")), b.get("sana") or p["chiqgan_sana"],
                               manzil=(b.get("manzil") or None))
             return web.json_response({"ok": True})

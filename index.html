@@ -86,7 +86,10 @@
   .li-sub{display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:12px;color:var(--soft);}
   .li-acts{display:flex;gap:6px;}
   .li-manzil{font-size:12px;color:var(--brand);margin-top:3px;}
-  .ta{resize:none;overflow:hidden;min-height:46px;line-height:1.45;font-family:inherit;}
+  .ta{resize:vertical;overflow:hidden;min-height:104px;line-height:1.5;font-family:inherit;padding:12px 14px;}
+  .thint{font-size:12px;color:var(--brand2);margin:0 0 8px 2px;min-height:15px;}
+  .thint b{cursor:pointer;text-decoration:underline;}
+  .thint.ok{color:var(--pos);}
   .mzg{padding:9px 0;border-top:1px solid var(--faint);}
   .mzg:first-child{border-top:none;padding-top:2px;}
   .mzg-h{font-size:13.5px;font-weight:600;color:var(--ink);margin-bottom:5px;}
@@ -132,6 +135,7 @@
 <body>
   <div id="app"><div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div></div>
   <div id="toast"></div>
+  <datalist id="tovarlist"></datalist>
 <script>
   const tg = window.Telegram && window.Telegram.WebApp;
   if (tg){ try{ tg.ready(); tg.expand(); tg.setHeaderColor('#1F4B45'); tg.setBackgroundColor('#F3F5F4'); }catch(e){} }
@@ -207,7 +211,8 @@
           <span class="li-acts"><button class="li-btn" onclick="tgl('edit${p.id}')">✏️</button>
             ${p.qolgan>0?`<button class="li-btn" onclick="tgl('ret${p.id}')">↩️</button>`:''}</span></div>
         <div id="edit${p.id}" style="display:none;margin-top:8px">
-          <input class="f" id="e_mah${p.id}" value="${esc(p.mahsulot)}" placeholder="Mahsulot" style="margin-bottom:8px">
+          <input class="f" id="e_mah${p.id}" value="${esc(p.mahsulot)}" placeholder="Mahsulot" list="tovarlist" oninput="tovarHint(this)" onblur="tovarFix(this)" autocomplete="off" style="margin-bottom:4px">
+          <div class="thint" id="th${p.id}"></div>
           <div class="inrow"><input class="f" id="e_miq${p.id}" value="${son(p.miqdor)}" inputmode="decimal" placeholder="Soni">
             <input class="f" id="e_narx${p.id}" value="${son(p.kunlik_narx)}" inputmode="numeric" placeholder="Kunlik narx"></div>
           <input class="f" id="e_manzil${p.id}" value="${esc(p.manzil||'')}" placeholder="📍 Manzil / ob'ekt" style="margin-top:8px">
@@ -281,7 +286,7 @@
       </div>
       ${eslCard}
       <div class="addbox"><div class="t">➕ Shu mijozga qo'shish</div>
-        <div class="inrow" style="align-items:flex-start"><textarea class="f ta" id="addtext" rows="2" oninput="autoGrow(this)" placeholder="«20 ta lesa, kuniga 2000» / «1-partiyadan 5 ta qaytardi» / «10 kunlik berdi»"></textarea>
+        <div class="inrow" style="align-items:flex-start"><textarea class="f ta" id="addtext" rows="4" oninput="autoGrow(this)" placeholder="«20 ta lesa, kuniga 2000» / «1-partiyadan 5 ta qaytardi» / «10 kunlik berdi»"></textarea>
           <button class="mic" id="micbtn" onclick="recToggle(${d.id})">🎤</button></div>
         <button class="send" onclick="sendText(${d.id})">Qo'shish</button>
         <div class="hint">🎤 bosib gapiring, yoki yozib «Qo'shish».</div></div>
@@ -554,7 +559,69 @@
       ||'<div class="empty" style="color:#5B6B7A">Tarix bo\'sh</div>';
   };
 
-  window.autoGrow=function(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,220)+'px';};
+  // ===== TOVAR NOMI: yozayotganda to'g'ri variantni taklif qilish =====
+  window._tovarlar=[];
+  const tnorm=s=>{s=(s||'').toLowerCase();let o='',d=0;
+    for(const c of s){if(c==='(')d++;else if(c===')')d=Math.max(0,d-1);else if(!d)o+=c;}
+    return o.replace(/[^a-z0-9а-яё.]/gi,'');};
+  function tsim(a,b){ // 0..1 o'xshashlik (Levenshtein asosida)
+    if(a===b)return 1; if(!a||!b)return 0;
+    const m=a.length,n=b.length,dp=Array.from({length:m+1},(_,i)=>[i,...Array(n).fill(0)]);
+    for(let j=0;j<=n;j++)dp[0][j]=j;
+    for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)
+      dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,dp[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+    return 1-dp[m][n]/Math.max(m,n);
+  }
+  window.tovarBest=function(v){
+    const k=tnorm(v); if(!k||!window._tovarlar.length)return null;
+    const exact=window._tovarlar.find(n=>tnorm(n)===k); if(exact)return {name:exact,exact:true,list:[]};
+    const sc=[];
+    for(const n of window._tovarlar){
+      const x=tnorm(n);
+      let s=tsim(k,x);
+      for(const w of (n||'').toLowerCase().split(/[^a-z0-9\u0400-\u04FF.]+/i)){
+        const wn=tnorm(w); if(!wn)continue;
+        s=Math.max(s,tsim(k,wn)*0.97);
+        if(k.length>=3&&wn.indexOf(k)===0)s=Math.max(s,0.85);
+      }
+      if(k.length>=3&&x.indexOf(k)>=0)s=Math.max(s,0.9);
+      if(s>=0.5)sc.push({name:n,s:s});
+    }
+    if(!sc.length)return null;
+    sc.sort((a,b)=>b.s-a.s);
+    const solo=(sc.length===1)||((sc[0].s-sc[1].s)>=0.18);
+    return {name:sc[0].name,exact:false,list:solo?[sc[0].name]:sc.slice(0,3).map(x=>x.name)};
+  };
+  window.tovarHint=function(el){
+    const box=document.getElementById('th'+el.id.replace('e_mah',''));
+    if(!box)return; const v=(el.value||'').trim();
+    if(!v||!window._tovarlar.length){box.textContent='';box.className='thint';return;}
+    const b=window.tovarBest(v);
+    if(!b){box.className='thint';box.textContent='\u26a0\ufe0f Ombordagi tovar emas';return;}
+    if(b.exact){box.className='thint ok';box.textContent='\u2713 '+b.name;return;}
+    box.className='thint';
+    const chips=b.list.map(n=>'<b onclick="tovarSet(\''+el.id+'\',\''+n.replace(/'/g,"\\'")+'\')">'+esc(n)+'</b>').join(' \u00b7 ');
+    box.innerHTML=(b.list.length>1?'Qaysi biri? ':'Shu bo\'lsa kerak: ')+chips;
+  };
+  window.tovarSet=function(inputId,name){
+    const el=document.getElementById(inputId); if(!el)return;
+    el.value=name; window.tovarHint(el);
+  };
+  window.tovarFix=function(el){ // maydondan chiqqanda faqat aniq bo'lsa to'g'rilaydi
+    const v=(el.value||'').trim(); if(!v)return;
+    const b=window.tovarBest(v);
+    if(b&&!b.exact&&b.list.length===1){el.value=b.name;window.tovarHint(el);}
+  };
+  async function loadTovarlar(){
+    try{const r=await fetch('/api/ombor',{headers:H});const d=await r.json();
+      window._tovarlar=(d.mahsulotlar||[]).map(x=>x.name);
+      const dl=document.getElementById('tovarlist');
+      if(dl)dl.innerHTML=window._tovarlar.map(n=>`<option value="${esc(n)}">`).join('');
+    }catch(e){}
+  }
+  loadTovarlar();
+
+  window.autoGrow=function(el){el.style.height='auto';el.style.height=Math.max(104,Math.min(el.scrollHeight,340))+'px';};
 
   loadList();
 </script>
