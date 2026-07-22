@@ -434,8 +434,8 @@ def make_web_app(bot_token):
                     miq = float(b.get("miqdor"))
                     sana = (b.get("sana") or db.today_tk().isoformat())[:10]
                     mah = (b.get("mahsulot") or "").strip()
-                    togri, _a = db.ombor_match_name(mah)
-                    db.add_partiya(mid, togri or mah, miq, narx, sana,
+                    # Brovdan: nom o'zgartirilmaydi — foydalanuvchi nima yozsa o'sha
+                    db.add_partiya(mid, mah, miq, narx, sana,
                                    brov_kim=kim, brov_miqdor=miq)
                     res["hisoblandi"] = True
                 except Exception:
