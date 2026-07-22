@@ -419,8 +419,10 @@ def make_web_app(bot_token):
             return err
         try:
             b = await request.json()
+            mid = b.get("mijoz_id")
+            mid = int(mid) if mid not in (None, "") else None
             return web.json_response(db.brov_add(b.get("kim"), b.get("mahsulot"), b.get("miqdor"),
-                                                 b.get("sana"), b.get("izoh")))
+                                                 b.get("sana"), b.get("izoh"), mijoz_id=mid))
         except Exception as e:
             return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
 
@@ -441,6 +443,27 @@ def make_web_app(bot_token):
         try:
             b = await request.json()
             db.brov_delete(int(b.get("id")))
+            return web.json_response({"ok": True})
+        except Exception:
+            return web.json_response({"ok": False}, status=400)
+
+    async def api_qayd(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            return web.json_response(db.qayd_add(int(b.get("mijoz_id")), b.get("matn"), b.get("sana")))
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
+    async def api_qayd_del(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            db.qayd_delete(int(b.get("id")))
             return web.json_response({"ok": True})
         except Exception:
             return web.json_response({"ok": False}, status=400)
@@ -532,6 +555,8 @@ def make_web_app(bot_token):
     app.router.add_post("/api/eslatma", api_eslatma)
     app.router.add_post("/api/eslatma_del", api_eslatma_del)
     app.router.add_post("/api/sms", api_sms)
+    app.router.add_post("/api/qayd", api_qayd)
+    app.router.add_post("/api/qayd_del", api_qayd_del)
     app.router.add_get("/api/brov", api_brov)
     app.router.add_post("/api/brov_add", api_brov_add)
     app.router.add_post("/api/brov_ret", api_brov_ret)

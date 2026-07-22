@@ -156,6 +156,13 @@ def init_db():
     con.execute("""CREATE TABLE IF NOT EXISTS brov_qaytarish (
         id INTEGER PRIMARY KEY AUTOINCREMENT, brov_id INTEGER NOT NULL,
         miqdor REAL NOT NULL, sana TEXT NOT NULL)""")
+    bcols = [r[1] for r in con.execute("PRAGMA table_info(brovlar)").fetchall()]
+    if "mijoz_id" not in bcols:
+        con.execute("ALTER TABLE brovlar ADD COLUMN mijoz_id INTEGER")
+    # O'zimiz uchun qaydlar (eslatmasiz, shunchaki yozib qo'yish)
+    con.execute("""CREATE TABLE IF NOT EXISTS qaydlar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, mijoz_id INTEGER NOT NULL,
+        matn TEXT NOT NULL, sana TEXT NOT NULL, yaratilgan TEXT NOT NULL)""")
 
     # ---------- Ombor (ostatka) ----------
     con.execute("""CREATE TABLE IF NOT EXISTS ombor_mahsulot (
@@ -803,6 +810,8 @@ def mijoz_detail(mijoz_id, today=None):
         "yetkazmalar": yetkazmalar,
         "manzillar": manzillar,
         "brovdan": brovdan,
+        "brovlar": brov_list(mijoz_id),
+        "qaydlar": qaydlar_of(mijoz_id),
         "qaytarishlar_guruh": qaytarishlar_guruh,
         "jami": hisoblangan,
         "hisoblangan": hisoblangan,
@@ -1151,7 +1160,7 @@ def ombor_match_name(nom, cutoff=0.62):
 
 
 # ================= BROVDAN (boshqadan olib turilgan) =================
-def brov_add(kim, mahsulot, miqdor, sana=None, izoh=None):
+def brov_add(kim, mahsulot, miqdor, sana=None, izoh=None, mijoz_id=None):
     kim = (kim or "").strip()
     mahsulot = (mahsulot or "").strip()
     try:
@@ -1162,8 +1171,8 @@ def brov_add(kim, mahsulot, miqdor, sana=None, izoh=None):
         return {"ok": False, "xato": "Kim, mahsulot va soni kerak"}
     sana = str(sana or today_tk().isoformat())[:10]
     con = _con()
-    cur = con.execute("INSERT INTO brovlar (kim, mahsulot, miqdor, sana, izoh, yaratilgan) VALUES (?,?,?,?,?,?)",
-                      (kim, mahsulot, miqdor, sana, (izoh or None), now_tk().isoformat()))
+    cur = con.execute("INSERT INTO brovlar (kim, mahsulot, miqdor, sana, izoh, yaratilgan, mijoz_id) VALUES (?,?,?,?,?,?,?)",
+                      (kim, mahsulot, miqdor, sana, (izoh or None), now_tk().isoformat(), mijoz_id))
     con.commit()
     bid = cur.lastrowid
     con.close()
@@ -1209,10 +1218,14 @@ def brov_ret_delete(ret_id):
     con.close()
 
 
-def brov_list():
-    """Kimdan qancha olingan / qancha qaytarilgan / qancha qolgan — odam bo'yicha guruh."""
+def brov_list(mijoz_id=None):
+    """Kimdan qancha olingan / qaytarilgan / qolgan — odam bo'yicha guruh."""
     con = _con()
-    rows = con.execute("SELECT * FROM brovlar ORDER BY sana DESC, id DESC").fetchall()
+    if mijoz_id is None:
+        rows = con.execute("SELECT * FROM brovlar ORDER BY sana DESC, id DESC").fetchall()
+    else:
+        rows = con.execute("SELECT * FROM brovlar WHERE mijoz_id=? ORDER BY sana DESC, id DESC",
+                           (mijoz_id,)).fetchall()
     rets = con.execute("SELECT * FROM brov_qaytarish ORDER BY id").fetchall()
     con.close()
     rmap = {}
@@ -1231,3 +1244,31 @@ def brov_list():
         g["qolgan"] += b["qolgan"]
     out = sorted(gr.values(), key=lambda x: (-x["qolgan"], x["kim"].lower()))
     return out
+
+
+# ---------- Qaydlar (o'zimiz uchun izoh) ----------
+def qayd_add(mijoz_id, matn, sana=None):
+    matn = (matn or "").strip()
+    if not matn:
+        return {"ok": False, "xato": "Matn bo'sh"}
+    con = _con()
+    con.execute("INSERT INTO qaydlar (mijoz_id, matn, sana, yaratilgan) VALUES (?,?,?,?)",
+                (mijoz_id, matn, str(sana or today_tk().isoformat())[:10], now_tk().isoformat()))
+    con.commit()
+    con.close()
+    return {"ok": True}
+
+
+def qayd_delete(qid):
+    con = _con()
+    con.execute("DELETE FROM qaydlar WHERE id=?", (qid,))
+    con.commit()
+    con.close()
+
+
+def qaydlar_of(mijoz_id):
+    con = _con()
+    rows = con.execute("SELECT * FROM qaydlar WHERE mijoz_id=? ORDER BY sana DESC, id DESC",
+                       (mijoz_id,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]

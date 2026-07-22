@@ -239,6 +239,23 @@
       (d.qaytarishlar_guruh||[]).map(g=>`<div class="retg"><div class="retg-d">📅 ${dmy(g.sana)}</div>${
         g.items.map(it=>`<div class="retg-i"><span>${esc(it.mahsulot)} — <b>${son(it.miqdor)} ta</b></span>
           <button class="x" onclick="delRet(${it.return_id},${d.id})">×</button></div>`).join('')}</div>`).join('')}</div>`:'';
+    const brovIn=`<div class="addbox"><div class="t">🔁 Brovdan olindi (shu mijoz uchun)</div>${
+      (d.brovlar||[]).map(g=>g.items.map(b=>`<div class="tlist"><span style="font-weight:600;white-space:nowrap">${esc(g.kim)}</span>
+        <span style="color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.mahsulot)} · ${son(b.qolgan)}/${son(b.miqdor)} ta${b.izoh?' · '+esc(b.izoh):''}</span>
+        <button class="x" onclick="brovDelM(${b.id},${d.id})">×</button></div>`).join('')).join('')}
+      <input class="f" id="bi_kim${d.id}" placeholder="Kimdan olindi" style="margin-top:8px">
+      <input class="f" id="bi_mah${d.id}" placeholder="Mahsulot" list="tovarlist" autocomplete="off" style="margin-top:8px">
+      <div class="inrow" style="margin-top:8px"><input class="f" id="bi_miq${d.id}" inputmode="decimal" placeholder="Nechta">
+        <input class="f" id="bi_sana${d.id}" type="date" value="${bugun}"></div>
+      <button class="send" onclick="brovAddM(${d.id})">Qo'shish</button>
+      <div class="hint">Boshqadan olib turib shu mijozga bergan tovar. Omborga ta'sir qilmaydi.</div></div>`;
+    const qaydCard=`<div class="addbox"><div class="t">📝 Qayd (o'zimiz uchun)</div>${
+      (d.qaydlar||[]).map(q=>`<div class="tlist"><span style="color:var(--soft);white-space:nowrap">${dmy(q.sana)}</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(q.matn)}</span>
+        <button class="x" onclick="qaydDel(${q.id},${d.id})">×</button></div>`).join('')}
+      <textarea class="f ta" id="qaydmatn" rows="1" oninput="autoGrow(this)" placeholder="Mijoz nima dedi — o'zimiz uchun eslab qolish" style="margin-top:8px"></textarea>
+      <button class="send" onclick="qaydAdd(${d.id})">Saqlash</button>
+      <div class="hint">Eslatma kelmaydi — shunchaki yozib qo'yiladi.</div></div>`;
     const smsBtn=`<button class="smsbtn" onclick="smsPick(${d.id})">📩 Qarz eslatmasi SMS</button><div id="smsbox" class="addbox" style="display:none"></div>`;
     const manzilCard=((d.manzillar||[]).some(m=>m.manzil!=='Manzil belgilanmagan'))?`<div class="addbox"><div class="t">📍 Manzillar bo'yicha (qolgan)</div>${
       (d.manzillar||[]).map(m=>`<div class="mzg"><div class="mzg-h">📍 ${esc(m.manzil)} · <span class="num">${som(m.qolgan_dona)} dona</span></div>${
@@ -288,6 +305,8 @@
         <div class="brk"><span class="k">${neg?'Ortiqcha (haqi)':'Qolgan qarz'}</span><b class="num" style="color:${neg?'var(--pos)':'var(--ink)'}">${som(Math.abs(d.qolgan_qarz))} so'm</b></div>
       </div>
       ${eslCard}
+      ${qaydCard}
+      ${brovIn}
       <div class="addbox"><div class="t">➕ Shu mijozga qo'shish</div>
         <div class="inrow" style="align-items:flex-start"><textarea class="f ta" id="addtext" rows="1" oninput="autoGrow(this)" placeholder="«20 ta lesa, kuniga 2000» / «1-partiyadan 5 ta qaytardi» / «10 kunlik berdi»"></textarea>
           <button class="mic mic-sm" id="micbtn" onclick="recToggle(${d.id})">🎤</button></div>
@@ -690,6 +709,30 @@
     const ok=tg&&tg.showConfirm?await new Promise(r=>tg.showConfirm('O\'chirasizmi?',r)):confirm('O\'chirasizmi?');
     if(!ok)return; const j=await brovPost('/api/brov_del',{id});
     if(j&&j.ok){toast('🗑 O\'chirildi');loadBrov();}else{toast('❌ Xato');}
+  };
+
+  window.brovAddM=async function(mid){
+    const kim=(document.getElementById('bi_kim'+mid).value||'').trim();
+    const mah=(document.getElementById('bi_mah'+mid).value||'').trim();
+    const miq=parseFloat((document.getElementById('bi_miq'+mid).value||'').replace(/\s/g,''));
+    const sana=document.getElementById('bi_sana'+mid).value;
+    if(!kim||!mah||!miq||miq<=0){toast('Kim, mahsulot va sonini yozing');return;}
+    const j=await brovPost('/api/brov_add',{kim,mahsulot:mah,miqdor:miq,sana,mijoz_id:mid});
+    if(j&&j.ok){toast('🔁 Qo\'shildi');loadMijoz(mid);}else{toast('❌ '+((j&&j.xato)||'Xato'));}
+  };
+  window.brovDelM=async function(id,mid){
+    const j=await brovPost('/api/brov_del',{id});
+    if(j&&j.ok){toast('🗑 O\'chirildi');loadMijoz(mid);}else{toast('❌ Xato');}
+  };
+  window.qaydAdd=async function(mid){
+    const v=(document.getElementById('qaydmatn').value||'').trim();
+    if(!v){toast('Yozing');return;}
+    const j=await brovPost('/api/qayd',{mijoz_id:mid,matn:v});
+    if(j&&j.ok){toast('📝 Saqlandi');loadMijoz(mid);}else{toast('❌ Xato');}
+  };
+  window.qaydDel=async function(id,mid){
+    const j=await brovPost('/api/qayd_del',{id});
+    if(j&&j.ok){toast('🗑 O\'chirildi');loadMijoz(mid);}else{toast('❌ Xato');}
   };
 
   loadList();
