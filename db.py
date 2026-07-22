@@ -149,6 +149,14 @@ def init_db():
         con.execute("UPDATE partiyalar SET zakaz_id=? WHERE mijoz_id=? AND mahsulot=? AND zakaz_id IS NULL",
                     (zid, mid, mah))
 
+    # ---------- Brovdan (boshqadan olib turilgan) ----------
+    con.execute("""CREATE TABLE IF NOT EXISTS brovlar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, kim TEXT NOT NULL, mahsulot TEXT NOT NULL,
+        miqdor REAL NOT NULL, sana TEXT NOT NULL, izoh TEXT, yaratilgan TEXT NOT NULL)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS brov_qaytarish (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, brov_id INTEGER NOT NULL,
+        miqdor REAL NOT NULL, sana TEXT NOT NULL)""")
+
     # ---------- Ombor (ostatka) ----------
     con.execute("""CREATE TABLE IF NOT EXISTS ombor_mahsulot (
         id TEXT PRIMARY KEY, name TEXT NOT NULL,
@@ -1140,3 +1148,86 @@ def ombor_match_name(nom, cutoff=0.62):
     if best:
         return (norm_map[best[0]], False)
     return (None, False)
+
+
+# ================= BROVDAN (boshqadan olib turilgan) =================
+def brov_add(kim, mahsulot, miqdor, sana=None, izoh=None):
+    kim = (kim or "").strip()
+    mahsulot = (mahsulot or "").strip()
+    try:
+        miqdor = float(miqdor)
+    except Exception:
+        miqdor = 0
+    if not kim or not mahsulot or miqdor <= 0:
+        return {"ok": False, "xato": "Kim, mahsulot va soni kerak"}
+    sana = str(sana or today_tk().isoformat())[:10]
+    con = _con()
+    cur = con.execute("INSERT INTO brovlar (kim, mahsulot, miqdor, sana, izoh, yaratilgan) VALUES (?,?,?,?,?,?)",
+                      (kim, mahsulot, miqdor, sana, (izoh or None), now_tk().isoformat()))
+    con.commit()
+    bid = cur.lastrowid
+    con.close()
+    return {"ok": True, "id": bid}
+
+
+def brov_return(brov_id, miqdor, sana=None):
+    try:
+        miqdor = float(miqdor)
+    except Exception:
+        miqdor = 0
+    if miqdor <= 0:
+        return {"ok": False, "xato": "Soni noto'g'ri"}
+    con = _con()
+    r = con.execute("SELECT miqdor FROM brovlar WHERE id=?", (brov_id,)).fetchone()
+    if not r:
+        con.close(); return {"ok": False, "xato": "Topilmadi"}
+    q = con.execute("SELECT COALESCE(SUM(miqdor),0) FROM brov_qaytarish WHERE brov_id=?", (brov_id,)).fetchone()[0]
+    qolgan = float(r[0]) - float(q or 0)
+    if miqdor > qolgan:
+        miqdor = qolgan
+    if miqdor <= 0:
+        con.close(); return {"ok": False, "xato": "Hammasi qaytarilgan"}
+    con.execute("INSERT INTO brov_qaytarish (brov_id, miqdor, sana) VALUES (?,?,?)",
+                (brov_id, miqdor, str(sana or today_tk().isoformat())[:10]))
+    con.commit()
+    con.close()
+    return {"ok": True, "miqdor": miqdor}
+
+
+def brov_delete(brov_id):
+    con = _con()
+    con.execute("DELETE FROM brov_qaytarish WHERE brov_id=?", (brov_id,))
+    con.execute("DELETE FROM brovlar WHERE id=?", (brov_id,))
+    con.commit()
+    con.close()
+
+
+def brov_ret_delete(ret_id):
+    con = _con()
+    con.execute("DELETE FROM brov_qaytarish WHERE id=?", (ret_id,))
+    con.commit()
+    con.close()
+
+
+def brov_list():
+    """Kimdan qancha olingan / qancha qaytarilgan / qancha qolgan — odam bo'yicha guruh."""
+    con = _con()
+    rows = con.execute("SELECT * FROM brovlar ORDER BY sana DESC, id DESC").fetchall()
+    rets = con.execute("SELECT * FROM brov_qaytarish ORDER BY id").fetchall()
+    con.close()
+    rmap = {}
+    for r in rets:
+        rmap.setdefault(r["brov_id"], []).append(dict(r))
+    gr = {}
+    for b in rows:
+        b = dict(b)
+        qaytgan = sum(x["miqdor"] for x in rmap.get(b["id"], []))
+        b["qaytgan"] = qaytgan
+        b["qolgan"] = max(0.0, float(b["miqdor"]) - qaytgan)
+        b["qaytarishlar"] = rmap.get(b["id"], [])
+        g = gr.setdefault(b["kim"], {"kim": b["kim"], "items": [], "jami": 0.0, "qolgan": 0.0})
+        g["items"].append(b)
+        g["jami"] += float(b["miqdor"])
+        g["qolgan"] += b["qolgan"]
+    out = sorted(gr.values(), key=lambda x: (-x["qolgan"], x["kim"].lower()))
+    return out

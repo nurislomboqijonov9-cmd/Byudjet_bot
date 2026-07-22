@@ -76,7 +76,7 @@ def mijoz_excel(d):
 
     # Partiyalar jadvali
     title("PARTIYALAR (chiqgan mollar)", r, span=11); r += 1
-    heads = ["№", "Mahsulot", "Jami", "Qolgan", "Kunlik narx", "Chiqgan sana", "Kun", "Summa (so'm)", "Manzil", "Brovdan (kim)", "Brovdan (soni)"]
+    heads = ["№", "Mahsulot", "Jami", "Qolgan", "Kunlik narx", "Chiqgan sana", "Kun", "Summa (so'm)", "Manzil"]
     for i, h in enumerate(heads, 1):
         c = ws.cell(row=r, column=i, value=h)
         c.font = Font(bold=True)
@@ -87,8 +87,7 @@ def mijoz_excel(d):
     for p in d.get("partiyalar", []):
         row = [p["partiya_raqam"], p["mahsulot"], p["miqdor"], p["qolgan"],
                p["kunlik_narx"], _dmy(p["chiqgan_sana"]), p["kunlar"], round(p["narx"]),
-               p.get("manzil") or "—", p.get("brov_kim") or "—",
-               (p.get("brov_miqdor") or "") if p.get("brov_kim") else ""]
+               p.get("manzil") or "—"]
         for i, v in enumerate(row, 1):
             c = ws.cell(row=r, column=i, value=v)
             c.border = BORDER
@@ -115,26 +114,6 @@ def mijoz_excel(d):
                 cc.alignment = Alignment(horizontal="right")
                 cs = ws.cell(row=r, column=8, value=round(it["narx"])); cs.border = BORDER
                 cs.alignment = Alignment(horizontal="right")
-                r += 1
-        r += 1
-
-    # Brovdan olinganlar (kimdan qancha)
-    brovdan = d.get("brovdan") or []
-    if brovdan:
-        title("BROVDAN OLINGANLAR (kimdan qancha)", r, span=11); r += 1
-        for b in brovdan:
-            ws.cell(row=r, column=1, value=f"🔁 {b['kim']}").font = Font(bold=True)
-            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=6)
-            c = ws.cell(row=r, column=7, value=f"{_som(b['jami'])} ta")
-            c.font = Font(bold=True); c.alignment = Alignment(horizontal="right")
-            for col in range(1, 12):
-                ws.cell(row=r, column=col).fill = PatternFill("solid", fgColor=LIGHT)
-            r += 1
-            for it in b["items"]:
-                ws.cell(row=r, column=2, value=it["mahsulot"]).border = BORDER
-                cc = ws.cell(row=r, column=3, value=it["miqdor"]); cc.border = BORDER
-                cc.alignment = Alignment(horizontal="right")
-                cp = ws.cell(row=r, column=4, value=f"{it['partiya_raqam']}-partiya"); cp.border = BORDER
                 r += 1
         r += 1
 
@@ -294,6 +273,50 @@ def qarzdorlar_excel(qlist, limit_kun, sana=None):
     for col in range(1, 9):
         ws.cell(row=r, column=col).fill = PatternFill("solid", fgColor=LIGHT)
 
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    return bio
+
+
+def brov_excel(groups, sana=None):
+    """Brovdan olinganlar: kimdan qaysi tovardan qancha, qancha qaytarilgan."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Brovdan"
+    for c, w in {"A": 5, "B": 22, "C": 22, "D": 12, "E": 12, "F": 12, "G": 14, "H": 22}.items():
+        ws.column_dimensions[c].width = w
+    r = 1
+    sarl = "BROVDAN OLINGANLAR (boshqadan olib turilgan)"
+    if sana:
+        sarl += f" · {_dmy(sana)}"
+    _banner(ws, sarl, r, span=8); r += 1
+    _header_row(ws, r, ["№", "Kimdan", "Mahsulot", "Olingan", "Qaytarilgan", "Qolgan", "Sana", "Izoh"]); r += 1
+    n = 0
+    t_olindi = t_qolgan = 0.0
+    for g in groups:
+        for b in g["items"]:
+            n += 1
+            t_olindi += float(b["miqdor"])
+            t_qolgan += float(b["qolgan"])
+            vals = [n, g["kim"], b["mahsulot"], b["miqdor"], b["qaytgan"], b["qolgan"],
+                    _dmy(b["sana"]), b.get("izoh") or "—"]
+            for i, v in enumerate(vals, 1):
+                c = ws.cell(row=r, column=i, value=v)
+                c.border = BORDER
+                if i in (4, 5, 6):
+                    c.alignment = Alignment(horizontal="right")
+                if i == 6 and float(b["qolgan"]) > 0:
+                    c.fill = PatternFill("solid", fgColor=REDBG)
+                    c.font = Font(bold=True, color=REDINK)
+            r += 1
+    ws.cell(row=r, column=1, value="JAMI").font = Font(bold=True)
+    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=3)
+    for i, v in [(4, t_olindi), (6, t_qolgan)]:
+        c = ws.cell(row=r, column=i, value=round(v, 2))
+        c.font = Font(bold=True); c.alignment = Alignment(horizontal="right")
+    for col in range(1, 9):
+        ws.cell(row=r, column=col).fill = PatternFill("solid", fgColor=LIGHT)
     bio = BytesIO()
     wb.save(bio)
     bio.seek(0)

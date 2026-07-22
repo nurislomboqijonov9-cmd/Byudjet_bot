@@ -160,7 +160,8 @@
     let d; try{const r=await fetch('/api/mijozlar',{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+m.qolgan_qarz,0);
     app.innerHTML=`<header><div><div class="eyebrow">Ijara hisobi</div><h1>Mijozlar</h1></div>
-        <button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>
+        <button class="ombnav" onclick="loadBrov()">🔁 Brovdan</button>
+        <button class="ombnav" style="margin-left:6px" onclick="loadOmbor()">📦 Ombor</button>
         <button class="plus" style="margin-left:8px" onclick="showNew()">➕</button></header>
       <div class="hero"><div class="arc"></div><div class="lbl">Umumiy qarz</div>
         <div class="amt num">${som(jami)} <small>so'm</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
@@ -209,7 +210,6 @@
         <div class="li-top"><span class="li-nm">${esc(p.mahsulot)}${done?' <span class="done">✓</span>':''}</span>
           <span class="li-val">${son(p.qolgan)}/${son(p.miqdor)} · ${som(p.kunlik_narx)}/kun</span></div>
         ${p.manzil?`<div class="li-manzil">📍 ${esc(p.manzil)}</div>`:''}
-        ${p.brov_kim?`<div class="li-brov">🔁 Brovdan: ${esc(p.brov_kim)} — ${son(p.brov_miqdor||0)} ta</div>`:''}
         <div class="li-sub"><span>🧮 ${som(p.narx)} so'm · ${p.kunlar} kun</span>
           <span class="li-acts"><button class="li-btn" onclick="tgl('edit${p.id}')">✏️</button>
             ${p.qolgan>0?`<button class="li-btn" onclick="tgl('ret${p.id}')">↩️</button>`:''}</span></div>
@@ -219,8 +219,6 @@
           <div class="inrow"><input class="f" id="e_miq${p.id}" value="${son(p.miqdor)}" inputmode="decimal" placeholder="Soni">
             <input class="f" id="e_narx${p.id}" value="${son(p.kunlik_narx)}" inputmode="numeric" placeholder="Kunlik narx"></div>
           <input class="f" id="e_manzil${p.id}" value="${esc(p.manzil||'')}" placeholder="📍 Manzil / ob'ekt" style="margin-top:8px">
-          <div class="inrow" style="margin-top:8px"><input class="f" id="e_bkim${p.id}" value="${esc(p.brov_kim||'')}" placeholder="🔁 Brovdan: kimdan">
-            <input class="f" id="e_bmiq${p.id}" value="${p.brov_miqdor?son(p.brov_miqdor):''}" inputmode="decimal" placeholder="nechta" style="max-width:110px"></div>
           <input class="f" id="e_sana${p.id}" type="date" value="${p.chiqgan_sana}" style="margin-top:8px">
           <button class="send" onclick="savePartiya(${p.id},${d.id})">Saqlash</button>
           <button class="del" style="margin-top:8px" onclick="delPartiya(${p.id},${d.id})">🗑 Bu mahsulotni o'chirish</button></div>
@@ -242,9 +240,6 @@
         g.items.map(it=>`<div class="retg-i"><span>${esc(it.mahsulot)} — <b>${son(it.miqdor)} ta</b></span>
           <button class="x" onclick="delRet(${it.return_id},${d.id})">×</button></div>`).join('')}</div>`).join('')}</div>`:'';
     const smsBtn=`<button class="smsbtn" onclick="smsPick(${d.id})">📩 Qarz eslatmasi SMS</button><div id="smsbox" class="addbox" style="display:none"></div>`;
-    const brovCard=((d.brovdan||[]).length)?`<div class="addbox"><div class="t">🔁 Brovdan olinganlar</div>${
-      (d.brovdan||[]).map(b=>`<div class="mzg"><div class="mzg-h">🔁 ${esc(b.kim)} · <span class="num">${som(b.jami)} ta</span></div>${
-        b.items.map(it=>`<div class="mzg-i"><span>${esc(it.mahsulot)} — <b>${son(it.miqdor)} ta</b></span><span style="color:var(--soft)">${it.partiya_raqam}-partiya</span></div>`).join('')}</div>`).join('')}</div>`:'';
     const manzilCard=((d.manzillar||[]).some(m=>m.manzil!=='Manzil belgilanmagan'))?`<div class="addbox"><div class="t">📍 Manzillar bo'yicha (qolgan)</div>${
       (d.manzillar||[]).map(m=>`<div class="mzg"><div class="mzg-h">📍 ${esc(m.manzil)} · <span class="num">${som(m.qolgan_dona)} dona</span></div>${
         m.items.map(it=>`<div class="mzg-i"><span>${esc(it.mahsulot)} — <b>${son(it.qolgan)} ta</b></span><span style="color:var(--soft)">${som(it.narx)} so'm</span></div>`).join('')}</div>`).join('')}</div>`:'';
@@ -296,8 +291,6 @@
       <div class="addbox"><div class="t">➕ Shu mijozga qo'shish</div>
         <div class="inrow" style="align-items:flex-start"><textarea class="f ta" id="addtext" rows="1" oninput="autoGrow(this)" placeholder="«20 ta lesa, kuniga 2000» / «1-partiyadan 5 ta qaytardi» / «10 kunlik berdi»"></textarea>
           <button class="mic mic-sm" id="micbtn" onclick="recToggle(${d.id})">🎤</button></div>
-        <div class="inrow" style="margin-top:8px"><input class="f" id="brovkim" placeholder="🔁 Brovdan: kimdan (ixtiyoriy)">
-          <input class="f" id="brovmiq" inputmode="decimal" placeholder="nechta" style="max-width:110px"></div>
         <button class="send" onclick="sendText(${d.id})">Qo'shish</button>
         <div class="hint">🎤 bosib gapiring, yoki yozib «Qo'shish».</div></div>
       <div class="addbox"><div class="t">💵 To'lov / predoplata (so'm)</div>
@@ -319,7 +312,6 @@
         <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
       <div id="plist">${ps}</div>
       ${manzilCard}
-      ${brovCard}
       ${retCard}
       <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>`;
   };
@@ -337,10 +329,9 @@
     const narx=parseFloat((document.getElementById('e_narx'+pid).value||'').replace(/\s/g,''));
     const sana=document.getElementById('e_sana'+pid).value;
     const manzil=(document.getElementById('e_manzil'+pid).value||'').trim();
-    const bkim=((document.getElementById('e_bkim'+pid)||{}).value||'').trim();
-    const bmiq=((document.getElementById('e_bmiq'+pid)||{}).value||'').replace(/\s/g,'');
+
     if(!mah||!miq||miq<=0||isNaN(narx)||narx<0||!sana){toast('To\'g\'ri to\'ldiring (tekin bo\'lsa narx 0)');return;}
-    try{const r=await fetch('/api/partiya_edit',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({partiya_id:pid,mahsulot:mah,miqdor:miq,kunlik_narx:narx,sana,manzil,brov_kim:bkim,brov_miqdor:bmiq})});
+    try{const r=await fetch('/api/partiya_edit',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({partiya_id:pid,mahsulot:mah,miqdor:miq,kunlik_narx:narx,sana,manzil})});
       const d=await r.json(); if(d.ok){toast('✏️ O\'zgartirildi');loadMijoz(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
   };
   window.saveRet=async function(pid,mid){
@@ -411,12 +402,11 @@
   };
 
   window.sendText=async function(mid){
-    const bkim=((document.getElementById('brovkim')||{}).value||'').trim();
-    const bmiq=((document.getElementById('brovmiq')||{}).value||'').replace(/\s/g,'');
+
     const el=document.getElementById('addtext'); const v=el.value.trim(); if(!v){toast('Nimadir yozing');return;}
     toast('Qo\'shilyapti…');
     try{
-      const r=await fetch('/api/qoshish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,matn:v,brov_kim:bkim,brov_miqdor:bmiq})});
+      const r=await fetch('/api/qoshish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,matn:v})});
       let d=null; try{d=await r.json();}catch(_){}
       if(!r.ok || !d){ toast('Xato: '+r.status+(d&&(d.xato||d.xabar)?' · '+(d.xato||d.xabar):'')); return; }
       toast(d.xabar||d.xato||'Bajarildi'); if(d.ok) loadMijoz(mid);
@@ -637,6 +627,70 @@
   loadTovarlar();
 
   window.autoGrow=function(el){el.style.height='auto';el.style.height=Math.max(46,Math.min(el.scrollHeight,340))+'px';};
+
+  // ======== BROVDAN (alohida yacheyka) ========
+  window.loadBrov=async function(){
+    app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
+    let d; try{const r=await fetch('/api/brov',{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
+    window._brov=d.brovlar||[]; renderBrov();
+  };
+  function renderBrov(){
+    const L=window._brov||[];
+    const jamiQ=L.reduce((s,x)=>s+x.qolgan,0);
+    const bugun=new Date().toLocaleDateString('en-CA');
+    const cards=L.map(g=>`<div class="card">
+        <div class="p-head"><div class="p-badge">🔁</div>
+          <div><div class="p-title">${esc(g.kim)}</div>
+            <div class="p-sana">${son(g.qolgan)} ta qaytarilmagan · jami olingan ${son(g.jami)}</div></div></div>
+        <div class="litems">${g.items.map(b=>`<div class="litem">
+          <div class="li-top"><span class="li-nm">${esc(b.mahsulot)}${b.qolgan<=0?' <span class="done">✓</span>':''}</span>
+            <span class="li-val">${son(b.qolgan)}/${son(b.miqdor)} · ${dmy(b.sana)}</span></div>
+          ${b.izoh?`<div class="li-manzil">📝 ${esc(b.izoh)}</div>`:''}
+          <div class="li-sub"><span>${b.qaytgan>0?'qaytarilgan '+son(b.qaytgan):'hali qaytarilmagan'}</span>
+            <span class="li-acts">${b.qolgan>0?`<button class="li-btn" onclick="tgl('br${b.id}')">↩️ Qaytardim</button>`:''}
+              <button class="li-btn" onclick="brovDel(${b.id})">🗑</button></span></div>
+          <div id="br${b.id}" style="display:none;margin-top:8px">
+            <div class="inrow"><input class="f" id="brq${b.id}" inputmode="decimal" placeholder="Nechta qaytardim" value="${son(b.qolgan)}">
+              <input class="f" id="brs${b.id}" type="date" value="${bugun}"></div>
+            <button class="send" onclick="brovRet(${b.id})">Qaytardim</button></div>
+        </div>`).join('')}</div></div>`).join('')||'<div class="empty">Hozircha brovdan olingan narsa yo\'q.</div>';
+    app.innerHTML=`<header><div><div class="eyebrow">Boshqadan olib turilgan</div><h1>Brovdan</h1></div>
+        <button class="ombnav" onclick="loadList()">‹ Mijozlar</button></header>
+      <div class="card" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span style="color:var(--soft);font-size:13px">Qaytarilmagan</span>
+        <b class="num" style="font-size:20px">${som(jamiQ)} ta</b></div></div>
+      <div class="addbox"><div class="t">➕ Brovdan oldim</div>
+        <input class="f" id="bv_kim" placeholder="Kimdan (masalan: Aliboy)" style="margin-bottom:8px">
+        <input class="f" id="bv_mah" placeholder="Mahsulot" list="tovarlist" autocomplete="off" style="margin-bottom:8px">
+        <div class="inrow"><input class="f" id="bv_miq" inputmode="decimal" placeholder="Nechta">
+          <input class="f" id="bv_sana" type="date" value="${bugun}"></div>
+        <input class="f" id="bv_izoh" placeholder="Izoh (ixtiyoriy)" style="margin-top:8px">
+        <button class="send" onclick="brovAdd()">Qo'shish</button></div>
+      ${cards}`;
+  }
+  async function brovPost(u,b){const r=await fetch(u,{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify(b)});let j=null;try{j=await r.json();}catch(_){}return j;}
+  window.brovAdd=async function(){
+    const kim=(document.getElementById('bv_kim').value||'').trim();
+    const mah=(document.getElementById('bv_mah').value||'').trim();
+    const miq=parseFloat((document.getElementById('bv_miq').value||'').replace(/\s/g,''));
+    const sana=document.getElementById('bv_sana').value;
+    const izoh=(document.getElementById('bv_izoh').value||'').trim();
+    if(!kim||!mah||!miq||miq<=0){toast('Kim, mahsulot va sonini yozing');return;}
+    const j=await brovPost('/api/brov_add',{kim,mahsulot:mah,miqdor:miq,sana,izoh});
+    if(j&&j.ok){toast('✅ Qo\'shildi');loadBrov();}else{toast('❌ '+((j&&j.xato)||'Xato'));}
+  };
+  window.brovRet=async function(id){
+    const v=parseFloat((document.getElementById('brq'+id).value||'').replace(/\s/g,''));
+    const sana=document.getElementById('brs'+id).value;
+    if(!v||v<=0){toast('Sonini yozing');return;}
+    const j=await brovPost('/api/brov_ret',{id,miqdor:v,sana});
+    if(j&&j.ok){toast('↩️ Qaytarildi');loadBrov();}else{toast('❌ '+((j&&j.xato)||'Xato'));}
+  };
+  window.brovDel=async function(id){
+    const ok=tg&&tg.showConfirm?await new Promise(r=>tg.showConfirm('O\'chirasizmi?',r)):confirm('O\'chirasizmi?');
+    if(!ok)return; const j=await brovPost('/api/brov_del',{id});
+    if(j&&j.ok){toast('🗑 O\'chirildi');loadBrov();}else{toast('❌ Xato');}
+  };
 
   loadList();
 </script>

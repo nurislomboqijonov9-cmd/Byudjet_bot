@@ -27,7 +27,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-APP_VERSION = "34"
+APP_VERSION = "35"
 
 # Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
 YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
@@ -513,6 +513,35 @@ async def yiguvchi_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         txt + "\n\nBelgilash: `/yiguvchi <id>` · O'chirish: `/yiguvchi off`", parse_mode="Markdown")
 
 
+async def brovdan_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await guard(update):
+        return
+    gr = db.brov_list()
+    if not gr:
+        await update.message.reply_text("Brovdan olingan narsa yo'q. 👍")
+        return
+    lines = ["🔁 *Brovdan olinganlar*\n"]
+    jami = 0.0
+    for g in gr:
+        if g["qolgan"] <= 0:
+            continue
+        jami += g["qolgan"]
+        lines.append(f"👤 *{g['kim']}* — {son(g['qolgan'])} ta qaytarilmagan")
+        for b in g["items"]:
+            if b["qolgan"] > 0:
+                lines.append(f"   • {b['mahsulot']}: {son(b['qolgan'])}/{son(b['miqdor'])} · {str(b['sana'])[:10]}")
+    if jami <= 0:
+        await update.message.reply_text("Hammasi qaytarilgan. ✅")
+        return
+    lines.append(f"\n📦 Jami qaytarilmagan: *{son(jami)} ta*")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    try:
+        bio = excel.brov_excel(gr, sana=db.today_tk().isoformat())
+        await update.message.reply_document(document=InputFile(bio, filename="brovdan.xlsx"))
+    except Exception:
+        log.exception("brov excel xatolik")
+
+
 async def tekshir_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await admin_guard(update):
         return
@@ -911,6 +940,7 @@ async def _set_commands(app):
         BotCommand("mijozlar", "👥 Barcha qarzlar"),
         BotCommand("sms", "📩 Qarzdorga SMS"),
         BotCommand("kunlik", "📅 Bugungi harakatlar"),
+        BotCommand("brovdan", "🔁 Brovdan olinganlar"),
         BotCommand("app", "📱 Hisobni ochish"),
         BotCommand("xarajat", "💵 AI sarfi"),
         BotCommand("start", "ℹ️ Yordam"),
@@ -961,6 +991,7 @@ async def run():
     app.add_handler(CommandHandler("hisobot", hisobot_cmd))
     app.add_handler(CommandHandler("limit", limit_cmd))
     app.add_handler(CommandHandler("yiguvchi", yiguvchi_cmd))
+    app.add_handler(CommandHandler("brovdan", brovdan_cmd))
     app.add_handler(CommandHandler("tekshir", tekshir_cmd))
     app.add_handler(CommandHandler("shablon", shablon_cmd))
     app.add_handler(CommandHandler("shablonlar", shablonlar_cmd))
