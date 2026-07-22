@@ -53,8 +53,7 @@ def mijoz_excel(d):
         ws.column_dimensions[c].width = 15
     ws.column_dimensions["B"].width = 20
     ws.column_dimensions["I"].width = 22
-    ws.column_dimensions["J"].width = 18
-    ws.column_dimensions["K"].width = 14
+    ws.column_dimensions["J"].width = 20
 
     def title(text, row, span=8, fill=BRAND, color="FFFFFF", size=13):
         ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=span)
@@ -75,8 +74,8 @@ def mijoz_excel(d):
     r += 1
 
     # Partiyalar jadvali
-    title("PARTIYALAR (chiqgan mollar)", r, span=11); r += 1
-    heads = ["№", "Mahsulot", "Jami", "Qolgan", "Kunlik narx", "Chiqgan sana", "Kun", "Summa (so'm)", "Manzil"]
+    title("PARTIYALAR (chiqgan mollar)", r, span=10); r += 1
+    heads = ["№", "Mahsulot", "Jami", "Qolgan", "Kunlik narx", "Chiqgan sana", "Kun", "Summa (so'm)", "Manzil", "Brovdan (kim)"]
     for i, h in enumerate(heads, 1):
         c = ws.cell(row=r, column=i, value=h)
         c.font = Font(bold=True)
@@ -87,7 +86,7 @@ def mijoz_excel(d):
     for p in d.get("partiyalar", []):
         row = [p["partiya_raqam"], p["mahsulot"], p["miqdor"], p["qolgan"],
                p["kunlik_narx"], _dmy(p["chiqgan_sana"]), p["kunlar"], round(p["narx"]),
-               p.get("manzil") or "—"]
+               p.get("manzil") or "—", p.get("brov_kim") or "—"]
         for i, v in enumerate(row, 1):
             c = ws.cell(row=r, column=i, value=v)
             c.border = BORDER
@@ -99,13 +98,13 @@ def mijoz_excel(d):
     # Manzillar bo'yicha (qolgan tovarlar qaysi manzilda)
     manzillar = d.get("manzillar") or []
     if any(m.get("manzil") != "Manzil belgilanmagan" for m in manzillar):
-        title("MANZILLAR BO'YICHA (qolgan)", r, span=11); r += 1
+        title("MANZILLAR BO'YICHA (qolgan)", r, span=10); r += 1
         for m in manzillar:
             ws.cell(row=r, column=1, value=f"📍 {m['manzil']}").font = Font(bold=True)
             ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=6)
             c = ws.cell(row=r, column=7, value=f"{_som(m['qolgan_dona'])} dona")
             c.font = Font(bold=True); c.alignment = Alignment(horizontal="right")
-            for col in range(1, 12):
+            for col in range(1, 11):
                 ws.cell(row=r, column=col).fill = PatternFill("solid", fgColor=LIGHT)
             r += 1
             for it in m["items"]:

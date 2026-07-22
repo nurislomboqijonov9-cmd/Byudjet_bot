@@ -209,6 +209,7 @@
         <div class="li-top"><span class="li-nm">${esc(p.mahsulot)}${done?' <span class="done">✓</span>':''}</span>
           <span class="li-val">${son(p.qolgan)}/${son(p.miqdor)} · ${som(p.kunlik_narx)}/kun</span></div>
         ${p.manzil?`<div class="li-manzil">📍 ${esc(p.manzil)}</div>`:''}
+        ${p.brov_kim?`<div class="li-brov">🔁 Brovdan: ${esc(p.brov_kim)}${p.brov_miqdor&&p.brov_miqdor<p.miqdor?' — '+son(p.brov_miqdor)+' ta':''}</div>`:''}
         <div class="li-sub"><span>🧮 ${som(p.narx)} so'm · ${p.kunlar} kun</span>
           <span class="li-acts"><button class="li-btn" onclick="tgl('edit${p.id}')">✏️</button>
             ${p.qolgan>0?`<button class="li-btn" onclick="tgl('ret${p.id}')">↩️</button>`:''}</span></div>
@@ -243,7 +244,7 @@
         <span style="color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.mahsulot)} · ${son(b.qolgan)}/${son(b.miqdor)} ta${b.kunlik_narx>0?' · '+som(b.kunlik_narx)+'/kun':''} · ${dmy(b.sana)}</span>
         <button class="x" onclick="brovDelM(${b.id},${d.id})">×</button></div>`).join('')).join('')}
       <input class="f" id="bi_kim${d.id}" placeholder="Kimdan olindi" style="margin-top:8px">
-      <input class="f" id="bi_mah${d.id}" placeholder="Mahsulot" list="tovarlist" autocomplete="off" style="margin-top:8px">
+      <input class="f" id="bi_mah${d.id}" placeholder="Mahsulot" autocomplete="off" style="margin-top:8px">
       <div class="inrow" style="margin-top:8px"><input class="f" id="bi_miq${d.id}" inputmode="decimal" placeholder="Nechta">
         <input class="f" id="bi_narx${d.id}" inputmode="numeric" placeholder="Kunlik narx"></div>
       <input class="f" id="bi_sana${d.id}" type="date" value="${bugun}" style="margin-top:8px">
@@ -680,7 +681,7 @@
         <b class="num" style="font-size:20px">${som(jamiQ)} ta</b></div></div>
       <div class="addbox"><div class="t">➕ Brovdan oldim</div>
         <input class="f" id="bv_kim" placeholder="Kimdan (masalan: Aliboy)" style="margin-bottom:8px">
-        <input class="f" id="bv_mah" placeholder="Mahsulot" list="tovarlist" autocomplete="off" style="margin-bottom:8px">
+        <input class="f" id="bv_mah" placeholder="Mahsulot" autocomplete="off" style="margin-bottom:8px">
         <div class="inrow"><input class="f" id="bv_miq" inputmode="decimal" placeholder="Nechta">
           <input class="f" id="bv_sana" type="date" value="${bugun}"></div>
         <input class="f" id="bv_izoh" placeholder="Izoh (ixtiyoriy)" style="margin-top:8px">
