@@ -421,9 +421,26 @@ def make_web_app(bot_token):
             b = await request.json()
             mid = b.get("mijoz_id")
             mid = int(mid) if mid not in (None, "") else None
-            return web.json_response(db.brov_add(b.get("kim"), b.get("mahsulot"), b.get("miqdor"),
-                                                 b.get("sana"), b.get("izoh"), mijoz_id=mid,
-                                                 kunlik_narx=b.get("kunlik_narx") or 0))
+            try:
+                narx = float(b.get("kunlik_narx") or 0)
+            except Exception:
+                narx = 0
+            res = db.brov_add(b.get("kim"), b.get("mahsulot"), b.get("miqdor"),
+                              b.get("sana"), b.get("izoh"), mijoz_id=mid, kunlik_narx=narx)
+            # Narx yozilgan bo'lsa — mijozga ham hisoblanadi (ombor tegilmaydi)
+            if res.get("ok") and mid and narx > 0:
+                try:
+                    kim = (b.get("kim") or "").strip()
+                    miq = float(b.get("miqdor"))
+                    sana = (b.get("sana") or db.today_tk().isoformat())[:10]
+                    mah = (b.get("mahsulot") or "").strip()
+                    togri, _a = db.ombor_match_name(mah)
+                    db.add_partiya(mid, togri or mah, miq, narx, sana,
+                                   brov_kim=kim, brov_miqdor=miq)
+                    res["hisoblandi"] = True
+                except Exception:
+                    import traceback; traceback.print_exc()
+            return web.json_response(res)
         except Exception as e:
             return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
 
