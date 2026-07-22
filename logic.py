@@ -49,8 +49,9 @@ def apply(mijoz_id, t):
         if not t.mahsulot or not t.miqdor or t.miqdor <= 0 or t.kunlik_narx is None or t.kunlik_narx < 0:
             return {"ok": False, "xato": "Chiqish uchun mahsulot, soni va kunlik narx kerak (tekin bo'lsa 0)"}
         # Tovar nomi: ombordagi eng yaqin nomga avtomat to'g'rilanadi
+        # (brovdan olingan tovarga tegilmaydi — u tashqi tovar)
         tuzatildi = None
-        if db.get_sozlama("tovar_tekshir") == "1":
+        if db.get_sozlama("tovar_tekshir") == "1" and not (getattr(t, "brov_kim", None) or "").strip():
             togri, aniq = db.ombor_match_name(t.mahsulot)
             if togri is None:
                 bor = ", ".join(db.ombor_names())

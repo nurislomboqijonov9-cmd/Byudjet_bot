@@ -241,16 +241,12 @@
         g.items.map(it=>`<div class="retg-i"><span>${esc(it.mahsulot)} — <b>${son(it.miqdor)} ta</b></span>
           <button class="x" onclick="delRet(${it.return_id},${d.id})">×</button></div>`).join('')}</div>`).join('')}</div>`:'';
     const brovIn=`<div class="addbox"><div class="t">🔁 Brovdan olindi (shu mijoz uchun)</div>${
-      (d.brovlar||[]).map(g=>g.items.map(b=>`<div class="tlist"><span style="font-weight:600;white-space:nowrap">${esc(g.kim)}</span>
-        <span style="color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.mahsulot)} · ${son(b.qolgan)}/${son(b.miqdor)} ta${b.kunlik_narx>0?' · '+som(b.kunlik_narx)+'/kun':''} · ${dmy(b.sana)}</span>
-        <button class="x" onclick="brovDelM(${b.id},${d.id})">×</button></div>`).join('')).join('')}
-      <input class="f" id="bi_kim${d.id}" placeholder="Kimdan olindi" style="margin-top:8px">
-      <input class="f" id="bi_mah${d.id}" placeholder="Mahsulot" autocomplete="off" style="margin-top:8px">
-      <div class="inrow" style="margin-top:8px"><input class="f" id="bi_miq${d.id}" inputmode="decimal" placeholder="Nechta">
-        <input class="f" id="bi_narx${d.id}" inputmode="numeric" placeholder="Kunlik narx"></div>
-      <input class="f" id="bi_sana${d.id}" type="date" value="${bugun}" style="margin-top:8px">
-      <button class="send" onclick="brovAddM(${d.id})">Qo'shish</button>
-      <div class="hint">Boshqadan olib turib shu mijozga bergan tovar. <b>Narx yozsangiz — mijozga hisoblanadi.</b> Omborga ta'sir qilmaydi.</div></div>`;
+      (d.brovdan||[]).map(g=>`<div class="mzg"><div class="mzg-h">🔁 ${esc(g.kim)} · <span class="num">${som(g.jami)} ta</span></div>${
+        g.items.map(it=>`<div class="mzg-i"><span>${esc(it.mahsulot)} — <b>${son(it.miqdor)} ta</b></span><span style="color:var(--soft)">${it.partiya_raqam}-partiya</span></div>`).join('')}</div>`).join('')}
+      <input class="f" id="bi_kim${d.id}" placeholder="Kimdan olindi (masalan: Alisher aka)" style="margin-top:8px">
+      <textarea class="f ta" id="bi_matn${d.id}" rows="1" oninput="autoGrow(this)" placeholder="«200 ta lesa, kuniga 2000» / «50 stoyka 4000 dan, 20 tayrot 500 dan»" style="margin-top:8px"></textarea>
+      <button class="send" onclick="brovSendM(${d.id})">Qo'shish</button>
+      <div class="hint">Kimdan olganingizni yozing, keyin tovarlarni oddiy gap bilan. <b>Mijozga hisoblanadi</b>, omborga ta'sir qilmaydi.</div></div>`;
     const qaydCard=`<div class="addbox"><div class="t">📝 Qayd (o'zimiz uchun)</div>${
       (d.qaydlar||[]).map(q=>`<div class="tlist"><span style="color:var(--soft);white-space:nowrap">${dmy(q.sana)}</span>
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(q.matn)}</span>
@@ -714,6 +710,18 @@
     if(j&&j.ok){toast('🗑 O\'chirildi');loadBrov();}else{toast('❌ Xato');}
   };
 
+  window.brovSendM=async function(mid){
+    const kim=(document.getElementById('bi_kim'+mid).value||'').trim();
+    const v=(document.getElementById('bi_matn'+mid).value||'').trim();
+    if(!kim){toast('Kimdan olganingizni yozing');return;}
+    if(!v){toast('Tovarlarni yozing');return;}
+    toast('⏳ Qo\'shilyapti…');
+    try{const r=await fetch('/api/qoshish',{method:'POST',headers:{...H,'Content-Type':'application/json'},
+        body:JSON.stringify({mijoz_id:mid,matn:v,brov_kim:kim})});
+      const j=await r.json();
+      if(j.ok){toast('🔁 '+(j.xabar||'Qo\'shildi'));loadMijoz(mid);}else{toast('❌ '+(j.xabar||'Xato'));}
+    }catch(e){toast('Xato');}
+  };
   window.brovAddM=async function(mid){
     const kim=(document.getElementById('bi_kim'+mid).value||'').trim();
     const mah=(document.getElementById('bi_mah'+mid).value||'').trim();
