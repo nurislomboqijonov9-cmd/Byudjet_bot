@@ -35,16 +35,23 @@ def apply(mijoz_id, t):
     if amal == "chiqish":
         if not t.mahsulot or not t.miqdor or t.miqdor <= 0 or t.kunlik_narx is None or t.kunlik_narx < 0:
             return {"ok": False, "xato": "Chiqish uchun mahsulot, soni va kunlik narx kerak (tekin bo'lsa 0)"}
-        # Tovar tekshiruvi yoqilgan bo'lsa — faqat ombor ro'yxatidagi nomlar
-        if db.get_sozlama("tovar_tekshir") == "1" and db.ombor_by_name(t.mahsulot) is None:
-            bor = ", ".join(db.ombor_names())
-            return {"ok": False, "xato": f"«{t.mahsulot}» ombordagi tovarlar ro'yxatida yo'q. Iltimos to'g'ri yozing.\n\nMavjud tovarlar: {bor}"}
+        # Tovar nomi: ombordagi eng yaqin nomga avtomat to'g'rilanadi
+        tuzatildi = None
+        if db.get_sozlama("tovar_tekshir") == "1":
+            togri, aniq = db.ombor_match_name(t.mahsulot)
+            if togri is None:
+                bor = ", ".join(db.ombor_names())
+                return {"ok": False, "xato": f"«{t.mahsulot}» ombordagi tovarlar ro'yxatida yo'q. Iltimos to'g'ri yozing.\n\nMavjud tovarlar: {bor}"}
+            if not aniq:
+                tuzatildi = (t.mahsulot, togri)
+            t.mahsulot = togri
         pid, raqam = db.add_partiya(mijoz_id, t.mahsulot, t.miqdor, t.kunlik_narx, _sana(t), manzil=getattr(t, "manzil", None))
         db.ombor_apply_by_name(t.mahsulot, "out", t.miqdor)  # ombordan avtomat minus
         return {
             "ok": True, "amal": "chiqish", "mijoz": m["ism"], "mijoz_id": mijoz_id,
             "partiya_id": pid, "raqam": raqam, "mahsulot": t.mahsulot,
             "miqdor": t.miqdor, "kunlik_narx": t.kunlik_narx, "sana": _sana(t),
+            "tuzatildi": tuzatildi,
         }
 
     # ----- QAYTARISH -----

@@ -27,7 +27,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-APP_VERSION = "27"
+APP_VERSION = "28"
 
 # Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
 YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
@@ -119,9 +119,11 @@ def fmt(res):
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("↩️ Bekor qilish", callback_data=f"dele:{res['eslatma_id']}")]])
         return text, kb
     if res["amal"] == "chiqish":
+        tuz = res.get("tuzatildi")
+        nota = f"\n✏️ _«{tuz[0]}» → «{tuz[1]}» deb to'g'rilandi_" if tuz else ""
         text = (f"✅ *{res['mijoz']}* — {res['raqam']}-partiya ochildi\n\n"
                 f"📦 {son(res['miqdor'])} ta {res['mahsulot']}\n"
-                f"💵 kuniga {som(res['kunlik_narx'])} so'm\n📅 {res['sana']}")
+                f"💵 kuniga {som(res['kunlik_narx'])} so'm\n📅 {res['sana']}{nota}")
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("↩️ Bekor qilish", callback_data=f"delp:{res['partiya_id']}")]])
         return text, kb
     if res["amal"] == "tolov":

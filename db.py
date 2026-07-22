@@ -747,10 +747,15 @@ def mijoz_detail(mijoz_id, today=None):
         g["items"].sort(key=lambda x: (x["mahsulot"] or "").lower())
     manzillar = sorted(mgr.values(), key=lambda x: (x["manzil"] == "Manzil belgilanmagan", x["manzil"].lower()))
 
+    jami_qolgan_ = sum(x["qolgan"] for x in ps)
+    _st = m.get("status")
+    if _st != "sotuv":  # 'sotuv' qo'lda qo'yiladi, avtomat o'zgarmaydi
+        _st = "faol" if jami_qolgan_ > 0 else ("nofaol" if ps else _st)
+
     return {
         "id": mijoz_id, "mijoz": m["ism"], "telefon": m["telefon"], "adres": m.get("adres"),
         "telefonlar": phone_list(m["telefon"]),
-        "status": m.get("status"),
+        "status": _st,
         "partiyalar": ps,
         "zakazlar": zakazlar_list,
         "yetkazmalar": yetkazmalar,
@@ -1072,3 +1077,31 @@ def ombor_names():
     rows = con.execute("SELECT name FROM ombor_mahsulot ORDER BY sort_order, name").fetchall()
     con.close()
     return [r["name"] for r in rows]
+
+
+def ombor_match_name(nom, cutoff=0.62):
+    """Nomni ombordagi eng yaqin tovarga moslaydi.
+    Qaytaradi: (to'g'ri_nom, aniqmi). Topilmasa (None, False)."""
+    import difflib
+    s = (nom or "").strip()
+    if not s:
+        return (None, False)
+    pid = ombor_by_name(s)
+    names = ombor_names()
+    if pid:
+        for n in names:
+            if _ombor_norm(n) == _ombor_norm(s):
+                return (n, True)
+    if not names:
+        return (None, False)
+    key = _ombor_norm(s)
+    norm_map = {_ombor_norm(n): n for n in names}
+    # 1) ichma-ich (masalan "lesa 80" ~ "lesa")
+    for k, n in norm_map.items():
+        if k and (k in key or key in k) and abs(len(k) - len(key)) <= 4:
+            return (n, False)
+    # 2) imloviy yaqinlik
+    best = difflib.get_close_matches(key, list(norm_map.keys()), n=1, cutoff=cutoff)
+    if best:
+        return (norm_map[best[0]], False)
+    return (None, False)
