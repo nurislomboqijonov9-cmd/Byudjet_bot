@@ -67,6 +67,23 @@ def validate_init_data(init_data, bot_token):
         return None
 
 
+class _BrovWrap:
+    """AI amalini o'rab, brovdan ma'lumotini qo'shadi (AI obyekti qulflangan)."""
+
+    def __init__(self, a, brov_kim=None, brov_miqdor=None):
+        object.__setattr__(self, "_a", a)
+        object.__setattr__(self, "_own", {"brov_kim": brov_kim, "brov_miqdor": brov_miqdor})
+
+    def __getattr__(self, k):
+        own = object.__getattribute__(self, "_own")
+        if k in own:
+            return own[k]
+        return getattr(object.__getattribute__(self, "_a"), k)
+
+    def __setattr__(self, k, v):
+        object.__getattribute__(self, "_own")[k] = v
+
+
 def make_web_app(bot_token):
 
     def check(request):
@@ -149,11 +166,11 @@ def make_web_app(bot_token):
             except Exception:
                 bmiq = None
             if bkim:
+                wrapped = []
                 for a in actions:
                     am = a.amal.value if hasattr(a.amal, "value") else a.amal
-                    if am == "chiqish":
-                        a.brov_kim = bkim
-                        a.brov_miqdor = bmiq
+                    wrapped.append(_BrovWrap(a, bkim, bmiq) if am == "chiqish" else a)
+                actions = wrapped
             msgs, ok = [], False
             for a in actions:
                 res = logic.apply(mid, a)
