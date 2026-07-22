@@ -219,6 +219,7 @@
           <div class="inrow"><input class="f" id="e_miq${p.id}" value="${son(p.miqdor)}" inputmode="decimal" placeholder="Soni">
             <input class="f" id="e_narx${p.id}" value="${son(p.kunlik_narx)}" inputmode="numeric" placeholder="Kunlik narx"></div>
           <input class="f" id="e_manzil${p.id}" value="${esc(p.manzil||'')}" placeholder="📍 Manzil / ob'ekt" style="margin-top:8px">
+          <input class="f" id="e_bkim${p.id}" value="${esc(p.brov_kim||'')}" placeholder="🔁 Brovdan: kimdan (bo'sh qoldiring — o'zimizniki)" style="margin-top:8px">
           <input class="f" id="e_sana${p.id}" type="date" value="${p.chiqgan_sana}" style="margin-top:8px">
           <button class="send" onclick="savePartiya(${p.id},${d.id})">Saqlash</button>
           <button class="del" style="margin-top:8px" onclick="delPartiya(${p.id},${d.id})">🗑 Bu mahsulotni o'chirish</button></div>
@@ -349,9 +350,10 @@
     const narx=parseFloat((document.getElementById('e_narx'+pid).value||'').replace(/\s/g,''));
     const sana=document.getElementById('e_sana'+pid).value;
     const manzil=(document.getElementById('e_manzil'+pid).value||'').trim();
+    const bkim=((document.getElementById('e_bkim'+pid)||{}).value||'').trim();
 
     if(!mah||!miq||miq<=0||isNaN(narx)||narx<0||!sana){toast('To\'g\'ri to\'ldiring (tekin bo\'lsa narx 0)');return;}
-    try{const r=await fetch('/api/partiya_edit',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({partiya_id:pid,mahsulot:mah,miqdor:miq,kunlik_narx:narx,sana,manzil})});
+    try{const r=await fetch('/api/partiya_edit',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({partiya_id:pid,mahsulot:mah,miqdor:miq,kunlik_narx:narx,sana,manzil,brov_kim:bkim,brov_miqdor:(bkim?miq:null)})});
       const d=await r.json(); if(d.ok){toast('✏️ O\'zgartirildi');loadMijoz(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
   };
   window.saveRet=async function(pid,mid){
