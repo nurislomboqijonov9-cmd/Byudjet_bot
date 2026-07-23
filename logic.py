@@ -265,3 +265,60 @@ def apply(mijoz_id, t):
         return {"ok": True, "amal": "malumot", "mijoz_id": mijoz_id, "detail": d}
 
     return {"ok": False, "xato": "Tushunolmadim"}
+
+
+def qator_chiqish(mijoz_id, qatorlar, sana=None, brov_kim=None, manzil=None):
+    """Jadval orqali bir necha tovarni bitta yetkazma qilib qo'shadi."""
+    m = db.get_mijoz(mijoz_id)
+    if not m:
+        return {"ok": False, "xato": "Mijoz topilmadi"}
+    sana = str(sana or db.today_tk().isoformat())[:10]
+    brov_kim = (brov_kim or "").strip() or None
+    tekshir = db.get_sozlama("tovar_tekshir") == "1"
+    natija, xatolar, tuzatilgan = [], [], []
+
+    for q in (qatorlar or []):
+        mah = (q.get("mahsulot") or "").strip()
+        try:
+            miq = float(str(q.get("miqdor") or "").replace(",", ".").replace(" ", ""))
+        except Exception:
+            miq = 0.0
+        try:
+            narx = float(str(q.get("kunlik_narx") or 0).replace(",", ".").replace(" ", ""))
+        except Exception:
+            narx = 0.0
+        if not mah:
+            continue
+        if miq <= 0:
+            xatolar.append(f"«{mah}» — sonini yozing")
+            continue
+
+        togri, aniq, taklif = db.tovar_match(mah)
+        if togri:
+            if not aniq:
+                tuzatilgan.append((mah, togri))
+            mah = togri
+        elif tekshir and not brov_kim:
+            qo = (" Shulardan: " + " / ".join(taklif)) if taklif else ""
+            xatolar.append(f"«{mah}» — bunday tovar yo'q.{qo}")
+            continue
+
+        birlik = (q.get("birlik") or "").strip().lower() or db.tovar_birlik(mah)
+        birlik = "kom" if birlik.startswith("kom") else "ta"
+        pid, raqam = db.add_partiya(mijoz_id, mah, miq, narx, sana,
+                                    manzil=(q.get("manzil") or manzil or None),
+                                    brov_kim=brov_kim, brov_miqdor=(miq if brov_kim else None),
+                                    birlik=birlik)
+        if not brov_kim:
+            db.ombor_apply_by_name(mah, "out", miq * db.ombor_koeff(mah, birlik))
+        natija.append({"partiya_id": pid, "raqam": raqam, "mahsulot": mah,
+                       "miqdor": miq, "birlik": birlik, "kunlik_narx": narx})
+
+    if not natija:
+        return {"ok": False, "xato": " · ".join(xatolar) or "Hech narsa qo'shilmadi"}
+    xabar = f"{len(natija)} ta tovar qo'shildi"
+    if tuzatilgan:
+        xabar += " · to'g'rilandi: " + ", ".join(f"«{a}»→«{b}»" for a, b in tuzatilgan)
+    if xatolar:
+        xabar += " · ⚠️ " + " · ".join(xatolar)
+    return {"ok": True, "amal": "qator", "qoshildi": natija, "xatolar": xatolar, "xabar": xabar}

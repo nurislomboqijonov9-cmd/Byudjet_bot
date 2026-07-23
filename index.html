@@ -101,6 +101,17 @@
   .ta{flex:1 1 auto;width:100%;min-width:0;box-sizing:border-box;resize:none;overflow:hidden;height:46px;min-height:46px;line-height:1.45;font-family:inherit;padding:12px 14px;}
   .mic-sm{height:46px;}
   .thint{font-size:12px;color:var(--brand2);margin:0 0 8px 2px;min-height:15px;}
+  .qrow{border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px;background:var(--faint);}
+  .pickwrap{position:relative;}
+  .pickb{position:absolute;right:6px;top:6px;border:none;background:none;font-size:16px;color:var(--soft);cursor:pointer;padding:4px 8px;}
+  .picklist{display:none;position:absolute;left:0;right:0;top:100%;z-index:70;background:var(--card);
+    border:1px solid var(--line);border-radius:12px;max-height:230px;overflow:auto;box-shadow:0 8px 24px rgba(0,0,0,.14);margin-top:4px;}
+  .picklist div{padding:11px 13px;font-size:14.5px;cursor:pointer;border-bottom:1px solid var(--faint);}
+  .unitb{min-width:56px;border:1px solid var(--brand);background:#fff;color:var(--brand);border-radius:11px;
+    font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;flex-shrink:0;}
+  body.tun .unitb{background:#101A18;}
+  .delrow{min-width:44px;border:1px solid var(--line);background:#fff;border-radius:11px;font-size:15px;cursor:pointer;flex-shrink:0;}
+  body.tun .delrow{background:#101A18;}
   .card.perech{background:#F6F2FC;border-left:4px solid #7A4FC0;}
   body.tun .card.perech{background:#1B1826;border-left-color:#8F6FD8;}
   .errbox{background:#FBEAE4;border:1px solid #E3B4A4;color:#8E3B22;border-radius:11px;padding:11px 13px;
@@ -417,13 +428,23 @@
         <div class="hint">Summani yozing. <b>➕</b> — to'lov (qarz kamayadi). <b>➖</b> — o'sha summa mijozga qarz bo'lib qo'shiladi.</div>
         ${tlist?'<div style="margin-top:10px">'+tlist+'</div>':''}</div>
             ${brovIn}
-<div class="addbox"><div class="t">➕ Shu mijozga qo'shish</div>
-        <div class="inrow" style="align-items:flex-start"><textarea class="f ta" id="addtext" rows="1" oninput="autoGrow(this)" placeholder="«20 ta lesa, kuniga 2000» / «1-partiyadan 5 ta qaytardi» / «10 kunlik berdi»"></textarea>
-          <button class="mic mic-sm" id="micbtn" onclick="recToggle(${d.id})">🎤</button></div>
-        <button class="send" onclick="sendText(${d.id})">Qo'shish</button>
-        <div id="adderr"></div>
-        <div class="hint">🎤 bosib gapiring, yoki yozib «Qo'shish».</div></div>
-            ${qaydCard}
+<div class="addbox"><div class="t">➕ Shu mijozga qo'shish
+          <button class="qbtn" id="modeb" onclick="modeTgl()">📝 Matn / ovoz</button></div>
+        <div id="formmode">
+          <input class="f" id="qsana2" type="date" value="${bugun}">
+          <div id="qrows"></div>
+          <button class="mini-btn" style="width:100%;margin-top:8px;border-style:dashed" onclick="rowAdd()">➕ Yana tovar</button>
+          <button class="send" onclick="qatorSend(${d.id})">Hammasini qo'shish</button>
+          <div id="qerr"></div>
+        </div>
+        <div id="textmode" style="display:none">
+          <div class="inrow" style="align-items:flex-start"><textarea class="f ta" id="addtext" rows="1" oninput="autoGrow(this)" placeholder="«20 ta lesa, kuniga 2000» / «1-partiyadan 5 ta qaytardi» / «10 kunlik berdi»"></textarea>
+            <button class="mic mic-sm" id="micbtn" onclick="recToggle(${d.id})">🎤</button></div>
+          <button class="send" onclick="sendText(${d.id})">Qo'shish</button>
+          <div id="adderr"></div>
+          <div class="hint">🎤 bosib gapiring, yoki yozib «Qo'shish».</div>
+        </div></div>
+      ${qaydCard}
 <div class="addbox"><div class="t">➕ Qo'shimcha</div>
         <div class="inrow"><input class="f" id="qsum" inputmode="numeric" placeholder="Summa (so'm)">
           <input class="f" id="qsana" type="date" value="${bugun}"></div>
@@ -437,6 +458,7 @@
       ${manzilCard}
       ${retCard}
       <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>`;
+    window._qn=0; if(document.getElementById('qrows')) rowAdd();
   };
 
   window.tgl=function(id){const el=document.getElementById(id); if(el) el.style.display=el.style.display==='none'?'block':'none';};
@@ -750,12 +772,82 @@
   };
   async function loadTovarlar(){
     try{const r=await fetch('/api/tovarlar',{headers:H});const d=await r.json();
-      window._tovarlar=(d.tovarlar||[]);
+      window._tovarlar=(d.tovarlar||[]); window._tbir=(d.birliklar||{});
       const dl=document.getElementById('tovarlist');
       if(dl)dl.innerHTML=window._tovarlar.map(n=>`<option value="${esc(n)}">`).join('');
     }catch(e){}
   }
   loadTovarlar();
+
+  // ===== JADVAL BILAN QO'SHISH =====
+  window._qn=0;
+  window.modeTgl=function(){
+    const f=document.getElementById('formmode'), t=document.getElementById('textmode'), b=document.getElementById('modeb');
+    if(!f||!t)return;
+    const forma=f.style.display!=='none';
+    f.style.display=forma?'none':'block';
+    t.style.display=forma?'block':'none';
+    b.textContent=forma?'📋 Jadval':'📝 Matn / ovoz';
+  };
+  window.rowAdd=function(nom){
+    const i=++window._qn;
+    const box=document.getElementById('qrows'); if(!box)return;
+    const div=document.createElement('div');
+    div.className='qrow'; div.id='qrow'+i;
+    div.innerHTML=`<div class="pickwrap">
+        <input class="f" id="qm${i}" placeholder="Mahsulot — bosing yoki yozing" autocomplete="off"
+          oninput="pickShow(${i})" onfocus="pickShow(${i},1)">
+        <button class="pickb" onclick="pickShow(${i},1)">▾</button>
+        <div class="picklist" id="pl${i}"></div></div>
+      <div class="inrow" style="margin-top:6px">
+        <input class="f" id="qq${i}" inputmode="decimal" placeholder="Soni">
+        <button class="unitb" id="qu${i}" onclick="unitTgl(${i})">ta</button>
+        <input class="f" id="qp${i}" inputmode="numeric" placeholder="Narx/kun">
+        <button class="delrow" onclick="rowDel(${i})">🗑</button></div>`;
+    box.appendChild(div);
+    if(nom) pickSet(i,nom);
+    return i;
+  };
+  window.rowDel=function(i){const el=document.getElementById('qrow'+i); if(el) el.remove();};
+  window.pickShow=function(i,hammasi){
+    const inp=document.getElementById('qm'+i), lst=document.getElementById('pl'+i);
+    if(!inp||!lst)return;
+    const q=(inp.value||'').toLowerCase().trim();
+    let arr=window._tovarlar||[];
+    if(q && !hammasi) arr=arr.filter(n=>n.toLowerCase().includes(q));
+    if(!arr.length){lst.style.display='none';return;}
+    lst.innerHTML=arr.map(n=>`<div onclick="pickSet(${i},'${n.replace(/'/g,"\\'")}')">${esc(n)}</div>`).join('');
+    lst.style.display='block';
+  };
+  window.pickSet=function(i,nom){
+    const inp=document.getElementById('qm'+i), lst=document.getElementById('pl'+i), u=document.getElementById('qu'+i);
+    if(inp) inp.value=nom;
+    if(lst) lst.style.display='none';
+    const b=(window._tbir||{})[nom]; if(u&&b) u.textContent=b;
+    const qq=document.getElementById('qq'+i); if(qq) qq.focus();
+  };
+  window.unitTgl=function(i){const u=document.getElementById('qu'+i); if(u) u.textContent=(u.textContent.trim()==='ta')?'kom':'ta';};
+  window.qatorSend=async function(mid){
+    const rows=[];
+    document.querySelectorAll('#qrows .qrow').forEach(el=>{
+      const i=el.id.replace('qrow','');
+      const m=(document.getElementById('qm'+i).value||'').trim();
+      const q=(document.getElementById('qq'+i).value||'').trim();
+      const p=(document.getElementById('qp'+i).value||'').trim();
+      const u=(document.getElementById('qu'+i).textContent||'ta').trim();
+      if(m||q) rows.push({mahsulot:m,miqdor:q,kunlik_narx:p||0,birlik:u});
+    });
+    if(!rows.length){toast('Tovar qo\'shing');return;}
+    const sana=(document.getElementById('qsana2')||{}).value;
+    toast('⏳ Qo\'shilyapti…');
+    try{
+      const r=await fetch('/api/qator',{method:'POST',headers:{...H,'Content-Type':'application/json'},
+        body:JSON.stringify({mijoz_id:mid,sana,qatorlar:rows})});
+      let d=null; try{d=await r.json();}catch(_){}
+      if(d&&d.ok){ xatoTozala('qerr'); toast('✅ '+(d.xabar||'Qo\'shildi')); loadMijoz(mid); }
+      else { xatoBox('qerr',(d&&d.xabar)||('Xato '+r.status)); }
+    }catch(e){ xatoBox('qerr','Tarmoq xatosi'); }
+  };
 
   window.autoGrow=function(el){el.style.height='auto';el.style.height=Math.max(46,Math.min(el.scrollHeight,340))+'px';};
 

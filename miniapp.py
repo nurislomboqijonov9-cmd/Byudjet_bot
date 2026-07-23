@@ -183,6 +183,21 @@ def make_web_app(bot_token):
             traceback.print_exc()
             return web.json_response({"ok": False, "xabar": f"Server xato: {type(e).__name__}: {str(e)[:180]}"})
 
+    async def api_qator(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            res = logic.qator_chiqish(int(b.get("mijoz_id")), b.get("qatorlar") or [],
+                                      b.get("sana"), b.get("brov_kim"), b.get("manzil"))
+            if res.get("ok"):
+                return web.json_response({"ok": True, "xabar": res["xabar"]})
+            return web.json_response({"ok": False, "xabar": res.get("xato", "Xato")})
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return web.json_response({"ok": False, "xabar": f"Server xato: {type(e).__name__}: {str(e)[:150]}"})
+
     async def api_qoshish_audio(request):
         uid, err = check(request)
         if err:
@@ -522,6 +537,7 @@ def make_web_app(bot_token):
         if err:
             return err
         return web.json_response({"tovarlar": db.tovar_barcha(),
+                                  "birliklar": {n: db.tovar_birlik(n) for n in db.tovar_barcha()},
                                   "tekshir": db.get_sozlama("tovar_tekshir") == "1"})
 
     async def api_ombor(request):
@@ -596,6 +612,7 @@ def make_web_app(bot_token):
     app.router.add_post("/api/mijoz_qosh", api_mijoz_qosh)
     app.router.add_post("/api/mijoz_edit", api_mijoz_edit)
     app.router.add_post("/api/qoshish", api_qoshish)
+    app.router.add_post("/api/qator", api_qator)
     app.router.add_post("/api/qoshish_audio", api_qoshish_audio)
     app.router.add_post("/api/ochirish", api_ochirish)
     app.router.add_post("/api/adres", api_adres)
