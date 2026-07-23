@@ -274,6 +274,7 @@
   function errScreen(){app.innerHTML='<div class="center"><div>Ma\'lumot yuklanmadi.<br><br>Botdagi <b>«📊 Hisob»</b> tugmasi orqali oching.</div></div>';}
 
   async function loadList(){
+    window._lastMijoz=null;
     app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
     let d; try{const r=await fetch('/api/mijozlar',{headers:H});if(authXato(r))return;if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+m.qolgan_qarz,0);
@@ -322,6 +323,7 @@
   };
 
   window.loadMijoz=async function(id){
+    const _y=(window._lastMijoz===id)?window.scrollY:0; window._lastMijoz=id;
     app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
     let d; try{const r=await fetch('/api/mijoz?id='+id,{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     const bugun=new Date().toLocaleDateString('en-CA');
@@ -354,8 +356,25 @@
     // Yetkazmalar (nakladnoy): bir kun = bir karta
     const ps=(d.yetkazmalar||[]).map(y=>`<div class="card"><div class="p-head"><div class="p-badge">📦</div>
         <div><div class="p-title">Yetkazma · ${y.items.length} mahsulot</div>
-          <div class="p-sana">📅 ${dmy(y.sana)} · ${son(y.qolgan_dona)}/${son(y.jami_dona)} dona qolgan</div></div>
+          <div class="p-sana">📅 ${dmy(y.sana)} · ${son(y.qolgan_dona)}/${son(y.jami_dona)} dona qolgan
+            <button class="li-btn" style="padding:2px 8px;font-size:12px;margin-left:6px" onclick="tgl('ys${y.sana.replace(/-/g,'')}')">📅 sana</button>
+            <button class="li-btn" style="padding:2px 8px;font-size:12px;margin-left:4px" onclick="tgl('yt${y.sana.replace(/-/g,'')}')">✏️ hammasi</button></div></div>
         <b class="num" style="margin-left:auto;font-size:15px">${som(y.jami_narx)}</b></div>
+        <div id="ys${y.sana.replace(/-/g,'')}" style="display:none;padding:0 0 8px">
+          <div class="inrow"><input class="f" id="ysd${y.sana.replace(/-/g,'')}" type="date" value="${y.sana}">
+            <button class="mini-btn" onclick="yetkazmaSana(${d.id},'${y.sana}')">Saqlash</button></div>
+          <div class="hint">Hammasiga <b>bitta</b> sana qo'yiladi (${y.items.length} ta mahsulot).</div></div>
+        <div id="yt${y.sana.replace(/-/g,'')}" style="display:none;padding:0 0 10px">
+          <div class="hint" style="margin:0 0 6px">Har biriga alohida sana/son/narx — oxirida bitta «Saqlash».</div>
+          ${y.items.map(p=>`<div class="qrow" style="margin-top:6px">
+            <div style="font-weight:600;font-size:14px;margin-bottom:6px">${esc(p.mahsulot)}</div>
+            <input class="f tp" data-id="${p.id}" data-f="sana" type="date" value="${p.chiqgan_sana}">
+            <div class="inrow" style="margin-top:6px">
+              <input class="f tp" data-id="${p.id}" data-f="miqdor" inputmode="decimal" value="${son(p.miqdor)}" placeholder="Soni">
+              <input class="f tp" data-id="${p.id}" data-f="kunlik_narx" inputmode="numeric" value="${son(p.kunlik_narx)}" placeholder="Narx/kun"></div>
+          </div>`).join('')}
+          <button class="send" onclick="toplamSaqla(${d.id})">💾 Hammasini saqlash</button>
+          <div id="terr${y.sana.replace(/-/g,'')}"></div></div>
         <div class="litems">${y.items.map(itemHtml).join('')}</div></div>`).join('')
       ||'<div class="empty">Chiqarish yo\'q. Pastdan qo\'shing.</div>';
     // Qaytarishlar (bir kunda qaytganlar bitta yozuvda)
@@ -480,6 +499,7 @@
       ${manzilCard}
       ${retCard}
       <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>`;
+    if(_y>0) setTimeout(()=>window.scrollTo(0,_y),0);
     window._qolgan=(d.qolganlar||[]).filter(q=>q.qolgan>0).map(q=>q.mahsulot);
     window._qamal='chiqish'; window._qn=0; if(document.getElementById('qrows')) rowAdd();
   };
@@ -491,6 +511,37 @@
       el.style.display=(!q||(el.getAttribute('data-nom')||'').includes(q))?'':'none';});
   };
 
+  window.toplamSaqla=async function(mid){
+    const xar={};
+    document.querySelectorAll('.tp').forEach(el=>{
+      const id=el.getAttribute('data-id'), f=el.getAttribute('data-f');
+      if(!xar[id]) xar[id]={id:Number(id)};
+      xar[id][f]=(el.value||'').trim();
+    });
+    const oz=Object.values(xar);
+    if(!oz.length){toast('O\'zgarish yo\'q');return;}
+    toast('⏳ Saqlanyapti…');
+    try{const r=await fetch('/api/partiya_toplam',{method:'POST',headers:{...H,'Content-Type':'application/json'},
+        body:JSON.stringify({ozgarishlar:oz})});
+      const d=await r.json();
+      if(d&&d.ok){
+        toast('💾 '+d.soni+' ta saqlandi'+((d.xatolar&&d.xatolar.length)?' · ⚠️ '+d.xatolar.join(' · '):''));
+        loadMijoz(mid);
+      } else toast((d&&d.xato)||'Xato');
+    }catch(e){toast('Xato');}
+  };
+  window.yetkazmaSana=async function(mid,eski){
+    const el=document.getElementById('ysd'+eski.replace(/-/g,''));
+    const yangi=el?el.value:'';
+    if(!yangi){toast('Sanani tanlang');return;}
+    if(yangi===eski){toast('Sana o\'zgarmadi');return;}
+    try{const r=await fetch('/api/yetkazma_sana',{method:'POST',headers:{...H,'Content-Type':'application/json'},
+        body:JSON.stringify({mijoz_id:mid,eski_sana:eski,yangi_sana:yangi})});
+      const d=await r.json();
+      if(d&&d.ok){toast('📅 '+d.soni+' ta mahsulot sanasi o\'zgardi');loadMijoz(mid);}
+      else toast((d&&d.xato)||'Xato');
+    }catch(e){toast('Xato');}
+  };
   window.savePartiya=async function(pid,mid){
     const mah=(document.getElementById('e_mah'+pid).value||'').trim();
     const miq=parseFloat((document.getElementById('e_miq'+pid).value||'').replace(/\s/g,''));
@@ -846,7 +897,13 @@
     if(!inp||!lst)return;
     if(tugma && lst.style.display==='block'){ lst.style.display='none'; return; }  // ▾ qayta bosilsa yopiladi
     const q=(inp.value||'').toLowerCase().trim();
-    let arr=(window._qamal==='qaytarish' && (window._qolgan||[]).length) ? window._qolgan : (window._tovarlar||[]);
+    let arr=(window._tovarlar||[]);
+    if(window._qamal==='qaytarish'){
+      // Mijozdagi tovarlar tepada, qolgan barcha tovarlar pastda
+      const bor=(window._qolgan||[]);
+      const qolgani=arr.filter(n=>!bor.some(b=>b.toLowerCase()===n.toLowerCase()));
+      arr=bor.concat(qolgani);
+    }
     if(q && !hammasi) arr=arr.filter(n=>n.toLowerCase().includes(q));
     if(!arr.length){lst.style.display='none';return;}
     lst.innerHTML=arr.map(n=>`<div onclick="pickSet(${i},'${n.replace(/'/g,"\\'")}')">${esc(n)}</div>`).join('');

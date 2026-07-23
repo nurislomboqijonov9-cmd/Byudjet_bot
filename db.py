@@ -3245,3 +3245,67 @@ def barcha_parollarni_ochir(umumiydan_tashqari=True):
     con.commit()
     con.close()
     return {"ok": True}
+
+
+def yetkazma_sana_ozgartir(mijoz_id, eski_sana, yangi_sana):
+    """Bitta yetkazmadagi (bir kundagi) barcha mahsulotlar sanasini birdan o'zgartiradi."""
+    eski = str(eski_sana or "")[:10]
+    yangi = str(yangi_sana or "")[:10]
+    if not eski or not yangi:
+        return {"ok": False, "xato": "Sana kerak"}
+    con = _con()
+    cur = con.execute(
+        "UPDATE partiyalar SET chiqgan_sana=? WHERE mijoz_id=? AND substr(chiqgan_sana,1,10)=?",
+        (yangi, mijoz_id, eski))
+    n = cur.rowcount
+    con.commit()
+    con.close()
+    return {"ok": True, "soni": n, "sana": yangi}
+
+
+def partiyalarni_toplam_yangila(ozgarishlar):
+    """Bir necha partiyani birdan yangilaydi.
+    ozgarishlar: [{"id":1,"sana":"2026-07-20","miqdor":10,"kunlik_narx":2000}, ...]"""
+    con = _con()
+    n, xato = 0, []
+    for o in (ozgarishlar or []):
+        try:
+            pid = int(o.get("id"))
+        except Exception:
+            continue
+        r = con.execute("SELECT mahsulot, miqdor FROM partiyalar WHERE id=?", (pid,)).fetchone()
+        if not r:
+            continue
+        qaytgan = con.execute("SELECT COALESCE(SUM(miqdor),0) FROM qaytarishlar WHERE partiya_id=?",
+                              (pid,)).fetchone()[0] or 0
+        maydon, qiymat = [], []
+        if o.get("sana"):
+            maydon.append("chiqgan_sana=?")
+            qiymat.append(str(o["sana"])[:10])
+        if o.get("miqdor") not in (None, ""):
+            try:
+                miq = float(str(o["miqdor"]).replace(",", "."))
+                if miq < float(qaytgan):
+                    xato.append(f"{r['mahsulot']}: {int(qaytgan)} ta qaytgan, soni undan kam bo'lmasin")
+                else:
+                    maydon.append("miqdor=?")
+                    qiymat.append(miq)
+            except Exception:
+                pass
+        if o.get("kunlik_narx") not in (None, ""):
+            try:
+                maydon.append("kunlik_narx=?")
+                qiymat.append(float(str(o["kunlik_narx"]).replace(",", ".")))
+            except Exception:
+                pass
+        if o.get("birlik"):
+            maydon.append("birlik=?")
+            qiymat.append("kom" if str(o["birlik"]).lower().startswith("kom") else "ta")
+        if not maydon:
+            continue
+        qiymat.append(pid)
+        con.execute(f"UPDATE partiyalar SET {', '.join(maydon)} WHERE id=?", qiymat)
+        n += 1
+    con.commit()
+    con.close()
+    return {"ok": True, "soni": n, "xatolar": xato}

@@ -375,6 +375,27 @@ def make_web_app(bot_token):
         except Exception as e:
             return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
 
+    async def api_yetkazma_sana(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            return web.json_response(db.yetkazma_sana_ozgartir(
+                int(b.get("mijoz_id")), b.get("eski_sana"), b.get("yangi_sana")))
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
+    async def api_partiya_toplam(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            return web.json_response(db.partiyalarni_toplam_yangila(b.get("ozgarishlar") or []))
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
     async def api_qaytarish(request):
         uid, err = check(request)
         if err:
@@ -689,6 +710,8 @@ def make_web_app(bot_token):
     app.router.add_post("/api/tolov", api_tolov)
     app.router.add_post("/api/tolov_del", api_tolov_del)
     app.router.add_post("/api/partiya_edit", api_partiya_edit)
+    app.router.add_post("/api/yetkazma_sana", api_yetkazma_sana)
+    app.router.add_post("/api/partiya_toplam", api_partiya_toplam)
     app.router.add_post("/api/qaytarish", api_qaytarish)
     app.router.add_post("/api/qaytarish_del", api_qaytarish_del)
     app.router.add_post("/api/partiya_del", api_partiya_del)
