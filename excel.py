@@ -150,6 +150,17 @@ def mijoz_excel(d):
             r += 1
         r += 1
 
+    # Qayd (o'zimiz uchun)
+    qayd = (d.get("qayd") or "").strip()
+    if qayd:
+        title("QAYD (o'zimiz uchun)", r, span=10); r += 1
+        for satr in qayd.split("\n"):
+            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=8)
+            c = ws.cell(row=r, column=1, value=satr)
+            c.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+            r += 1
+        r += 1
+
     # Yakuniy hisob
     title("YAKUNIY HISOB", r); r += 1
     rows = [("Hisoblangan (ijara)", d.get("hisoblangan", 0)),
