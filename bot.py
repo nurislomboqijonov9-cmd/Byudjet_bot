@@ -27,7 +27,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-APP_VERSION = "75"
+APP_VERSION = "76"
 
 # Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
 YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
@@ -646,6 +646,36 @@ async def parol_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await admin_guard(update):
         return
     a = ctx.args or []
+    if len(a) == 1 and a[0].lower() in ("hammaga", "hamma", "all"):
+        import random
+        yaratildi, bor = [], []
+        for x in db.all_xodimlar():
+            if x.get("login"):
+                bor.append(x)
+                continue
+            asos = "".join(ch for ch in (x.get("ism") or "").lower()
+                           if ch.isalnum()) or f"id{x['id']}"
+            login, n = asos, 1
+            while any((y.get("login") or "") == login for y in db.all_xodimlar()):
+                n += 1
+                login = f"{asos}{n}"
+            parol = str(random.randint(1000, 9999))
+            r = db.set_parol(x["id"], login, parol)
+            if r.get("ok"):
+                yaratildi.append((x, login, parol))
+        if not yaratildi:
+            await update.message.reply_text("Hammasida login bor. Ro'yxat: `/parol royxat`", parse_mode="Markdown")
+            return
+        lines = ["🔑 *Login va parollar yaratildi*\n"]
+        for x, login, parol in yaratildi:
+            rol = "👑" if x["rol"] == "admin" else "👷"
+            lines.append(f"{rol} *{x.get('ism') or x['id']}*\n   login: `{login}` · parol: `{parol}`")
+        if bor:
+            lines.append(f"\n_({len(bor)} tasida allaqachon bor edi)_")
+        lines.append("\n📋 Har biriga o'z login/parolini yuboring.")
+        lines.append("🔗 Havola: /ilova")
+        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        return
     if len(a) == 1 and a[0].lower() in ("royxat", "list", "kim"):
         lst = db.loginli_xodimlar()
         if not lst:
@@ -666,6 +696,7 @@ async def parol_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "🔑 *Ilova uchun login/parol*\n\n"
             "Berish: `/parol <id> <login> <parol>`\n"
             "Masalan: `/parol 12345678 akmal 4477`\n\n"
+            "Hammaga birdan: `/parol hammaga`\n"
             "Ro'yxat: `/parol royxat`\n"
             "O'chirish: `/parol ochir <id>`\n\n"
             "_Xodim avval /xodim_qosh bilan qo'shilgan bo'lsin._", parse_mode="Markdown")
