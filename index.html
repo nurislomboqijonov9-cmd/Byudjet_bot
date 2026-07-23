@@ -93,8 +93,8 @@
   .thint b{cursor:pointer;text-decoration:underline;}
   body.wide{max-width:1100px;}
   body.wide .card,body.wide .addbox{padding-left:20px;padding-right:20px;}
-  .fsbtn{background:#12202B;color:#fff;border:none;border-radius:11px;padding:9px 12px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;margin-left:6px;}
-  @media (max-width:600px){.fsbtn{display:none;}}
+  .fsbtn{display:none;background:#12202B;color:#fff;border:none;border-radius:11px;padding:9px 12px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;margin-left:6px;}
+  body.desk .fsbtn{display:inline-block;}
   .qbtn{float:right;border:1px solid var(--line);background:#fff;color:var(--brand);border-radius:8px;padding:4px 10px;font-size:12px;font-family:inherit;cursor:pointer;font-weight:600;}
   .ta.qsmall{height:92px!important;min-height:92px!important;overflow:auto!important;}
   .thint.ok{color:var(--pos);}
@@ -148,13 +148,25 @@
   const tg = window.Telegram && window.Telegram.WebApp;
   if (tg){ try{ tg.ready(); tg.expand(); tg.setHeaderColor('#1F4B45'); tg.setBackgroundColor('#F3F5F4'); }catch(e){} }
   const H = { 'X-Init-Data': (tg && tg.initData) || '' };
-  // Keng rejim (noutbukda katta ekran)
+  // Keng rejim (noutbuk / kompyuterda katta ekran)
+  const PLAT = ((tg && tg.platform) || '').toLowerCase();
+  const MOBIL = /android|ios/.test(PLAT);
+  if(!MOBIL) document.body.classList.add('desk');
   try{ if(localStorage.getItem('wide')==='1') document.body.classList.add('wide'); }catch(e){}
   window.wideTgl=function(){
     const on=!document.body.classList.contains('wide');
     document.body.classList.toggle('wide',on);
     try{ localStorage.setItem('wide',on?'1':'0'); }catch(e){}
-    try{ if(on){ tg&&tg.requestFullscreen&&tg.requestFullscreen(); } else { tg&&tg.exitFullscreen&&tg.exitFullscreen(); } }catch(e){}
+    try{
+      if(on){
+        if(tg&&tg.requestFullscreen) tg.requestFullscreen();
+        else if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+        tg&&tg.expand&&tg.expand();
+      }else{
+        if(tg&&tg.exitFullscreen) tg.exitFullscreen();
+        else if(document.exitFullscreen && document.fullscreenElement) document.exitFullscreen();
+      }
+    }catch(e){}
     const b=document.getElementById('fsb'); if(b) b.textContent=on?'⤡':'⛶';
   };
   const app = document.getElementById('app');
