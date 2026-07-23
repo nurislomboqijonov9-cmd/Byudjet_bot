@@ -27,7 +27,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-APP_VERSION = "74"
+APP_VERSION = "75"
 
 # Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
 YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
@@ -317,7 +317,36 @@ async def app_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Mini App manzili yo'q. Railway'da domen (Networking → Generate Domain) qo'shing.")
         return
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("📊 Hisobni ochish", web_app=WebAppInfo(url=url))]])
-    await update.message.reply_text("Ijara hisobini ochish 👇", reply_markup=kb)
+    base = url.split("?")[0]
+    await update.message.reply_text(
+        "Ijara hisobini ochish 👇\n\n"
+        f"🌐 Brauzer / ilova uchun havola:\n`{base}`\n\n_Batafsil:_ /ilova",
+        parse_mode="Markdown", reply_markup=kb, disable_web_page_preview=True)
+
+
+async def ilova_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await guard(update):
+        return
+    url = webapp_url()
+    if not url:
+        await update.message.reply_text("Domen yo'q. Railway'da Networking → Generate Domain qiling.")
+        return
+    base = url.split("?")[0]
+    await update.message.reply_text(
+        "🔨 *TEMIRCHI — ilova*\n\n"
+        "Telegramsiz, alohida dastur bo'lib ishlaydi. Havola:\n\n"
+        f"`{base}`\n\n"
+        "👆 _bosib nusxa oling_\n\n"
+        "📱 *Telefonda:*\n"
+        "1. Havolani *Chrome*da oching (Telegram ichida emas)\n"
+        "2. Login va parolni kiriting\n"
+        "3. Menyu ⋮ → «Ilovani o'rnatish» / «Ekranga qo'shish»\n\n"
+        "💻 *Kompyuterda:*\n"
+        "1. Chrome yoki Edge'da havolani oching\n"
+        "2. Login va parolni kiriting\n"
+        "3. Manzil qatorining o'ng chetidagi ⊕ «O'rnatish»ni bosing\n\n"
+        "🔑 Login/parol: adminda (`/parol` buyrug'i)",
+        parse_mode="Markdown", disable_web_page_preview=True)
 
 
 async def kunlik_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1075,6 +1104,7 @@ async def _set_commands(app):
         BotCommand("kunlik", "📅 Bugungi harakatlar"),
         BotCommand("brovdan", "🔁 Brovdan olinganlar"),
         BotCommand("app", "📱 Hisobni ochish"),
+        BotCommand("ilova", "🔨 Temirchi ilovasi (havola)"),
         BotCommand("xarajat", "💵 AI sarfi"),
         BotCommand("start", "ℹ️ Yordam"),
     ]
@@ -1122,6 +1152,7 @@ async def run():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("mijozlar", mijozlar_cmd))
     app.add_handler(CommandHandler("app", app_cmd))
+    app.add_handler(CommandHandler("ilova", ilova_cmd))
     app.add_handler(CommandHandler("kunlik", kunlik_cmd))
     app.add_handler(CommandHandler("xarajat", xarajat_cmd))
     app.add_handler(CommandHandler("qarzdorlar", qarzdorlar_cmd))
