@@ -9,6 +9,17 @@
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;450;500;600&display=swap');
   :root{--bg:#F3F5F4;--card:#FFFFFF;--ink:#1B2A26;--soft:#63736D;--line:#E7EBE9;
     --brand:#1F4B45;--brand2:#2C6A60;--pos:#2E7D5B;--neg:#C0674F;--faint:#EEF2F0;}
+  body.tun{--bg:#0E1518;--card:#16211F;--ink:#E7EFEC;--soft:#8FA39D;--line:#243330;
+    --brand:#6FBFA8;--brand2:#8FD3BF;--pos:#4FC08A;--neg:#E08069;--faint:#1B2724;}
+  body.tun .hero{background:linear-gradient(135deg,#16302B,#0F2320)!important;}
+  body.tun input,body.tun textarea,body.tun select{background:#101A18;color:var(--ink);border-color:var(--line);}
+  body.tun input::placeholder,body.tun textarea::placeholder{color:#6E837D;}
+  body.tun .mini-btn,body.tun .li-btn,body.tun .mic,body.tun .qbtn{background:#101A18;color:var(--brand2);border-color:var(--line);}
+  body.tun .send{background:var(--brand);color:#08110F;}
+  body.tun .del{background:#2A1815;color:#E08069;border-color:#40241F;}
+  body.tun .av{background:#1C2A27;color:var(--brand2);}
+  body.tun .smsbtn{background:#101A18;color:var(--brand2);}
+  body.tun #toast{background:#E7EFEC;color:#0E1518;}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   body{background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;max-width:520px;margin:0 auto;transition:max-width .18s;
     padding:0 14px 40px;line-height:1.4;-webkit-font-smoothing:antialiased;}
@@ -95,6 +106,8 @@
   body.wide .card,body.wide .addbox{padding-left:20px;padding-right:20px;}
   .fsbtn{display:none;background:#12202B;color:#fff;border:none;border-radius:11px;padding:9px 12px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;margin-left:6px;}
   body.desk .fsbtn{display:inline-block;}
+  .tunbtn{background:#12202B;color:#fff;border:none;border-radius:11px;padding:9px 12px;font-size:14px;cursor:pointer;margin-left:6px;}
+  body.tun .tunbtn,body.tun .ombnav,body.tun .fsbtn{background:#1C2A27;color:var(--ink);}
   .qbtn{float:right;border:1px solid var(--line);background:#fff;color:var(--brand);border-radius:8px;padding:4px 10px;font-size:12px;font-family:inherit;cursor:pointer;font-weight:600;}
   .ta.qsmall{height:92px!important;min-height:92px!important;overflow:auto!important;}
   .thint.ok{color:var(--pos);}
@@ -153,6 +166,21 @@
   const MOBIL = /android|ios/.test(PLAT);
   if(!MOBIL) document.body.classList.add('desk');
   try{ if(localStorage.getItem('wide')==='1') document.body.classList.add('wide'); }catch(e){}
+  // Tungi rejim
+  try{ if(localStorage.getItem('tun')==='1') document.body.classList.add('tun'); }catch(e){}
+  function tunSync(){
+    const on=document.body.classList.contains('tun');
+    const b=document.getElementById('tunb'); if(b) b.textContent=on?'☀️':'🌙';
+    try{ tg&&tg.setHeaderColor&&tg.setHeaderColor(on?'#0E1518':'#1F4B45');
+         tg&&tg.setBackgroundColor&&tg.setBackgroundColor(on?'#0E1518':'#F3F5F4'); }catch(e){}
+  }
+  window.tunTgl=function(){
+    const on=!document.body.classList.contains('tun');
+    document.body.classList.toggle('tun',on);
+    try{ localStorage.setItem('tun',on?'1':'0'); }catch(e){}
+    tunSync();
+  };
+  tunSync();
   window.wideTgl=function(){
     const on=!document.body.classList.contains('wide');
     document.body.classList.toggle('wide',on);
@@ -186,10 +214,11 @@
     app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
     let d; try{const r=await fetch('/api/mijozlar',{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+m.qolgan_qarz,0);
-    setTimeout(()=>{const b=document.getElementById('fsb');if(b)b.textContent=document.body.classList.contains('wide')?'⤡':'⛶';},0);
+    setTimeout(()=>{const b=document.getElementById('fsb');if(b)b.textContent=document.body.classList.contains('wide')?'⤡':'⛶';tunSync();},0);
     app.innerHTML=`<header><div><div class="eyebrow">Ijara hisobi</div><h1>Mijozlar</h1></div>
         <button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>
         <button class="fsbtn" id="fsb" onclick="wideTgl()">⛶</button>
+        <button class="tunbtn" id="tunb" onclick="tunTgl()">🌙</button>
         <button class="plus" style="margin-left:8px" onclick="showNew()">➕</button></header>
       <div class="hero"><div class="arc"></div><div class="lbl">Umumiy qarz</div>
         <div class="amt num">${som(jami)} <small>so'm</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
