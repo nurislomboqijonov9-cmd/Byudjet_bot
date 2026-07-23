@@ -188,6 +188,14 @@ def apply(mijoz_id, t):
         target = list(target)
         target.sort(key=lambda x: x[0]["partiya_raqam"])  # eng eski chiqishdan
 
+        # Brovdan: kimdanligi aytilgan bo'lsa — avval o'sha odamdan olingan tovardan ayiramiz
+        _bk = (getattr(t, "brov_kim", None) or "").strip().lower()
+        if _bk:
+            _bir = [(p, h) for p, h in target if (p.get("brov_kim") or "").strip().lower() == _bk]
+            _boshqa = [(p, h) for p, h in target if (p.get("brov_kim") or "").strip().lower() != _bk]
+            if _bir:
+                target = _bir + _boshqa
+
         # Narx aytilgan bo'lsa: avval aynan shu narxdagilardan (eng eskisidan),
         # yetmasa qolganini eng eski chiqishlardan (boshqa narxdagilardan) ayiramiz.
         narx = getattr(t, "kunlik_narx", None)
@@ -360,10 +368,11 @@ class _Qaytish:
         self.partiya = None
         self.hammasi = False
         self.kunlik_narx = kunlik_narx
+        self.brov_kim = None
         self.transkript = f"{miqdor} {birlik or ''} {mahsulot}".strip()
 
 
-def qator_qaytarish(mijoz_id, qatorlar, sana=None):
+def qator_qaytarish(mijoz_id, qatorlar, sana=None, brov_kim=None):
     """Jadval orqali bir necha tovarni qaytarish."""
     m = db.get_mijoz(mijoz_id)
     if not m:
@@ -386,7 +395,9 @@ def qator_qaytarish(mijoz_id, qatorlar, sana=None):
             mah = togri
         birlik = (q.get("birlik") or "").strip().lower() or db.tovar_birlik(mah)
         birlik = "kom" if birlik.startswith("kom") else "ta"
-        res = apply(mijoz_id, _Qaytish(mah, miq, sana, birlik))
+        _q = _Qaytish(mah, miq, sana, birlik)
+        _q.brov_kim = (brov_kim or "").strip() or None
+        res = apply(mijoz_id, _q)
         if res.get("ok"):
             natija.append({"mahsulot": mah, "miqdor": miq, "birlik": birlik})
         else:

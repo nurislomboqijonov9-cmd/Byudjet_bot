@@ -387,11 +387,6 @@
       <textarea class="f ta qsmall" id="qaydmatn" oninput="autoGrow(this)" placeholder="Mijoz nima dedi, kelishuvlar, eslab qolish kerak bo'lgan narsalar…">${esc(d.qayd||'')}</textarea>
       <button class="send" onclick="qaydAdd(${d.id})">Saqlash</button>
       <div class="hint">Yozganingiz shu yerda turadi — pastidan davom ettiraverasiz.</div></div>`;
-    const brovIn=`<div class="addbox"><div class="t">🔁 Brovdan olindi (shu mijoz uchun)</div>
-      <input class="f" id="bi_kim${d.id}" placeholder="Kimdan olindi (masalan: Alisher aka)" style="margin-top:8px">
-      <textarea class="f ta" id="bi_matn${d.id}" rows="1" oninput="autoGrow(this)" placeholder="«200 ta lesa, kuniga 2000» / «50 stoyka 4000 dan, 20 tayrot 500 dan»" style="margin-top:8px"></textarea>
-      <button class="send" onclick="brovSendM(${d.id})">Qo'shish</button>
-      <div class="hint">Kimdan olganingizni yozing, keyin tovarlarni oddiy gap bilan. <b>Mijozga hisoblanadi</b>, omborga ta'sir qilmaydi.</div></div>`;
     const tm=TUR[d.tolov_turi];
     const turHtml=`<div class="card statrow">
         ${tm?`<span class="stbadge" style="color:${tm.c};background:${tm.bg}">${tm.i} ${tm.t}</span>`:'<span style="color:var(--soft);font-size:13.5px">To\'lov turi belgilanmagan</span>'}
@@ -400,6 +395,19 @@
         <button class="mini-btn" style="color:#2E7D5B;border-color:#2E7D5B" onclick="setTur(${d.id},'naqd')">💵 Naqd</button>
         <button class="mini-btn" style="color:#7A4FC0;border-color:#7A4FC0" onclick="setTur(${d.id},'perech')">🏦 Perechisleniye</button>
         <button class="mini-btn" onclick="setTur(${d.id},'')">✖️ Tozalash</button></div></div>`;
+    const brovRoy=((d.brovdan||[]).length)?`${(d.brovdan||[]).map(g=>`<div class="mzg">
+        <div class="mzg-h">🔁 ${esc(g.kim)}</div>${
+        g.items.map(it=>`<div class="mzg-i"><span>${esc(it.mahsulot)}</span>
+          <b style="${it.qolgan<=0?'color:var(--pos)':''}">${son(it.qolgan)}/${son(it.miqdor)}${it.qolgan<=0?' ✓ qaytdi':''}</b></div>`).join('')}</div>`).join('')}`:'';
+    const brovIn=`<div class="addbox"><div class="t">🔁 Brovdan olindi (shu mijoz uchun)</div>
+      ${brovRoy}
+      <input class="f" id="bi_kim${d.id}" placeholder="Kimdan olindi (masalan: Alisher aka)" style="margin-top:8px">
+      <input class="f" id="bi_sana${d.id}" type="date" value="${bugun}" style="margin-top:8px">
+      <div id="brows"></div>
+      <button class="mini-btn" style="width:100%;margin-top:8px;border-style:dashed" onclick="browAdd()">➕ Yana tovar</button>
+      <button class="send" onclick="brovQator(${d.id})">Qo'shish</button>
+      <div id="berr"></div>
+      <div class="hint">Boshqadan olib turib shu mijozga bergan tovar. <b>Mijozga hisoblanadi</b>, omborga ta'sir qilmaydi.</div></div>`;
     const smsBtn=`<button class="smsbtn" onclick="smsPick(${d.id})">📩 Qarz eslatmasi SMS</button><div id="smsbox" class="addbox" style="display:none"></div>`;
     const qolganCard=((d.qolganlar||[]).length)?`<div class="addbox"><div class="t">📦 Qolgan mahsulotlar (hozir mijozda)</div>${
       (d.qolganlar||[]).map(q=>`<div class="retg-i" style="padding:6px 0;border-top:1px solid var(--faint)">
@@ -473,6 +481,7 @@
             <button class="tabb on" id="tabout" onclick="qatorTab('chiqish')">📤 Chiqdi</button>
             <button class="tabb" id="tabret" onclick="qatorTab('qaytarish')">📥 Qaytdi</button></div>
           <input class="f" id="qsana2" type="date" value="${bugun}">
+          <input class="f" id="qbrov" placeholder="🔁 Brovdan bo'lsa: kimdan (ixtiyoriy)" style="display:none;margin-top:8px">
           <div id="qrows"></div>
           <button class="mini-btn" style="width:100%;margin-top:8px;border-style:dashed" onclick="rowAdd()">➕ Yana tovar</button>
           <button class="send" id="qsendb" onclick="qatorSend(${d.id})">Hammasini qo'shish</button>
@@ -502,6 +511,7 @@
     if(_y>0) setTimeout(()=>window.scrollTo(0,_y),0);
     window._qolgan=(d.qolganlar||[]).filter(q=>q.qolgan>0).map(q=>q.mahsulot);
     window._qamal='chiqish'; window._qn=0; if(document.getElementById('qrows')) rowAdd();
+    window._bn=0; if(document.getElementById('brows')) browAdd();
   };
 
   window.tgl=function(id){const el=document.getElementById(id); if(el) el.style.display=el.style.display==='none'?'block':'none';};
@@ -861,6 +871,7 @@
     if(o) o.classList.toggle('on', a==='chiqish');
     if(r) r.classList.toggle('on', a==='qaytarish');
     if(b) b.textContent = (a==='qaytarish') ? 'Qaytganini yozish' : 'Hammasini qo\'shish';
+    const qb=document.getElementById('qbrov'); if(qb) qb.style.display=(a==='qaytarish')?'block':'none';
     const box=document.getElementById('qrows'); if(box) box.innerHTML='';
     window._qn=0; rowAdd();
   };
@@ -932,7 +943,8 @@
     toast('⏳ Qo\'shilyapti…');
     try{
       const r=await fetch('/api/qator',{method:'POST',headers:{...H,'Content-Type':'application/json'},
-        body:JSON.stringify({mijoz_id:mid,sana,qatorlar:rows,amal:window._qamal||'chiqish'})});
+        body:JSON.stringify({mijoz_id:mid,sana,qatorlar:rows,amal:window._qamal||'chiqish',
+          brov_kim:((document.getElementById('qbrov')||{}).value||'').trim()||null})});
       let d=null; try{d=await r.json();}catch(_){}
       if(d&&d.ok){ xatoTozala('qerr'); toast('✅ '+(d.xabar||'Qo\'shildi')); loadMijoz(mid); }
       else { xatoBox('qerr',(d&&d.xabar)||('Xato '+r.status)); }
@@ -1005,27 +1017,67 @@
     if(j&&j.ok){toast('🗑 O\'chirildi');loadBrov();}else{toast('❌ Xato');}
   };
 
-  window.brovSendM=async function(mid){
-    const kim=(document.getElementById('bi_kim'+mid).value||'').trim();
-    const v=(document.getElementById('bi_matn'+mid).value||'').trim();
-    if(!kim){toast('Kimdan olganingizni yozing');return;}
-    if(!v){toast('Tovarlarni yozing');return;}
-    toast('⏳ Qo\'shilyapti…');
-    try{const r=await fetch('/api/qoshish',{method:'POST',headers:{...H,'Content-Type':'application/json'},
-        body:JSON.stringify({mijoz_id:mid,matn:v,brov_kim:kim})});
-      const j=await r.json();
-      if(j.ok){toast('🔁 '+(j.xabar||'Qo\'shildi'));loadMijoz(mid);}else{toast('❌ '+(j.xabar||'Xato'));}
-    }catch(e){toast('Xato');}
+  // ===== BROVDAN JADVALI =====
+  window._bn=0;
+  window.browAdd=function(){
+    const i=++window._bn;
+    const box=document.getElementById('brows'); if(!box)return;
+    const div=document.createElement('div');
+    div.className='qrow'; div.id='brow'+i;
+    div.innerHTML=`<div class="pickwrap">
+        <input class="f" id="bm${i}" placeholder="Mahsulot — bosing yoki yozing" autocomplete="off"
+          oninput="bpickShow(${i})" onfocus="bpickShow(${i},1)">
+        <button class="pickb" onclick="bpickShow(${i},1,1)">▾</button>
+        <div class="picklist" id="bpl${i}"></div></div>
+      <div class="inrow" style="margin-top:6px">
+        <input class="f" id="bq${i}" inputmode="decimal" placeholder="Soni">
+        <button class="unitb" id="bu${i}" onclick="bunitTgl(${i})">ta</button>
+        <input class="f" id="bp${i}" inputmode="numeric" placeholder="Narx/kun">
+        <button class="delrow" onclick="browDel(${i})">🗑</button></div>`;
+    box.appendChild(div);
+    return i;
   };
-  window.brovAddM=async function(mid){
+  window.browDel=function(i){const el=document.getElementById('brow'+i); if(el) el.remove();};
+  window.bpickShow=function(i,hammasi,tugma){
+    const inp=document.getElementById('bm'+i), lst=document.getElementById('bpl'+i);
+    if(!inp||!lst)return;
+    if(tugma && lst.style.display==='block'){ lst.style.display='none'; return; }
+    const q=(inp.value||'').toLowerCase().trim();
+    let arr=window._tovarlar||[];
+    if(q && !hammasi) arr=arr.filter(n=>n.toLowerCase().includes(q));
+    if(!arr.length){lst.style.display='none';return;}
+    lst.innerHTML=arr.map(n=>`<div onclick="bpickSet(${i},'${n.replace(/'/g,"\\'")}')">${esc(n)}</div>`).join('');
+    lst.style.display='block';
+  };
+  window.bpickSet=function(i,nom){
+    const inp=document.getElementById('bm'+i), lst=document.getElementById('bpl'+i), u=document.getElementById('bu'+i);
+    if(inp) inp.value=nom;
+    if(lst) lst.style.display='none';
+    const b=(window._tbir||{})[nom]; if(u&&b) u.textContent=b;
+    const q=document.getElementById('bq'+i); if(q) q.focus();
+  };
+  window.bunitTgl=function(i){const u=document.getElementById('bu'+i); if(u) u.textContent=(u.textContent.trim()==='ta')?'kom':'ta';};
+  window.brovQator=async function(mid){
     const kim=(document.getElementById('bi_kim'+mid).value||'').trim();
-    const mah=(document.getElementById('bi_mah'+mid).value||'').trim();
-    const miq=parseFloat((document.getElementById('bi_miq'+mid).value||'').replace(/\s/g,''));
-    const narx=parseFloat((document.getElementById('bi_narx'+mid).value||'').replace(/\s/g,''))||0;
-    const sana=document.getElementById('bi_sana'+mid).value;
-    if(!kim||!mah||!miq||miq<=0){toast('Kim, mahsulot va sonini yozing');return;}
-    const j=await brovPost('/api/brov_add',{kim,mahsulot:mah,miqdor:miq,sana,mijoz_id:mid,kunlik_narx:narx});
-    if(j&&j.ok){toast(j.hisoblandi?'🔁 Qo\'shildi va mijozga hisoblandi':'🔁 Qo\'shildi');loadMijoz(mid);}else{toast('❌ '+((j&&j.xato)||'Xato'));}
+    if(!kim){toast('Kimdan olganingizni yozing');return;}
+    const sana=(document.getElementById('bi_sana'+mid)||{}).value;
+    const rows=[];
+    document.querySelectorAll('#brows .qrow').forEach(el=>{
+      const i=el.id.replace('brow','');
+      const m=(document.getElementById('bm'+i).value||'').trim();
+      const q=(document.getElementById('bq'+i).value||'').trim();
+      const p=(document.getElementById('bp'+i).value||'').trim();
+      const u=(document.getElementById('bu'+i).textContent||'ta').trim();
+      if(m||q) rows.push({mahsulot:m,miqdor:q,kunlik_narx:p||0,birlik:u});
+    });
+    if(!rows.length){toast('Tovar qo\'shing');return;}
+    toast('⏳ Qo\'shilyapti…');
+    try{const r=await fetch('/api/qator',{method:'POST',headers:{...H,'Content-Type':'application/json'},
+        body:JSON.stringify({mijoz_id:mid,sana,qatorlar:rows,brov_kim:kim})});
+      const d=await r.json();
+      if(d&&d.ok){ xatoTozala('berr'); toast('🔁 '+(d.xabar||'Qo\'shildi')); loadMijoz(mid); }
+      else xatoBox('berr',(d&&d.xabar)||'Xato');
+    }catch(e){ xatoBox('berr','Tarmoq xatosi'); }
   };
   window.brovDelM=async function(id,mid){
     const j=await brovPost('/api/brov_del',{id});

@@ -254,7 +254,7 @@ def make_web_app(bot_token):
             mid = int(b.get("mijoz_id"))
             qat = b.get("qatorlar") or []
             if (b.get("amal") or "chiqish") == "qaytarish":
-                res = logic.qator_qaytarish(mid, qat, b.get("sana"))
+                res = logic.qator_qaytarish(mid, qat, b.get("sana"), b.get("brov_kim"))
             else:
                 res = logic.qator_chiqish(mid, qat, b.get("sana"), b.get("brov_kim"), b.get("manzil"))
             if res.get("ok"):
