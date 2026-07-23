@@ -189,8 +189,12 @@ def make_web_app(bot_token):
             return err
         try:
             b = await request.json()
-            res = logic.qator_chiqish(int(b.get("mijoz_id")), b.get("qatorlar") or [],
-                                      b.get("sana"), b.get("brov_kim"), b.get("manzil"))
+            mid = int(b.get("mijoz_id"))
+            qat = b.get("qatorlar") or []
+            if (b.get("amal") or "chiqish") == "qaytarish":
+                res = logic.qator_qaytarish(mid, qat, b.get("sana"))
+            else:
+                res = logic.qator_chiqish(mid, qat, b.get("sana"), b.get("brov_kim"), b.get("manzil"))
             if res.get("ok"):
                 return web.json_response({"ok": True, "xabar": res["xabar"]})
             return web.json_response({"ok": False, "xabar": res.get("xato", "Xato")})

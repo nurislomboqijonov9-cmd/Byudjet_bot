@@ -322,3 +322,53 @@ def qator_chiqish(mijoz_id, qatorlar, sana=None, brov_kim=None, manzil=None):
     if xatolar:
         xabar += " · ⚠️ " + " · ".join(xatolar)
     return {"ok": True, "amal": "qator", "qoshildi": natija, "xatolar": xatolar, "xabar": xabar}
+
+
+class _Qaytish:
+    """qator_qaytarish uchun soddalashtirilgan amal obyekti."""
+
+    def __init__(self, mahsulot, miqdor, sana, birlik=None, kunlik_narx=None):
+        self.amal = "qaytarish"
+        self.mahsulot = mahsulot
+        self.miqdor = miqdor
+        self.sana = sana
+        self.partiya = None
+        self.hammasi = False
+        self.kunlik_narx = kunlik_narx
+        self.transkript = f"{miqdor} {birlik or ''} {mahsulot}".strip()
+
+
+def qator_qaytarish(mijoz_id, qatorlar, sana=None):
+    """Jadval orqali bir necha tovarni qaytarish."""
+    m = db.get_mijoz(mijoz_id)
+    if not m:
+        return {"ok": False, "xato": "Mijoz topilmadi"}
+    sana = str(sana or db.today_tk().isoformat())[:10]
+    natija, xatolar = [], []
+    for q in (qatorlar or []):
+        mah = (q.get("mahsulot") or "").strip()
+        try:
+            miq = float(str(q.get("miqdor") or "").replace(",", ".").replace(" ", ""))
+        except Exception:
+            miq = 0.0
+        if not mah:
+            continue
+        if miq <= 0:
+            xatolar.append(f"«{mah}» — sonini yozing")
+            continue
+        togri, _aniq, _tk = db.tovar_match(mah)
+        if togri:
+            mah = togri
+        birlik = (q.get("birlik") or "").strip().lower() or db.tovar_birlik(mah)
+        birlik = "kom" if birlik.startswith("kom") else "ta"
+        res = apply(mijoz_id, _Qaytish(mah, miq, sana, birlik))
+        if res.get("ok"):
+            natija.append({"mahsulot": mah, "miqdor": miq, "birlik": birlik})
+        else:
+            xatolar.append(f"«{mah}»: {res.get('xato', 'xato')}")
+    if not natija:
+        return {"ok": False, "xato": " · ".join(xatolar) or "Hech narsa qaytmadi"}
+    xabar = f"{len(natija)} ta tovar qaytdi"
+    if xatolar:
+        xabar += " · ⚠️ " + " · ".join(xatolar)
+    return {"ok": True, "amal": "qator_qaytarish", "qaytdi": natija, "xatolar": xatolar, "xabar": xabar}
