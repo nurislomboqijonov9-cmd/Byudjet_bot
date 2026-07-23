@@ -103,6 +103,11 @@ def init_db():
         id INTEGER PRIMARY KEY,
         ism TEXT, rol TEXT NOT NULL DEFAULT 'xodim',
         qoshgan_id INTEGER, yaratilgan TEXT NOT NULL)""")
+    xcols = [r[1] for r in con.execute("PRAGMA table_info(xodimlar)").fetchall()]
+    if "login" not in xcols:
+        con.execute("ALTER TABLE xodimlar ADD COLUMN login TEXT")
+    if "parol_hash" not in xcols:
+        con.execute("ALTER TABLE xodimlar ADD COLUMN parol_hash TEXT")
     # Ega doim admin
     con.execute("INSERT OR IGNORE INTO xodimlar (id, ism, rol, qoshgan_id, yaratilgan) VALUES (?, ?, 'admin', ?, ?)",
                 (OWNER_ID, "Ega", OWNER_ID, now_tk().isoformat()))
@@ -1689,6 +1694,11 @@ def init_db():
         id INTEGER PRIMARY KEY,
         ism TEXT, rol TEXT NOT NULL DEFAULT 'xodim',
         qoshgan_id INTEGER, yaratilgan TEXT NOT NULL)""")
+    xcols = [r[1] for r in con.execute("PRAGMA table_info(xodimlar)").fetchall()]
+    if "login" not in xcols:
+        con.execute("ALTER TABLE xodimlar ADD COLUMN login TEXT")
+    if "parol_hash" not in xcols:
+        con.execute("ALTER TABLE xodimlar ADD COLUMN parol_hash TEXT")
     # Ega doim admin
     con.execute("INSERT OR IGNORE INTO xodimlar (id, ism, rol, qoshgan_id, yaratilgan) VALUES (?, ?, 'admin', ?, ?)",
                 (OWNER_ID, "Ega", OWNER_ID, now_tk().isoformat()))
@@ -3132,3 +3142,58 @@ def set_tolov_turi(mijoz_id, turi):
     con.commit()
     con.close()
     return {"ok": True}
+
+
+# ---------- Ilova uchun login/parol ----------
+def _parol_hash(parol, tuz="temirchi"):
+    import hashlib
+    return hashlib.sha256((tuz + "|" + (parol or "")).encode()).hexdigest()
+
+
+def set_parol(uid, login, parol):
+    """Xodimga ilova uchun login va parol beradi."""
+    login = (login or "").strip().lower()
+    if not login or not parol:
+        return {"ok": False, "xato": "Login va parol kerak"}
+    con = _con()
+    band = con.execute("SELECT id FROM xodimlar WHERE LOWER(login)=? AND id<>?", (login, uid)).fetchone()
+    if band:
+        con.close()
+        return {"ok": False, "xato": "Bu login band"}
+    r = con.execute("SELECT id FROM xodimlar WHERE id=?", (uid,)).fetchone()
+    if not r:
+        con.close()
+        return {"ok": False, "xato": "Bunday xodim yo'q. Avval /xodim_qosh bilan qo'shing."}
+    con.execute("UPDATE xodimlar SET login=?, parol_hash=? WHERE id=?", (login, _parol_hash(parol), uid))
+    con.commit()
+    con.close()
+    return {"ok": True, "login": login}
+
+
+def parolni_ochir(uid):
+    con = _con()
+    con.execute("UPDATE xodimlar SET login=NULL, parol_hash=NULL WHERE id=?", (uid,))
+    con.commit()
+    con.close()
+    return {"ok": True}
+
+
+def login_tekshir(login, parol):
+    """To'g'ri bo'lsa xodim id sini qaytaradi, aks holda None."""
+    login = (login or "").strip().lower()
+    if not login or not parol:
+        return None
+    con = _con()
+    r = con.execute("SELECT id, parol_hash FROM xodimlar WHERE LOWER(login)=?", (login,)).fetchone()
+    con.close()
+    if not r or not r["parol_hash"]:
+        return None
+    import hmac as _h
+    return r["id"] if _h.compare_digest(r["parol_hash"], _parol_hash(parol)) else None
+
+
+def loginli_xodimlar():
+    con = _con()
+    rows = con.execute("SELECT id, ism, rol, login FROM xodimlar WHERE login IS NOT NULL ORDER BY id").fetchall()
+    con.close()
+    return [dict(r) for r in rows]

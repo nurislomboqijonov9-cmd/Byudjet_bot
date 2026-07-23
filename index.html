@@ -106,6 +106,10 @@
   .tabb.on{background:var(--brand);color:#fff;border-color:var(--brand);}
   body.tun .tabb{background:#101A18;}
   body.tun .tabb.on{background:var(--brand);color:#08110F;}
+  .login{max-width:340px;margin:0 auto;padding:36px 0;}
+  .loginlogo{display:block;width:132px;height:132px;margin:0 auto;border-radius:50%;box-shadow:0 6px 22px rgba(0,0,0,.10);}
+  .login .sub{text-align:center;color:var(--soft);font-size:13px;margin-bottom:22px;}
+  .login input{margin-bottom:10px;}
   .qrow{border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px;background:var(--faint);}
   .pickwrap{position:relative;}
   .pickb{position:absolute;right:6px;top:6px;border:none;background:none;font-size:16px;color:var(--soft);cursor:pointer;padding:4px 8px;}
@@ -178,6 +182,12 @@
   .omb-tab.on{background:#F3F5F4;color:#0B1017;}
   .ombnav{margin-left:auto;background:#12202B;color:#fff;border:none;border-radius:11px;padding:9px 13px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;}
 </style>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1F4B45">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Temirchi">
+  <link rel="apple-touch-icon" href="/icon-192.png">
 </head>
 <body>
   <div id="clockbar"><span id="clock">—</span></div>
@@ -187,7 +197,9 @@
 <script>
   const tg = window.Telegram && window.Telegram.WebApp;
   if (tg){ try{ tg.ready(); tg.expand(); tg.setHeaderColor('#1F4B45'); tg.setBackgroundColor('#F3F5F4'); }catch(e){} }
-  const H = { 'X-Init-Data': (tg && tg.initData) || '' };
+  function tokenGet(){ try{ return localStorage.getItem('tok')||''; }catch(e){ return ''; } }
+  const H = { 'X-Init-Data': (tg && tg.initData) || '', 'X-Token': tokenGet() };
+  function tokenSet(t){ try{ localStorage.setItem('tok',t||''); }catch(e){} H['X-Token']=t||''; }
   // Keng rejim (noutbuk / kompyuterda katta ekran)
   const PLAT = ((tg && tg.platform) || '').toLowerCase();
   const MOBIL = /android|ios/.test(PLAT);
@@ -258,17 +270,19 @@
     el.scrollIntoView({behavior:'smooth',block:'center'});
   }
   function xatoTozala(where){const el=document.getElementById(where); if(el) el.innerHTML='';}
+  function authXato(r){ if(r&&r.status===401&&!(tg&&tg.initData)){ tokenSet(''); loginEkran('Qaytadan kiring'); return true; } return false; }
   function errScreen(){app.innerHTML='<div class="center"><div>Ma\'lumot yuklanmadi.<br><br>Botdagi <b>«📊 Hisob»</b> tugmasi orqali oching.</div></div>';}
 
   async function loadList(){
     app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
-    let d; try{const r=await fetch('/api/mijozlar',{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
+    let d; try{const r=await fetch('/api/mijozlar',{headers:H});if(authXato(r))return;if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+m.qolgan_qarz,0);
     setTimeout(()=>{const b=document.getElementById('fsb');if(b)b.textContent=document.body.classList.contains('wide')?'⤡':'⛶';tunSync();tickClock();},0);
     app.innerHTML=`<header><div><div class="eyebrow">Ijara hisobi</div><h1>Mijozlar</h1></div>
         <button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>
         <button class="fsbtn" id="fsb" onclick="wideTgl()">⛶</button>
         <button class="tunbtn" id="tunb" onclick="tunTgl()">🌙</button>
+        ${(tg&&tg.initData)?'':'<button class="tunbtn" onclick="chiqish()">🚪</button>'}
         <button class="plus" style="margin-left:8px" onclick="showNew()">➕</button></header>
       <div class="hero"><div class="arc"></div><div class="lbl">Umumiy qarz</div>
         <div class="amt num">${som(jami)} <small>so'm</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
@@ -976,7 +990,36 @@
     if(j&&j.ok){toast('🗑 O\'chirildi');loadMijoz(mid);}else{toast('❌ Xato');}
   };
 
-  loadList();
+  window.loginEkran=function(xato){
+    app.innerHTML=`<div class="login">
+      <img src="/icon-192.png" alt="Temirchi" class="loginlogo">
+      <div class="sub" style="margin-top:14px">Ijara va ombor hisobi</div>
+      ${xato?`<div class="errbox" style="margin-bottom:12px">❌ ${esc(xato)}</div>`:''}
+      <input class="f" id="lg_login" placeholder="Login" autocapitalize="none" autocomplete="username">
+      <input class="f" id="lg_parol" type="password" placeholder="Parol" autocomplete="current-password">
+      <button class="send" onclick="loginQil()">Kirish</button>
+      <div class="hint" style="text-align:center;margin-top:14px">Login va parolni admin beradi.</div>
+    </div>`;
+    const p=document.getElementById('lg_parol');
+    if(p) p.addEventListener('keydown',e=>{if(e.key==='Enter')loginQil();});
+  };
+  window.loginQil=async function(){
+    const l=(document.getElementById('lg_login').value||'').trim();
+    const p=(document.getElementById('lg_parol').value||'').trim();
+    if(!l||!p){loginEkran('Login va parolni yozing');return;}
+    try{
+      const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({login:l,parol:p})});
+      const d=await r.json();
+      if(d&&d.ok){ tokenSet(d.token); loadList(); }
+      else { loginEkran((d&&d.xato)||'Login yoki parol noto\'g\'ri'); }
+    }catch(e){ loginEkran('Tarmoq xatosi'); }
+  };
+  window.chiqish=function(){ tokenSet(''); loginEkran(); };
+
+  // Telegram ichida bo'lsa — to'g'ridan-to'g'ri, aks holda token / login
+  if ((tg && tg.initData) || tokenGet()) { loadList(); } else { loginEkran(); }
+  if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('/sw.js'); }catch(e){} }
 </script>
 </body>
 </html>

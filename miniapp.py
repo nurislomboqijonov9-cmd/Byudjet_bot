@@ -2,6 +2,7 @@
 import os
 import json
 import hmac
+import time
 import hashlib
 from urllib.parse import parse_qsl
 from pathlib import Path
@@ -44,6 +45,28 @@ def web_msg(res):
     if amal == "malumot":
         return "✅ Ma'lumot tayyor"
     return "✅ Bajarildi"
+
+
+def make_token(uid, bot_token, kun=30):
+    """uid.expiry.signature — brauzer uchun oddiy imzolangan token."""
+    exp = int(time.time()) + kun * 24 * 3600
+    xom = f"{uid}.{exp}"
+    imzo = hmac.new(bot_token.encode(), xom.encode(), hashlib.sha256).hexdigest()[:32]
+    return f"{xom}.{imzo}"
+
+
+def read_token(token, bot_token):
+    try:
+        uid_s, exp_s, imzo = (token or "").split(".")
+        xom = f"{uid_s}.{exp_s}"
+        kutilgan = hmac.new(bot_token.encode(), xom.encode(), hashlib.sha256).hexdigest()[:32]
+        if not hmac.compare_digest(kutilgan, imzo):
+            return None
+        if int(exp_s) < time.time():
+            return None
+        return int(uid_s)
+    except Exception:
+        return None
 
 
 def validate_init_data(init_data, bot_token):
@@ -89,6 +112,8 @@ def make_web_app(bot_token):
     def check(request):
         uid = validate_init_data(request.headers.get("X-Init-Data", ""), bot_token)
         if uid is None:
+            uid = read_token(request.headers.get("X-Token", ""), bot_token)
+        if uid is None:
             dbg = os.getenv("DEBUG_USER_ID")
             uid = int(dbg) if dbg else None
         if uid is None:
@@ -99,6 +124,43 @@ def make_web_app(bot_token):
 
     async def index(request):
         return web.FileResponse(INDEX)
+
+    async def api_login(request):
+        try:
+            b = await request.json()
+            uid = db.login_tekshir(b.get("login"), b.get("parol"))
+            if not uid or not db.is_allowed(uid):
+                return web.json_response({"ok": False, "xato": "Login yoki parol noto'g'ri"}, status=401)
+            x = db.get_xodim(uid) or {}
+            return web.json_response({"ok": True, "token": make_token(uid, bot_token),
+                                      "ism": x.get("ism") or "", "rol": x.get("rol") or "xodim"})
+        except Exception:
+            return web.json_response({"ok": False, "xato": "Xato"}, status=400)
+
+    async def manifest(request):
+        return web.json_response({
+            "name": "Temirchi — ijara hisobi", "short_name": "Temirchi",
+            "description": "Temirchi — ijara va ombor hisobi",
+            "start_url": "/", "scope": "/", "display": "standalone",
+            "background_color": "#F3F5F4", "theme_color": "#1F4B45",
+            "orientation": "portrait-primary",
+            "icons": [
+                {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+                {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+            ],
+        }, headers={"Cache-Control": "no-cache"})
+
+    async def sw_js(request):
+        return web.Response(text="self.addEventListener('fetch',function(e){});\n",
+                            content_type="application/javascript",
+                            headers={"Cache-Control": "no-cache"})
+
+    async def icon(request):
+        nom = request.match_info.get("nom", "icon-192.png")
+        yol = Path(__file__).parent / nom
+        if yol.exists():
+            return web.FileResponse(yol)
+        return web.Response(status=404)
 
     async def api_mijozlar(request):
         uid, err = check(request)
@@ -611,6 +673,10 @@ def make_web_app(bot_token):
 
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)
+    app.router.add_post("/api/login", api_login)
+    app.router.add_get("/manifest.json", manifest)
+    app.router.add_get("/sw.js", sw_js)
+    app.router.add_get("/{nom:icon-\\d+\\.png}", icon)
     app.router.add_get("/api/mijozlar", api_mijozlar)
     app.router.add_get("/api/mijoz", api_mijoz)
     app.router.add_post("/api/mijoz_qosh", api_mijoz_qosh)

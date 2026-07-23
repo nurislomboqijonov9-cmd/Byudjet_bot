@@ -144,3 +144,29 @@ async def submit_template(text):
         return (ok, str(j)[:250])
     except Exception as e:
         return (False, f"{type(e).__name__}: {str(e)[:150]}")
+
+
+async def list_templates():
+    """Shablonlar va ularning moderatsiya holatini oladi (GET /user/templates)."""
+    if not is_configured():
+        return (False, "SMS sozlanmagan")
+    try:
+        async with aiohttp.ClientSession() as session:
+            async def _do(tok):
+                async with session.get(f"{BASE}/user/templates",
+                                       headers={"Authorization": f"Bearer {tok}"},
+                                       timeout=aiohttp.ClientTimeout(total=20)) as r:
+                    return r.status, await r.json(content_type=None)
+            token = await _get_token(session)
+            status, j = await _do(token)
+            if status in (401, 403):
+                token = await _get_token(session, force=True)
+                status, j = await _do(token)
+        if status == 200:
+            if isinstance(j, dict):
+                return (True, j.get("result") or j.get("data") or j.get("templates") or [])
+            if isinstance(j, list):
+                return (True, j)
+        return (False, str(j)[:250])
+    except Exception as e:
+        return (False, f"{type(e).__name__}: {str(e)[:150]}")
