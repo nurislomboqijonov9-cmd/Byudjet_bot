@@ -119,6 +119,8 @@ def init_db():
     mcols2 = [r[1] for r in con.execute("PRAGMA table_info(mijozlar)").fetchall()]
     if "yig_sana" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN yig_sana TEXT")
+    if "qayd" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN qayd TEXT")
 
     # Zakazlar (2 qavatli model): mahsulot bo'yicha umumiy buyurtma. Chiqishlar (partiyalar) shunga bog'lanadi.
     con.execute("""CREATE TABLE IF NOT EXISTS zakazlar (
@@ -814,6 +816,7 @@ def mijoz_detail(mijoz_id, today=None):
         "brovdan": brovdan,
         "brovlar": brov_list(mijoz_id),
         "qaydlar": qaydlar_of(mijoz_id),
+        "qayd": get_qayd(mijoz_id),
         "qaytarishlar_guruh": qaytarishlar_guruh,
         "jami": hisoblangan,
         "hisoblangan": hisoblangan,
@@ -1298,3 +1301,98 @@ def qaydlar_of(mijoz_id):
                        (mijoz_id,)).fetchall()
     con.close()
     return [dict(r) for r in rows]
+
+
+# ---------- Nom to'g'rilash / ombor qayta hisoblash ----------
+def rename_mahsulot(eski, yangi):
+    """Barcha partiyalarda mahsulot nomini almashtiradi (nom normalizatsiyasi bo'yicha)."""
+    eski_n = _ombor_norm(eski)
+    yangi = (yangi or "").strip()
+    if not eski_n or not yangi:
+        return {"ok": False, "xato": "Eski va yangi nom kerak"}
+    con = _con()
+    rows = con.execute("SELECT id, mahsulot FROM partiyalar").fetchall()
+    ids = [r["id"] for r in rows if _ombor_norm(r["mahsulot"]) == eski_n]
+    for pid in ids:
+        con.execute("UPDATE partiyalar SET mahsulot=? WHERE id=?", (yangi, pid))
+    zrows = con.execute("SELECT id, mahsulot FROM zakazlar").fetchall()
+    zids = [r["id"] for r in zrows if _ombor_norm(r["mahsulot"]) == eski_n]
+    for zid in zids:
+        con.execute("UPDATE zakazlar SET mahsulot=? WHERE id=?", (yangi, zid))
+    con.commit()
+    con.close()
+    return {"ok": True, "partiya": len(ids), "zakaz": len(zids)}
+
+
+def partiya_nomlari():
+    """Partiyalarda uchraydigan mahsulot nomlari + nechta partiyada bor + ombordagi mosligi."""
+    con = _con()
+    rows = con.execute("SELECT mahsulot, COUNT(*) c FROM partiyalar GROUP BY mahsulot ORDER BY c DESC").fetchall()
+    con.close()
+    out = []
+    for r in rows:
+        nom = r["mahsulot"]
+        pid = ombor_by_name(nom)
+        out.append({"nom": nom, "soni": r["c"], "omborda_bor": pid is not None})
+    return out
+
+
+def ombor_recalc(today=None):
+    """Ombordagi 'arendada' sonini partiyalardan qayta hisoblaydi.
+    Brovdan olingan ulush hisobga olinmaydi. Nomi ombordagi bilan mos kelmaganlar alohida qaytariladi."""
+    today = today or today_tk()
+    con = _con()
+    prows = con.execute("SELECT * FROM partiyalar").fetchall()
+    con.close()
+    hisob, nomos = {}, {}
+    for p in prows:
+        p = dict(p)
+        h = partiya_hisob(p, today)
+        qolgan = float(h["qolgan"])
+        if qolgan <= 0:
+            continue
+        m = float(p.get("miqdor") or 0)
+        b = min(float(p.get("brov_miqdor") or 0), m)
+        oz = qolgan * ((m - b) / m) if m > 0 else qolgan   # brovdan ulushi chiqarib tashlanadi
+        if oz <= 0:
+            continue
+        pid = ombor_by_name(p["mahsulot"])
+        if pid:
+            hisob[pid] = hisob.get(pid, 0.0) + oz
+        else:
+            nomos[p["mahsulot"]] = nomos.get(p["mahsulot"], 0.0) + oz
+
+    con = _con()
+    ozgargan = []
+    for row in con.execute("SELECT id, name, total, out_qty FROM ombor_mahsulot").fetchall():
+        yangi = int(round(hisob.get(row["id"], 0.0)))
+        if yangi != int(row["out_qty"]):
+            ozgargan.append({"name": row["name"], "eski": int(row["out_qty"]), "yangi": yangi,
+                             "omborda": int(row["total"]) - yangi})
+            con.execute("UPDATE ombor_mahsulot SET out_qty=? WHERE id=?", (yangi, row["id"]))
+    con.commit()
+    con.close()
+    return {"ok": True, "ozgargan": ozgargan,
+            "nomos": sorted(nomos.items(), key=lambda x: -x[1])}
+
+
+def get_qayd(mijoz_id):
+    """Mijozning yagona qayd matni. Eski alohida qaydlar bo'lsa — birlashtiriladi."""
+    con = _con()
+    r = con.execute("SELECT qayd FROM mijozlar WHERE id=?", (mijoz_id,)).fetchone()
+    cur = (r[0] if r else None)
+    con.close()
+    if cur is not None:
+        return cur
+    eski = qaydlar_of(mijoz_id)
+    if eski:
+        return "\n".join(f"{str(q['sana'])[:10]} — {q['matn']}" for q in reversed(eski))
+    return ""
+
+
+def set_qayd(mijoz_id, matn):
+    con = _con()
+    con.execute("UPDATE mijozlar SET qayd=? WHERE id=?", (matn or "", mijoz_id))
+    con.commit()
+    con.close()
+    return {"ok": True}

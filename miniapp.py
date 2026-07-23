@@ -346,7 +346,8 @@ def make_web_app(bot_token):
             summa = float(b.get("summa"))
             if tur not in ("yolkira", "remont") or summa <= 0:
                 return web.json_response({"ok": False, "xabar": "Noto'g'ri"})
-            db.add_qoshimcha(mid, tur, summa, db.today_tk().isoformat(), None)
+            sana = (b.get("sana") or db.today_tk().isoformat())[:10]
+            db.add_qoshimcha(mid, tur, summa, sana, None)
             d = db.mijoz_detail(mid)
             return web.json_response({"ok": True, "qolgan_qarz": d["qolgan_qarz"]})
         except Exception as e:
@@ -488,7 +489,7 @@ def make_web_app(bot_token):
             return err
         try:
             b = await request.json()
-            return web.json_response(db.qayd_add(int(b.get("mijoz_id")), b.get("matn"), b.get("sana")))
+            return web.json_response(db.set_qayd(int(b.get("mijoz_id")), b.get("matn") or ""))
         except Exception as e:
             return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
 

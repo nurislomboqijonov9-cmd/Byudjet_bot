@@ -27,7 +27,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-APP_VERSION = "47"
+APP_VERSION = "52"
 
 # Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
 YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
@@ -542,6 +542,72 @@ async def brovdan_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         log.exception("brov excel xatolik")
 
 
+async def nomlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    lst = db.partiya_nomlari()
+    if not lst:
+        await update.message.reply_text("Partiya yo'q.")
+        return
+    yaxshi = [x for x in lst if x["omborda_bor"]]
+    yomon = [x for x in lst if not x["omborda_bor"]]
+    lines = ["🔤 *Partiyalardagi tovar nomlari*\n"]
+    if yomon:
+        lines.append("❌ *Omborda topilmadi* (to'g'rilash kerak):")
+        for x in yomon[:25]:
+            lines.append(f"   • {x['nom']} — {x['soni']} ta partiya")
+        lines.append("")
+    if yaxshi:
+        lines.append("✅ *Ombor bilan mos:*")
+        for x in yaxshi[:25]:
+            lines.append(f"   • {x['nom']} — {x['soni']} ta")
+    lines.append("\n*To'g'rilash:* `/nom Fasadni lesa = lesa`\n*Keyin:* `/ombor_hisobla`")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
+async def nom_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    txt = " ".join(ctx.args or "")
+    if "=" not in txt:
+        await update.message.reply_text(
+            "Format: `/nom eski nom = yangi nom`\n"
+            "Masalan: `/nom Fasadni lesa = lesa`\n\n"
+            "Barcha partiyalarda o'sha nom almashadi. Ro'yxat: /nomlar", parse_mode="Markdown")
+        return
+    eski, yangi = txt.split("=", 1)
+    res = db.rename_mahsulot(eski.strip(), yangi.strip())
+    if not res.get("ok"):
+        await update.message.reply_text(f"❌ {res.get('xato')}")
+        return
+    await update.message.reply_text(
+        f"✅ «{eski.strip()}» → «{yangi.strip()}»\n"
+        f"{res['partiya']} ta partiyada o'zgartirildi.\n\n"
+        "Endi `/ombor_hisobla` bilan omborni qayta sanang.", parse_mode="Markdown")
+
+
+async def ombor_hisobla_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    await update.message.reply_text("⏳ Hisoblanyapti…")
+    res = db.ombor_recalc()
+    oz = res["ozgargan"]
+    nomos = res["nomos"]
+    lines = ["🔄 *Ombor qayta hisoblandi*\n"]
+    if oz:
+        lines.append("*O'zgarganlar (arendada):*")
+        for x in oz[:30]:
+            lines.append(f"   • {x['name']}: {som(x['eski'])} → *{som(x['yangi'])}* (omborda {som(x['omborda'])})")
+    else:
+        lines.append("Hammasi joyida edi, o'zgarish yo'q. ✅")
+    if nomos:
+        lines.append("\n⚠️ *Ombordan topilmadi* (arendada turibdi, lekin bunday tovar yo'q):")
+        for nom, q in nomos[:20]:
+            lines.append(f"   • {nom} — {som(q)} dona")
+        lines.append("_Ularni `/nom eski = yangi` bilan to'g'rilang yoki omborga qo'shing._")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
 async def tekshir_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await admin_guard(update):
         return
@@ -949,6 +1015,8 @@ async def _set_commands(app):
     admin_extra = umumiy + [
         BotCommand("limit", "📏 Yig'ish chegarasi"),
         BotCommand("xodimlar", "🧑‍🔧 Xodimlar"),
+        BotCommand("nomlar", "🔤 Tovar nomlarini tekshirish"),
+        BotCommand("ombor_hisobla", "🔄 Omborni qayta sanash"),
         BotCommand("xodim_qosh", "➕ Xodim qo'shish"),
         BotCommand("admin_qosh", "👑 Admin qo'shish"),
         BotCommand("ochir", "🗑 Xodim o'chirish"),
@@ -992,6 +1060,9 @@ async def run():
     app.add_handler(CommandHandler("limit", limit_cmd))
     app.add_handler(CommandHandler("yiguvchi", yiguvchi_cmd))
     app.add_handler(CommandHandler("brovdan", brovdan_cmd))
+    app.add_handler(CommandHandler("nomlar", nomlar_cmd))
+    app.add_handler(CommandHandler("nom", nom_cmd))
+    app.add_handler(CommandHandler("ombor_hisobla", ombor_hisobla_cmd))
     app.add_handler(CommandHandler("tekshir", tekshir_cmd))
     app.add_handler(CommandHandler("shablon", shablon_cmd))
     app.add_handler(CommandHandler("shablonlar", shablonlar_cmd))
