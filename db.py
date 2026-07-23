@@ -135,6 +135,8 @@ def init_db():
         con.execute("ALTER TABLE partiyalar ADD COLUMN brov_kim TEXT")
     if "brov_miqdor" not in pcols:
         con.execute("ALTER TABLE partiyalar ADD COLUMN brov_miqdor REAL")
+    if "birlik" not in pcols:
+        con.execute("ALTER TABLE partiyalar ADD COLUMN birlik TEXT")
     # Eski partiyalarni zakazga bog'lash: har (mijoz, mahsulot) uchun bitta zakaz, jami = chiqqanlar yig'indisi
     orphans = con.execute(
         "SELECT DISTINCT mijoz_id, mahsulot FROM partiyalar WHERE zakaz_id IS NULL").fetchall()
@@ -448,7 +450,7 @@ def next_raqam(mijoz_id):
 
 
 def add_partiya(mijoz_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana, zakaz_id=None, manzil=None,
-                brov_kim=None, brov_miqdor=None):
+                brov_kim=None, brov_miqdor=None, birlik=None):
     raqam = next_raqam(mijoz_id)
     brov_kim = (brov_kim or "").strip() or None
     if brov_kim and not brov_miqdor:
@@ -459,10 +461,10 @@ def add_partiya(mijoz_id, mahsulot, miqdor, kunlik_narx, chiqgan_sana, zakaz_id=
     if zakaz_id is None:
         zakaz_id = find_or_create_zakaz(mijoz_id, mahsulot, con)
     cur = con.execute(
-        """INSERT INTO partiyalar (mijoz_id, partiya_raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, yaratilgan, zakaz_id, manzil, brov_kim, brov_miqdor)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO partiyalar (mijoz_id, partiya_raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, yaratilgan, zakaz_id, manzil, brov_kim, brov_miqdor, birlik)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (mijoz_id, raqam, mahsulot, miqdor, kunlik_narx, chiqgan_sana, now_tk().isoformat(), zakaz_id,
-         (manzil or None), brov_kim, brov_miqdor),
+         (manzil or None), brov_kim, brov_miqdor, (birlik or None)),
     )
     con.commit()
     pid = cur.lastrowid
@@ -691,6 +693,7 @@ def partiya_hisob(p, today=None, kesim=False):
         "id": p["id"], "partiya_raqam": p["partiya_raqam"], "mahsulot": p["mahsulot"],
         "miqdor": p["miqdor"], "qolgan": qolgan, "kunlik_narx": daily,
         "chiqgan_sana": str(p["chiqgan_sana"])[:10], "kunlar": kunlar, "narx": narx,
+        "birlik": (p.get("birlik") if isinstance(p, dict) else None) or tovar_birlik(p["mahsulot"]),
         "qaytgan": qaytgan,
         "qaytarishlar": [{"id": r["id"], "miqdor": r["miqdor"], "qaytgan_sana": str(r["qaytgan_sana"])[:10]} for r in rets],
     }
@@ -770,7 +773,8 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         if h["qolgan"] <= 0:
             continue
         key = (h["mahsulot"] or "").strip().lower()
-        g = qmap.setdefault(key, {"mahsulot": h["mahsulot"], "qolgan": 0.0, "narx": 0.0, "manzillar": set()})
+        g = qmap.setdefault(key, {"mahsulot": h["mahsulot"], "qolgan": 0.0, "narx": 0.0,
+                                  "birlik": h.get("birlik") or "ta", "manzillar": set()})
         g["qolgan"] += h["qolgan"]
         g["narx"] += h["narx"]
         if h.get("manzil"):
@@ -778,7 +782,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
     qolganlar = []
     for g in qmap.values():
         qolganlar.append({"mahsulot": g["mahsulot"], "qolgan": g["qolgan"], "narx": g["narx"],
-                          "manzillar": sorted(g["manzillar"])})
+                          "birlik": g.get("birlik") or "ta", "manzillar": sorted(g["manzillar"])})
     qolganlar.sort(key=lambda x: -x["qolgan"])
 
     # Qaytarishlar: bir kunda qaytgan mahsulotlar = bitta yozuv
@@ -1430,29 +1434,82 @@ def set_qayd(mijoz_id, matn):
 
 
 # ---------- Tovar lug'ati (nom tekshirish uchun) ----------
+# (nom, birlik): "kom" — komplekt (1 kom = 2 ta), "ta" — dona
 TOVAR_DEFAULT = [
-    "Oyoq 2m", "Qaychi 2m", "Oyoq 1.5m", "Qaychi 1.5m", "Rezba 1m",
-    "Univilka", "Soedinitel", "Balka 3m", "Tayrot", "Gayka tayrot",
-    "Lesa oyoq", "Lesa qaychi", "Taxta", "Balon", "Stoyka 4m",
-    "Stoyka 4.5m", "Stoyka 5m", "Stoyka 5.5m", "Stoyka 1.2m", "Lyulka",
+    ("Oyoq 2m", "kom"), ("Qaychi 2m", "kom"), ("Oyoq 1.5m", "kom"), ("Qaychi 1.5m", "kom"),
+    ("Rezba 1m", "ta"), ("Univilka", "ta"), ("Soedinitel", "ta"), ("Balka 3m", "ta"),
+    ("Tayrot", "ta"), ("Gayka tayrot", "ta"),
+    ("Lesa oyoq", "kom"), ("Lesa80 oyoq", "kom"), ("Lesa qaychi", "kom"),
+    ("Taxta", "ta"), ("Balon", "ta"),
+    ("Stoyka 4m", "ta"), ("Stoyka 4.5m", "ta"), ("Stoyka 5m", "ta"),
+    ("Stoyka 5.5m", "ta"), ("Stoyka 1.2m", "ta"), ("Lyulka", "kom"),
 ]
+KOM_TA = 2.0   # 1 komplekt = 2 ta
+
+
+def tovar_juftlar():
+    """[(nom, birlik), ...] — sozlamadan yoki default."""
+    v = get_sozlama("tovar_royxat")
+    if v:
+        out = []
+        for x in v.replace(",", "\n").split("\n"):
+            x = x.strip()
+            if not x:
+                continue
+            if "|" in x:
+                nom, b = x.split("|", 1)
+                out.append((nom.strip(), (b.strip().lower() or "ta")))
+            else:
+                p = x.rsplit(" ", 1)
+                if len(p) == 2 and p[1].lower() in ("kom", "komplekt", "ta", "dona"):
+                    out.append((p[0].strip(), "kom" if p[1].lower().startswith("kom") else "ta"))
+                else:
+                    out.append((x, "ta"))
+        if out:
+            return out
+    return list(TOVAR_DEFAULT)
 
 
 def tovar_royxat():
-    """Nom tekshirish uchun ishlatiladigan tovarlar ro'yxati."""
-    v = get_sozlama("tovar_royxat")
-    if v:
-        lst = [x.strip() for x in v.replace(",", "\n").split("\n") if x.strip()]
-        if lst:
-            return lst
-    return list(TOVAR_DEFAULT)
+    """Faqat nomlar (tekshirish uchun)."""
+    return [n for n, _b in tovar_juftlar()]
+
+
+def tovar_birlik(nom):
+    """Tovarning asosiy birligi: 'kom' yoki 'ta'."""
+    key = _ombor_norm(nom)
+    for n, b in tovar_juftlar():
+        if _ombor_norm(n) == key:
+            return b
+    return "ta"
 
 
 def set_tovar_royxat(lst):
     if isinstance(lst, str):
         lst = [x.strip() for x in lst.replace(",", "\n").split("\n") if x.strip()]
-    set_sozlama("tovar_royxat", "\n".join(lst))
-    return {"ok": True, "soni": len(lst)}
+    satr = []
+    for x in lst:
+        if isinstance(x, (list, tuple)):
+            satr.append(f"{x[0]}|{x[1]}")
+        else:
+            satr.append(str(x))
+    set_sozlama("tovar_royxat", "\n".join(satr))
+    return {"ok": True, "soni": len(satr)}
+
+
+def ombor_koeff(nom, yozilgan_birlik):
+    """Ombordan qancha ayirish kerakligi koeffitsienti.
+    Tovar 'kom' da yuritilsa: 'kom' yozilsa 1, 'ta' yozilsa 0.5."""
+    asos = tovar_birlik(nom)
+    y = (yozilgan_birlik or "").lower()
+    if asos == "kom":
+        if y.startswith("ta") or y.startswith("don"):
+            return 1.0 / KOM_TA
+        return 1.0
+    # asos 'ta' bo'lsa: 'kom' yozilsa 1 kom = 2 ta
+    if y.startswith("kom"):
+        return KOM_TA
+    return 1.0
 
 
 def tovar_match(nom, cutoff=0.60):

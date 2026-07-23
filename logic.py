@@ -22,6 +22,28 @@ def _norm(s):
     return s
 
 
+_BIRLIK_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(kom(?:plekt)?|ta|dona)\b", re.I)
+
+
+def _yozilgan_birlik(t, miqdor):
+    """Matnda shu miqdor yonida 'kom' yoki 'ta' yozilganmi — o'shani qaytaradi."""
+    matn = " ".join(str(getattr(t, k, "") or "") for k in ("transkript", "izoh"))
+    if not matn or miqdor is None:
+        return None
+    topilgan = None
+    for m in _BIRLIK_RE.finditer(matn):
+        try:
+            son = float(m.group(1).replace(",", "."))
+        except Exception:
+            continue
+        b = m.group(2).lower()
+        b = "kom" if b.startswith("kom") else "ta"
+        if abs(son - float(miqdor)) < 1e-6:
+            return b
+        topilgan = topilgan or b
+    return topilgan
+
+
 def _oz_ulush(p, qty):
     """Partiyadan qaytgan qty ning nechtasi bizning omborimizniki (brovdan olingani hisobmas)."""
     try:
@@ -67,14 +89,17 @@ def apply(mijoz_id, t):
             t.mahsulot = togri
         brov_kim = getattr(t, "brov_kim", None)
         brov_miqdor = getattr(t, "brov_miqdor", None)
+        # Birlik: yozilgan bo'lsa o'sha, yozilmasa — tovarning asosiy birligi (kom bo'lsa komplekt)
+        _bir = _yozilgan_birlik(t, t.miqdor) or db.tovar_birlik(t.mahsulot)
         pid, raqam = db.add_partiya(mijoz_id, t.mahsulot, t.miqdor, t.kunlik_narx, _sana(t),
                                     manzil=getattr(t, "manzil", None),
-                                    brov_kim=brov_kim, brov_miqdor=brov_miqdor)
+                                    brov_kim=brov_kim, brov_miqdor=brov_miqdor, birlik=_bir)
         # Ombordan faqat o'zimizniki chiqadi (brovdan olingani o'z omborimizdan emas)
         _brov = float(brov_miqdor or (t.miqdor if (brov_kim or "").strip() else 0) or 0)
         _oz = max(0.0, float(t.miqdor) - _brov)
         if _oz > 0:
-            db.ombor_apply_by_name(t.mahsulot, "out", _oz)
+            _k = db.ombor_koeff(t.mahsulot, _bir)
+            db.ombor_apply_by_name(t.mahsulot, "out", _oz * _k)
         return {
             "ok": True, "amal": "chiqish", "mijoz": m["ism"], "mijoz_id": mijoz_id,
             "partiya_id": pid, "raqam": raqam, "mahsulot": t.mahsulot,
@@ -107,7 +132,8 @@ def apply(mijoz_id, t):
             rid = db.add_return(p["id"], qty, _sana(t))
             _oz_ret = _oz_ulush(p, qty)   # brovdan olingani omborga qo'shilmaydi
             if _oz_ret > 0:
-                db.ombor_apply_by_name(p["mahsulot"], "ret", _oz_ret)
+                _k = db.ombor_koeff(p["mahsulot"], _yozilgan_birlik(t, qty))
+                db.ombor_apply_by_name(p["mahsulot"], "ret", _oz_ret * _k)
             h2 = db.partiya_hisob(p)
             d = db.mijoz_detail(mijoz_id)
             return {
@@ -185,7 +211,8 @@ def apply(mijoz_id, t):
         _oz_jami = sum(_oz_ulush(_p, _x["qty"]) for _p, _h in order
                        for _x in taqsim if _x["partiya_raqam"] == _p["partiya_raqam"])
         if _oz_jami > 0:
-            db.ombor_apply_by_name(prodname, "ret", _oz_jami)
+            _k = db.ombor_koeff(prodname, _yozilgan_birlik(t, qty))
+            db.ombor_apply_by_name(prodname, "ret", _oz_jami * _k)
         return {
             "ok": True, "amal": "qaytarish", "aggregate": True, "mijoz": m["ism"], "mijoz_id": mijoz_id,
             "mahsulot": prodname, "qty": qty, "return_ids": return_ids, "taqsim": taqsim,

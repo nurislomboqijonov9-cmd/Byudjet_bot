@@ -27,7 +27,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-APP_VERSION = "63"
+APP_VERSION = "65"
 
 # Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
 YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
@@ -621,11 +621,14 @@ async def tovarlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         res = db.set_tovar_royxat(txt)
         await update.message.reply_text(f"✅ Tovarlar ro'yxati yangilandi ({res['soni']} ta).")
         return
-    lst = db.tovar_royxat()
+    juft = db.tovar_juftlar()
     on = db.get_sozlama("tovar_tekshir") == "1"
-    lines = [f"📋 *Tovarlar ro'yxati* ({len(lst)} ta)", f"_tekshiruv: {'yoqilgan ✅' if on else 'oʻchiq ⏸'}_\n"]
-    lines += [f"   • {x}" for x in lst]
-    lines.append("\n*O'zgartirish:* `/tovarlar Oyoq 2m, Qaychi 2m, Rezba 1m` (vergul bilan)")
+    lines = [f"📋 *Tovarlar ro'yxati* ({len(juft)} ta)", f"_tekshiruv: {'yoqilgan ✅' if on else 'oʻchiq ⏸'}_\n"]
+    for nom, bir in juft:
+        lines.append(f"   • {nom} — _{bir}_")
+    lines.append(f"\n📦 1 komplekt = {int(db.KOM_TA)} ta.")
+    lines.append("«kom» yozilsa ombordan 1, «ta» yozilsa 0.5 ayriladi (kom tovarlarda).")
+    lines.append("\n*O'zgartirish:* `/tovarlar Oyoq 2m kom, Rezba 1m ta` (vergul bilan)")
     lines.append("*Yoqish:* `/tekshir on`")
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
