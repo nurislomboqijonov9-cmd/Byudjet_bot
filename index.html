@@ -101,6 +101,8 @@
   .ta{flex:1 1 auto;width:100%;min-width:0;box-sizing:border-box;resize:none;overflow:hidden;height:46px;min-height:46px;line-height:1.45;font-family:inherit;padding:12px 14px;}
   .mic-sm{height:46px;}
   .thint{font-size:12px;color:var(--brand2);margin:0 0 8px 2px;min-height:15px;}
+  .card.perech{background:#F6F2FC;border-left:4px solid #7A4FC0;}
+  body.tun .card.perech{background:#1B1826;border-left-color:#8F6FD8;}
   .errbox{background:#FBEAE4;border:1px solid #E3B4A4;color:#8E3B22;border-radius:11px;padding:11px 13px;
     font-size:13.5px;line-height:1.45;margin-top:8px;position:relative;}
   .errbox button{position:absolute;top:6px;right:8px;background:none;border:none;color:#8E3B22;font-size:18px;cursor:pointer;}
@@ -230,6 +232,7 @@
   const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const ini=s=>(s||'?').trim().charAt(0).toUpperCase();
   const dmy=s=>{if(!s)return'';const p=(''+s).slice(0,10).split('-');return p.length===3?p[2]+'.'+p[1]+'.'+p[0].slice(2):s;};
+  const TUR={naqd:{t:'Naqd',c:'#2E7D5B',bg:'rgba(46,125,91,.13)',i:'💵'},perech:{t:'Perechisleniye',c:'#7A4FC0',bg:'rgba(122,79,192,.14)',i:'🏦'}};
   const STAT={faol:{t:'Faol',c:'#2E7D5B',bg:'rgba(46,125,91,.13)'},nofaol:{t:'Nofaol',c:'#C0674F',bg:'rgba(192,103,79,.13)'},sotuv:{t:'Sotuv',c:'#2D6CB2',bg:'rgba(45,108,178,.13)'}};
   const phones=s=>(s||'').split(',').map(x=>x.trim()).filter(Boolean).join(' · ');
   function toast(m){const t=document.getElementById('toast');t.innerHTML='<div class="toast">'+esc(m)+'</div>';setTimeout(()=>t.innerHTML='',3500);}
@@ -262,10 +265,10 @@
   window.renderCards=function(q){
     q=(q||'').toLowerCase().trim();
     const list=(window._ml||[]).filter(m=>!q || (m.mijoz||'').toLowerCase().includes(q) || (m.telefon||'').includes(q) || (m.adres||'').toLowerCase().includes(q));
-    let cards=list.map(m=>`<div class="card"><div class="mijoz" onclick="loadMijoz(${m.id})">
+    let cards=list.map(m=>`<div class="card${m.tolov_turi==='perech'?' perech':''}"><div class="mijoz" onclick="loadMijoz(${m.id})">
         <div class="av">${ini(m.mijoz)}</div>
         <div><div class="nm">${m.status&&STAT[m.status]?`<span class="stdot" style="background:${STAT[m.status].c}"></span>`:''}${esc(m.mijoz)}</div>
-          <div class="mt">${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan</div>
+          <div class="mt">${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan${m.tolov_turi==='perech'?' · <b style="color:#7A4FC0">🏦 perech</b>':(m.tolov_turi==='naqd'?' · 💵':'')}</div>
           ${m.adres?`<div class="mt" style="color:var(--brand)">📍 ${esc(m.adres)}</div>`:''}</div>
         <div class="val"><b>${som(m.qolgan_qarz)}</b><span>so'm</span></div><div class="chev">›</div></div></div>`).join('');
     if(!list.length) cards='<div class="empty">'+(q?'Topilmadi':'Hozircha mijoz yo\'q. «➕ Yangi» bosing.')+'</div>';
@@ -340,6 +343,14 @@
       <textarea class="f ta" id="bi_matn${d.id}" rows="1" oninput="autoGrow(this)" placeholder="«200 ta lesa, kuniga 2000» / «50 stoyka 4000 dan, 20 tayrot 500 dan»" style="margin-top:8px"></textarea>
       <button class="send" onclick="brovSendM(${d.id})">Qo'shish</button>
       <div class="hint">Kimdan olganingizni yozing, keyin tovarlarni oddiy gap bilan. <b>Mijozga hisoblanadi</b>, omborga ta'sir qilmaydi.</div></div>`;
+    const tm=TUR[d.tolov_turi];
+    const turHtml=`<div class="card statrow">
+        ${tm?`<span class="stbadge" style="color:${tm.c};background:${tm.bg}">${tm.i} ${tm.t}</span>`:'<span style="color:var(--soft);font-size:13.5px">To\'lov turi belgilanmagan</span>'}
+        <button class="edit-status" onclick="tgl('tropts${d.id}')">✏️ To'lov turi</button></div>
+      <div id="tropts${d.id}" style="display:none;margin-bottom:10px"><div class="inrow">
+        <button class="mini-btn" style="color:#2E7D5B;border-color:#2E7D5B" onclick="setTur(${d.id},'naqd')">💵 Naqd</button>
+        <button class="mini-btn" style="color:#7A4FC0;border-color:#7A4FC0" onclick="setTur(${d.id},'perech')">🏦 Perechisleniye</button>
+        <button class="mini-btn" onclick="setTur(${d.id},'')">✖️ Tozalash</button></div></div>`;
     const smsBtn=`<button class="smsbtn" onclick="smsPick(${d.id})">📩 Qarz eslatmasi SMS</button><div id="smsbox" class="addbox" style="display:none"></div>`;
     const qolganCard=((d.qolganlar||[]).length)?`<div class="addbox"><div class="t">📦 Qolgan mahsulotlar (hozir mijozda)</div>${
       (d.qolganlar||[]).map(q=>`<div class="retg-i" style="padding:6px 0;border-top:1px solid var(--faint)">
@@ -384,6 +395,7 @@
         <div class="amt num">${som(Math.abs(d.qolgan_qarz))} <small>so'm</small></div>
         <div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan</div></div>
       ${statHtml}
+      ${turHtml}
       ${smsBtn}
       ${(d.partiyalar||[]).length>1?'<div class="search"><input id="psearch" placeholder="🔍 Mahsulot qidirish (lesa, lulka...)" oninput="filterPartiya(this.value)"></div>':''}
       <div class="card">
@@ -473,6 +485,12 @@
   window.delQosh=async function(id,mid){
     try{const r=await fetch('/api/qoshimcha_del',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({id})});
       if(!r.ok)throw 0; toast('O\'chirildi'); loadMijoz(mid);}catch(e){toast('Xato');}
+  };
+  window.setTur=async function(mid,turi){
+    try{const r=await fetch('/api/tolov_turi',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,turi})});
+      let d=null; try{d=await r.json();}catch(_){}
+      if(d&&d.ok){toast('✅ Saqlandi');loadMijoz(mid);}else{toast((d&&d.xato)||'Xato');}
+    }catch(e){toast('Xato');}
   };
   window.setStatus=async function(mid,st){
     try{const r=await fetch('/api/status',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,status:st})});

@@ -384,6 +384,16 @@ def make_web_app(bot_token):
             traceback.print_exc()
             return web.json_response({"ok": False, "xabar": f"Server xato: {type(e).__name__}: {str(e)[:150]}"})
 
+    async def api_tolov_turi(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            return web.json_response(db.set_tolov_turi(int(b.get("mijoz_id")), b.get("turi")))
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
     async def api_eslatma(request):
         uid, err = check(request)
         if err:
@@ -598,6 +608,7 @@ def make_web_app(bot_token):
     app.router.add_post("/api/qoshimcha", api_qoshimcha)
     app.router.add_post("/api/qoshimcha_del", api_qoshimcha_del)
     app.router.add_post("/api/status", api_status)
+    app.router.add_post("/api/tolov_turi", api_tolov_turi)
     app.router.add_post("/api/eslatma", api_eslatma)
     app.router.add_post("/api/eslatma_del", api_eslatma_del)
     app.router.add_post("/api/sms", api_sms)

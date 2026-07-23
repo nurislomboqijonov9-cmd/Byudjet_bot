@@ -121,6 +121,8 @@ def init_db():
         con.execute("ALTER TABLE mijozlar ADD COLUMN yig_sana TEXT")
     if "qayd" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN qayd TEXT")
+    if "tolov_turi" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN tolov_turi TEXT")
 
     # Zakazlar (2 qavatli model): mahsulot bo'yicha umumiy buyurtma. Chiqishlar (partiyalar) shunga bog'lanadi.
     con.execute("""CREATE TABLE IF NOT EXISTS zakazlar (
@@ -841,6 +843,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         "id": mijoz_id, "mijoz": m["ism"], "telefon": m["telefon"], "adres": m.get("adres"),
         "telefonlar": phone_list(m["telefon"]),
         "status": _st,
+        "tolov_turi": m.get("tolov_turi"),
         "partiyalar": ps,
         "zakazlar": zakazlar_list,
         "yetkazmalar": yetkazmalar,
@@ -875,7 +878,7 @@ def mijozlar(today=None):
         d = mijoz_detail(mid, today)
         res.append({
             "id": mid, "mijoz": d["mijoz"], "telefon": d["telefon"], "status": d["status"],
-            "adres": d.get("adres"),
+            "adres": d.get("adres"), "tolov_turi": d.get("tolov_turi"),
             "jami": d["jami"], "tolangan": d["tolangan"], "qolgan_qarz": d["qolgan_qarz"],
             "jami_qolgan": d["jami_qolgan"],
             "partiya_soni": len(d["partiyalar"]),
@@ -1703,6 +1706,8 @@ def init_db():
         con.execute("ALTER TABLE mijozlar ADD COLUMN yig_sana TEXT")
     if "qayd" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN qayd TEXT")
+    if "tolov_turi" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN tolov_turi TEXT")
 
     # Zakazlar (2 qavatli model): mahsulot bo'yicha umumiy buyurtma. Chiqishlar (partiyalar) shunga bog'lanadi.
     con.execute("""CREATE TABLE IF NOT EXISTS zakazlar (
@@ -2423,6 +2428,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         "id": mijoz_id, "mijoz": m["ism"], "telefon": m["telefon"], "adres": m.get("adres"),
         "telefonlar": phone_list(m["telefon"]),
         "status": _st,
+        "tolov_turi": m.get("tolov_turi"),
         "partiyalar": ps,
         "zakazlar": zakazlar_list,
         "yetkazmalar": yetkazmalar,
@@ -2457,7 +2463,7 @@ def mijozlar(today=None):
         d = mijoz_detail(mid, today)
         res.append({
             "id": mid, "mijoz": d["mijoz"], "telefon": d["telefon"], "status": d["status"],
-            "adres": d.get("adres"),
+            "adres": d.get("adres"), "tolov_turi": d.get("tolov_turi"),
             "jami": d["jami"], "tolangan": d["tolangan"], "qolgan_qarz": d["qolgan_qarz"],
             "jami_qolgan": d["jami_qolgan"],
             "partiya_soni": len(d["partiyalar"]),
@@ -3113,3 +3119,14 @@ def ombor_koeff(nom, yozilgan_birlik):
     return 1.0
 
 
+
+
+def set_tolov_turi(mijoz_id, turi):
+    """turi: 'naqd' | 'perech' | None"""
+    if turi not in ("naqd", "perech", None, ""):
+        return {"ok": False, "xato": "Noto'g'ri tur"}
+    con = _con()
+    con.execute("UPDATE mijozlar SET tolov_turi=? WHERE id=?", ((turi or None), mijoz_id))
+    con.commit()
+    con.close()
+    return {"ok": True}
