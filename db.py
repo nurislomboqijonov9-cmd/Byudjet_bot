@@ -1427,3 +1427,67 @@ def set_qayd(mijoz_id, matn):
     con.commit()
     con.close()
     return {"ok": True}
+
+
+# ---------- Tovar lug'ati (nom tekshirish uchun) ----------
+TOVAR_DEFAULT = [
+    "Oyoq 2m", "Qaychi 2m", "Oyoq 1.5m", "Qaychi 1.5m", "Rezba 1m",
+    "Univilka", "Soedinitel", "Balka 3m", "Tayrot", "Gayka tayrot",
+    "Lesa oyoq", "Lesa qaychi", "Taxta", "Balon", "Stoyka 4m",
+    "Stoyka 4.5m", "Stoyka 5m", "Stoyka 5.5m", "Stoyka 1.2m", "Lyulka",
+]
+
+
+def tovar_royxat():
+    """Nom tekshirish uchun ishlatiladigan tovarlar ro'yxati."""
+    v = get_sozlama("tovar_royxat")
+    if v:
+        lst = [x.strip() for x in v.replace(",", "\n").split("\n") if x.strip()]
+        if lst:
+            return lst
+    return list(TOVAR_DEFAULT)
+
+
+def set_tovar_royxat(lst):
+    if isinstance(lst, str):
+        lst = [x.strip() for x in lst.replace(",", "\n").split("\n") if x.strip()]
+    set_sozlama("tovar_royxat", "\n".join(lst))
+    return {"ok": True, "soni": len(lst)}
+
+
+def tovar_match(nom, cutoff=0.60):
+    """Ro'yxatdagi eng yaqin tovarni topadi.
+    Qaytaradi: (to'g'ri_nom | None, aniqmi, taklif_ro'yxati)."""
+    import difflib
+    s = (nom or "").strip()
+    key = _ombor_norm(s)
+    names = tovar_royxat()
+    if not key or not names:
+        return (None, False, [])
+    nmap = {}
+    for n in names:
+        nmap.setdefault(_ombor_norm(n), n)
+    if key in nmap:
+        return (nmap[key], True, [])
+    ball = []
+    for k, n in nmap.items():
+        r = difflib.SequenceMatcher(None, key, k).ratio()
+        # so'z bo'yicha ham qaraymiz ("oyoq" ~ "Oyoq 2m")
+        for w in n.lower().replace("*", " ").split():
+            wn = _ombor_norm(w)
+            if wn:
+                r = max(r, difflib.SequenceMatcher(None, key, wn).ratio() * 0.97)
+                if len(key) >= 3 and wn.startswith(key):
+                    r = max(r, 0.85)
+        if len(key) >= 3 and key in k:
+            r = max(r, 0.9)
+        if r >= 0.5:
+            ball.append((r, n))
+    if not ball:
+        return (None, False, [])
+    ball.sort(reverse=True)
+    top = [n for _, n in ball[:3]]
+    yolgiz = len(ball) == 1 or (ball[0][0] - ball[1][0]) >= 0.18
+    if yolgiz and ball[0][0] >= cutoff:
+        return (ball[0][1], False, [ball[0][1]])
+    return (None, False, top)

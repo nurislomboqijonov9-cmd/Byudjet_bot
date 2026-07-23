@@ -275,9 +275,12 @@ def make_web_app(bot_token):
             if miqdor < qaytgan:
                 return web.json_response({"ok": False, "xabar": f"Soni {int(qaytgan)} tadan kam bo'lmasin (shuncha qaytgan)"})
             mahsulot = (b.get("mahsulot") or p["mahsulot"]).strip()
-            togri, _aniq = db.ombor_match_name(mahsulot)
+            togri, _aniq, taklif = db.tovar_match(mahsulot)
             if togri:
                 mahsulot = togri
+            elif db.get_sozlama("tovar_tekshir") == "1" and not (b.get("brov_kim") or "").strip():
+                qo = (" Shulardan qaysi biri? " + " / ".join(taklif)) if taklif else ""
+                return web.json_response({"ok": False, "xabar": f"«{mahsulot}» — bunday tovar yo'q.{qo}"})
             _bm = b.get("brov_miqdor")
             try:
                 _bm = float(_bm) if _bm not in (None, "") else None
@@ -504,6 +507,13 @@ def make_web_app(bot_token):
         except Exception:
             return web.json_response({"ok": False}, status=400)
 
+    async def api_tovarlar(request):
+        uid, err = check(request)
+        if err:
+            return err
+        return web.json_response({"tovarlar": db.tovar_royxat(),
+                                  "tekshir": db.get_sozlama("tovar_tekshir") == "1"})
+
     async def api_ombor(request):
         uid, err = check(request)
         if err:
@@ -597,6 +607,7 @@ def make_web_app(bot_token):
     app.router.add_post("/api/brov_add", api_brov_add)
     app.router.add_post("/api/brov_ret", api_brov_ret)
     app.router.add_post("/api/brov_del", api_brov_del)
+    app.router.add_get("/api/tovarlar", api_tovarlar)
     app.router.add_get("/api/ombor", api_ombor)
     app.router.add_post("/api/ombor_move", api_ombor_move)
     app.router.add_post("/api/ombor_total", api_ombor_total)

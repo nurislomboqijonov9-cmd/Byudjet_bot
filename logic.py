@@ -52,10 +52,16 @@ def apply(mijoz_id, t):
         # (brovdan olingan tovarga tegilmaydi — u tashqi tovar)
         tuzatildi = None
         if db.get_sozlama("tovar_tekshir") == "1" and not (getattr(t, "brov_kim", None) or "").strip():
-            togri, aniq = db.ombor_match_name(t.mahsulot)
+            togri, aniq, taklif = db.tovar_match(t.mahsulot)
             if togri is None:
-                bor = ", ".join(db.ombor_names())
-                return {"ok": False, "xato": f"«{t.mahsulot}» ombordagi tovarlar ro'yxatida yo'q. Iltimos to'g'ri yozing.\n\nMavjud tovarlar: {bor}"}
+                if taklif:
+                    xat = (f"«{t.mahsulot}» — bunday tovar yo'q.\n"
+                           f"Shulardan qaysi biri?  {' / '.join(taklif)}\n\n"
+                           "To'g'ri nomini yozib qayta yuboring.")
+                else:
+                    xat = (f"«{t.mahsulot}» — bunday tovar yo'q. To'g'ri yozing.\n\n"
+                           "Tovarlar: " + ", ".join(db.tovar_royxat()))
+                return {"ok": False, "xato": xat}
             if not aniq:
                 tuzatildi = (t.mahsulot, togri)
             t.mahsulot = togri

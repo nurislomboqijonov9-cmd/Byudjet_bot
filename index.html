@@ -101,6 +101,10 @@
   .ta{flex:1 1 auto;width:100%;min-width:0;box-sizing:border-box;resize:none;overflow:hidden;height:46px;min-height:46px;line-height:1.45;font-family:inherit;padding:12px 14px;}
   .mic-sm{height:46px;}
   .thint{font-size:12px;color:var(--brand2);margin:0 0 8px 2px;min-height:15px;}
+  .errbox{background:#FBEAE4;border:1px solid #E3B4A4;color:#8E3B22;border-radius:11px;padding:11px 13px;
+    font-size:13.5px;line-height:1.45;margin-top:8px;position:relative;}
+  .errbox button{position:absolute;top:6px;right:8px;background:none;border:none;color:#8E3B22;font-size:18px;cursor:pointer;}
+  body.tun .errbox{background:#2A1815;border-color:#5A3228;color:#F0A88E;}
   .thint b{cursor:pointer;text-decoration:underline;}
   body.wide{max-width:1100px;}
   body.wide .card,body.wide .addbox{padding-left:20px;padding-right:20px;}
@@ -229,6 +233,12 @@
   const STAT={faol:{t:'Faol',c:'#2E7D5B',bg:'rgba(46,125,91,.13)'},nofaol:{t:'Nofaol',c:'#C0674F',bg:'rgba(192,103,79,.13)'},sotuv:{t:'Sotuv',c:'#2D6CB2',bg:'rgba(45,108,178,.13)'}};
   const phones=s=>(s||'').split(',').map(x=>x.trim()).filter(Boolean).join(' · ');
   function toast(m){const t=document.getElementById('toast');t.innerHTML='<div class="toast">'+esc(m)+'</div>';setTimeout(()=>t.innerHTML='',3500);}
+  function xatoBox(where,msg){
+    const el=document.getElementById(where); if(!el){toast(msg);return;}
+    el.innerHTML='<div class="errbox">❌ '+esc(msg)+'<button onclick="this.parentNode.parentNode.innerHTML=\'\'">×</button></div>';
+    el.scrollIntoView({behavior:'smooth',block:'center'});
+  }
+  function xatoTozala(where){const el=document.getElementById(where); if(el) el.innerHTML='';}
   function errScreen(){app.innerHTML='<div class="center"><div>Ma\'lumot yuklanmadi.<br><br>Botdagi <b>«📊 Hisob»</b> tugmasi orqali oching.</div></div>';}
 
   async function loadList(){
@@ -399,6 +409,7 @@
         <div class="inrow" style="align-items:flex-start"><textarea class="f ta" id="addtext" rows="1" oninput="autoGrow(this)" placeholder="«20 ta lesa, kuniga 2000» / «1-partiyadan 5 ta qaytardi» / «10 kunlik berdi»"></textarea>
           <button class="mic mic-sm" id="micbtn" onclick="recToggle(${d.id})">🎤</button></div>
         <button class="send" onclick="sendText(${d.id})">Qo'shish</button>
+        <div id="adderr"></div>
         <div class="hint">🎤 bosib gapiring, yoki yozib «Qo'shish».</div></div>
             ${qaydCard}
 <div class="addbox"><div class="t">➕ Qo'shimcha</div>
@@ -509,8 +520,9 @@
     try{
       const r=await fetch('/api/qoshish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,matn:v})});
       let d=null; try{d=await r.json();}catch(_){}
-      if(!r.ok || !d){ toast('Xato: '+r.status+(d&&(d.xato||d.xabar)?' · '+(d.xato||d.xabar):'')); return; }
-      toast(d.xabar||d.xato||'Bajarildi'); if(d.ok) loadMijoz(mid);
+      if(!r.ok || !d){ xatoBox('adderr','Xato: '+r.status+(d&&(d.xato||d.xabar)?' · '+(d.xato||d.xabar):'')); return; }
+      if(d.ok){ xatoTozala('adderr'); toast(d.xabar||'Qo\'shildi'); el.value=''; loadMijoz(mid); }
+      else { xatoBox('adderr', d.xabar||d.xato||'Qabul qilinmadi'); }
     }catch(e){ toast('Tarmoq xatosi'); }
   };
 
@@ -719,8 +731,8 @@
     if(b&&!b.exact&&b.list.length===1){el.value=b.name;window.tovarHint(el);}
   };
   async function loadTovarlar(){
-    try{const r=await fetch('/api/ombor',{headers:H});const d=await r.json();
-      window._tovarlar=(d.mahsulotlar||[]).map(x=>x.name);
+    try{const r=await fetch('/api/tovarlar',{headers:H});const d=await r.json();
+      window._tovarlar=(d.tovarlar||[]);
       const dl=document.getElementById('tovarlist');
       if(dl)dl.innerHTML=window._tovarlar.map(n=>`<option value="${esc(n)}">`).join('');
     }catch(e){}

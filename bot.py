@@ -27,7 +27,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-APP_VERSION = "62"
+APP_VERSION = "63"
 
 # Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
 YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
@@ -613,6 +613,23 @@ async def ombor_hisobla_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
+async def tovarlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    txt = " ".join(ctx.args or "").strip()
+    if txt:
+        res = db.set_tovar_royxat(txt)
+        await update.message.reply_text(f"✅ Tovarlar ro'yxati yangilandi ({res['soni']} ta).")
+        return
+    lst = db.tovar_royxat()
+    on = db.get_sozlama("tovar_tekshir") == "1"
+    lines = [f"📋 *Tovarlar ro'yxati* ({len(lst)} ta)", f"_tekshiruv: {'yoqilgan ✅' if on else 'oʻchiq ⏸'}_\n"]
+    lines += [f"   • {x}" for x in lst]
+    lines.append("\n*O'zgartirish:* `/tovarlar Oyoq 2m, Qaychi 2m, Rezba 1m` (vergul bilan)")
+    lines.append("*Yoqish:* `/tekshir on`")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
 async def tekshir_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await admin_guard(update):
         return
@@ -1020,6 +1037,7 @@ async def _set_commands(app):
     admin_extra = umumiy + [
         BotCommand("limit", "📏 Yig'ish chegarasi"),
         BotCommand("xodimlar", "🧑‍🔧 Xodimlar"),
+        BotCommand("tovarlar", "📋 Tovarlar ro'yxati"),
         BotCommand("nomlar", "🔤 Tovar nomlarini tekshirish"),
         BotCommand("ombor_hisobla", "🔄 Omborni qayta sanash"),
         BotCommand("xodim_qosh", "➕ Xodim qo'shish"),
@@ -1068,6 +1086,7 @@ async def run():
     app.add_handler(CommandHandler("nomlar", nomlar_cmd))
     app.add_handler(CommandHandler("nom", nom_cmd))
     app.add_handler(CommandHandler("ombor_hisobla", ombor_hisobla_cmd))
+    app.add_handler(CommandHandler("tovarlar", tovarlar_cmd))
     app.add_handler(CommandHandler("tekshir", tekshir_cmd))
     app.add_handler(CommandHandler("shablon", shablon_cmd))
     app.add_handler(CommandHandler("shablonlar", shablonlar_cmd))
