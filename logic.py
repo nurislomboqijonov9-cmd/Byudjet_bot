@@ -109,9 +109,25 @@ def apply(mijoz_id, t):
 
     # ----- QAYTARISH -----
     if amal == "qaytarish":
+
+        _bosh_yaratildi = {"bor": False}
+
+        def _bosh_partiya(nom, sana_):
+            """Chiqish yozilmagan bo'lsa — 0 miqdorli partiya ochiladi, qaytgani minusga tushadi.
+            Bir amalda faqat bir marta yaratiladi."""
+            if _bosh_yaratildi["bor"]:
+                return
+            bir = db.tovar_birlik(nom)
+            db.add_partiya(mijoz_id, nom, 0, 0, str(sana_)[:10], birlik=bir)
+            _bosh_yaratildi["bor"] = True
+
         partiyalar = db.partiyalar_of(mijoz_id)
         if not partiyalar:
-            return {"ok": False, "xato": f"{m['ism']}da partiya yo'q"}
+            if t.mahsulot and not getattr(t, "partiya", None):
+                _bosh_partiya(t.mahsulot, _sana(t))
+                partiyalar = db.partiyalar_of(mijoz_id)
+            else:
+                return {"ok": False, "xato": f"{m['ism']}da partiya yo'q"}
 
         # 1) Aniq partiya raqami aytilgan bo'lsa — o'sha partiyadan
         if getattr(t, "partiya", None):
@@ -141,6 +157,10 @@ def apply(mijoz_id, t):
         # 2) Mahsulot bo'yicha umumiy qaytarish (eng eski partiyadan boshlab)
         aktiv = [(p, db.partiya_hisob(p)) for p in partiyalar]
         aktiv = [(p, h) for p, h in aktiv if h["qolgan"] > 0]
+        if not aktiv and t.mahsulot and not getattr(t, "partiya", None):
+            _bosh_partiya(t.mahsulot, _sana(t))
+            partiyalar = db.partiyalar_of(mijoz_id)
+            aktiv = [(p, db.partiya_hisob(p)) for p in partiyalar]
         if not aktiv:
             return {"ok": False, "xato": f"{m['ism']}da qaytariladigan mahsulot yo'q"}
 
@@ -152,8 +172,13 @@ def apply(mijoz_id, t):
         if mahsulot:
             target = prods.get(mahsulot)
             if not target:
-                bor = ", ".join(sorted(set(p["mahsulot"] for p, h in aktiv)))
-                return {"ok": False, "xato": f"«{getattr(t,'mahsulot','')}» aniq topilmadi. Aniq nomini yozing. Mavjud: {bor}"}
+                # Bu mahsulot chiqmagan — bo'sh partiya ochib, minusga yozamiz
+                _bosh_partiya(t.mahsulot, _sana(t))
+                yangi = [p for p in db.partiyalar_of(mijoz_id) if _norm(p["mahsulot"]) == mahsulot]
+                if not yangi:
+                    bor = ", ".join(sorted(set(p["mahsulot"] for p, h in aktiv)))
+                    return {"ok": False, "xato": f"«{getattr(t,'mahsulot','')}» topilmadi. Mavjud: {bor}"}
+                target = [(p, db.partiya_hisob(p)) for p in yangi]
         elif len(prods) == 1:
             target = list(prods.values())[0]
         else:

@@ -395,9 +395,9 @@ def all_xodimlar():
 
 
 def xodim_ids():
-    """Eslatma yuboriladigan hamma ID (ega ham albatta)."""
+    """Eslatma yuboriladigan hamma ID (ega ham albatta). Umumiy hisob chiqarib tashlanadi."""
     con = _con()
-    ids = [r[0] for r in con.execute("SELECT id FROM xodimlar").fetchall()]
+    ids = [r[0] for r in con.execute("SELECT id FROM xodimlar WHERE id > 100000").fetchall()]
     con.close()
     if OWNER_ID not in ids:
         ids.append(OWNER_ID)
@@ -1986,9 +1986,9 @@ def all_xodimlar():
 
 
 def xodim_ids():
-    """Eslatma yuboriladigan hamma ID (ega ham albatta)."""
+    """Eslatma yuboriladigan hamma ID (ega ham albatta). Umumiy hisob chiqarib tashlanadi."""
     con = _con()
-    ids = [r[0] for r in con.execute("SELECT id FROM xodimlar").fetchall()]
+    ids = [r[0] for r in con.execute("SELECT id FROM xodimlar WHERE id > 100000").fetchall()]
     con.close()
     if OWNER_ID not in ids:
         ids.append(OWNER_ID)
@@ -3197,3 +3197,51 @@ def loginli_xodimlar():
     rows = con.execute("SELECT id, ism, rol, login FROM xodimlar WHERE login IS NOT NULL ORDER BY id").fetchall()
     con.close()
     return [dict(r) for r in rows]
+
+
+# ---------- Umumiy (hamma uchun bitta) login ----------
+UMUMIY_ID = 1   # maxsus "umumiy kirish" hisobi (Telegram ID emas)
+
+
+def set_umumiy_parol(login, parol, rol="xodim"):
+    """Hamma ishlatadigan bitta login/parol."""
+    login = (login or "").strip().lower()
+    if not login or not parol:
+        return {"ok": False, "xato": "Login va parol kerak"}
+    rol = "admin" if str(rol).lower().startswith("admin") else "xodim"
+    con = _con()
+    band = con.execute("SELECT id FROM xodimlar WHERE LOWER(login)=? AND id<>?", (login, UMUMIY_ID)).fetchone()
+    if band:
+        con.close()
+        return {"ok": False, "xato": "Bu login boshqa xodimda band"}
+    bor = con.execute("SELECT id FROM xodimlar WHERE id=?", (UMUMIY_ID,)).fetchone()
+    if bor:
+        con.execute("UPDATE xodimlar SET ism=?, rol=?, login=?, parol_hash=? WHERE id=?",
+                    ("Umumiy kirish", rol, login, _parol_hash(parol), UMUMIY_ID))
+    else:
+        con.execute("INSERT INTO xodimlar (id, ism, rol, qoshgan_id, yaratilgan, login, parol_hash) "
+                    "VALUES (?,?,?,?,?,?,?)",
+                    (UMUMIY_ID, "Umumiy kirish", rol, OWNER_ID, now_tk().isoformat(),
+                     login, _parol_hash(parol)))
+    con.commit()
+    con.close()
+    return {"ok": True, "login": login, "rol": rol}
+
+
+def umumiy_ochir():
+    con = _con()
+    con.execute("DELETE FROM xodimlar WHERE id=?", (UMUMIY_ID,))
+    con.commit()
+    con.close()
+    return {"ok": True}
+
+
+def barcha_parollarni_ochir(umumiydan_tashqari=True):
+    con = _con()
+    if umumiydan_tashqari:
+        con.execute("UPDATE xodimlar SET login=NULL, parol_hash=NULL WHERE id<>?", (UMUMIY_ID,))
+    else:
+        con.execute("UPDATE xodimlar SET login=NULL, parol_hash=NULL")
+    con.commit()
+    con.close()
+    return {"ok": True}

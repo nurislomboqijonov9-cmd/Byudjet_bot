@@ -27,7 +27,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-APP_VERSION = "76"
+APP_VERSION = "79"
 
 # Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
 YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
@@ -646,6 +646,42 @@ async def parol_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await admin_guard(update):
         return
     a = ctx.args or []
+    # Umumiy (hamma uchun bitta) login
+    if a and a[0].lower() in ("umumiy", "bitta", "hammaga_bitta"):
+        if len(a) < 3:
+            u = db.get_xodim(db.UMUMIY_ID)
+            hozir = f"\n\nHozirgi: login `{u['login']}` · rol {u['rol']}" if (u and u.get("login")) else "\n\n_Hali qo'yilmagan._"
+            await update.message.reply_text(
+                "🔑 *Umumiy login (hamma uchun bitta)*\n\n"
+                "Qo'yish: `/parol umumiy <login> <parol>`\n"
+                "Masalan: `/parol umumiy temirchi 2026`\n\n"
+                "Admin huquqi bilan: `/parol umumiy temirchi 2026 admin`\n"
+                "O'chirish: `/parol umumiy ochir`" + hozir, parse_mode="Markdown")
+            return
+        if a[1].lower() == "ochir":
+            db.umumiy_ochir()
+            await update.message.reply_text("🗑 Umumiy login o'chirildi.")
+            return
+        login, parol = a[1], a[2]
+        rol = a[3] if len(a) > 3 else "xodim"
+        res = db.set_umumiy_parol(login, parol, rol)
+        if not res.get("ok"):
+            await update.message.reply_text(f"❌ {res.get('xato')}")
+            return
+        url = webapp_url() or ""
+        base = url.split("?")[0]
+        await update.message.reply_text(
+            f"✅ *Umumiy login tayyor*\n\n"
+            f"🔑 Login: `{res['login']}`\n🔒 Parol: `{parol}`\n👤 Huquq: {res['rol']}\n\n"
+            f"🌐 Havola:\n`{base}`\n\n"
+            "_Hamma xodim shu login/parol bilan kiradi._\n"
+            "Alohida loginlarni o'chirish: `/parol ochir hamma`",
+            parse_mode="Markdown", disable_web_page_preview=True)
+        return
+    if len(a) == 2 and a[0].lower() == "ochir" and a[1].lower() in ("hamma", "hammasi", "all"):
+        db.barcha_parollarni_ochir()
+        await update.message.reply_text("🗑 Alohida loginlar o'chirildi (umumiy login qoldi).")
+        return
     if len(a) == 1 and a[0].lower() in ("hammaga", "hamma", "all"):
         import random
         yaratildi, bor = [], []
@@ -696,7 +732,8 @@ async def parol_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "🔑 *Ilova uchun login/parol*\n\n"
             "Berish: `/parol <id> <login> <parol>`\n"
             "Masalan: `/parol 12345678 akmal 4477`\n\n"
-            "Hammaga birdan: `/parol hammaga`\n"
+            "Umumiy (bitta) login: `/parol umumiy <login> <parol>`\n"
+            "Hammaga alohida: `/parol hammaga`\n"
             "Ro'yxat: `/parol royxat`\n"
             "O'chirish: `/parol ochir <id>`\n\n"
             "_Xodim avval /xodim_qosh bilan qo'shilgan bo'lsin._", parse_mode="Markdown")
