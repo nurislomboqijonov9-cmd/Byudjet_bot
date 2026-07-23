@@ -511,7 +511,7 @@ def make_web_app(bot_token):
         uid, err = check(request)
         if err:
             return err
-        return web.json_response({"tovarlar": db.tovar_royxat(),
+        return web.json_response({"tovarlar": db.tovar_barcha(),
                                   "tekshir": db.get_sozlama("tovar_tekshir") == "1"})
 
     async def api_ombor(request):

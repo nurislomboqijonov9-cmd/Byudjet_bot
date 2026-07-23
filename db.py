@@ -1475,6 +1475,25 @@ def tovar_royxat():
     return [n for n, _b in tovar_juftlar()]
 
 
+def tovar_barcha():
+    """Tekshirish uchun to'liq ro'yxat: lug'at + ombordagi tovarlar."""
+    out, korilgan = [], set()
+    for n in tovar_royxat():
+        k = _ombor_norm(n)
+        if k and k not in korilgan:
+            korilgan.add(k)
+            out.append(n)
+    try:
+        for n in ombor_names():
+            k = _ombor_norm(n)
+            if k and k not in korilgan:
+                korilgan.add(k)
+                out.append(n)
+    except Exception:
+        pass
+    return out
+
+
 def tovar_birlik(nom):
     """Tovarning asosiy birligi: 'kom' yoki 'ta'."""
     key = _ombor_norm(nom)
@@ -1518,7 +1537,7 @@ def tovar_match(nom, cutoff=0.60):
     import difflib
     s = (nom or "").strip()
     key = _ombor_norm(s)
-    names = tovar_royxat()
+    names = tovar_barcha()
     if not key or not names:
         return (None, False, [])
     nmap = {}

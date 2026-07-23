@@ -82,7 +82,7 @@ def apply(mijoz_id, t):
                            "To'g'ri nomini yozib qayta yuboring.")
                 else:
                     xat = (f"«{t.mahsulot}» — bunday tovar yo'q. To'g'ri yozing.\n\n"
-                           "Tovarlar: " + ", ".join(db.tovar_royxat()))
+                           "Tovarlar: " + ", ".join(db.tovar_barcha()))
                 return {"ok": False, "xato": xat}
             if not aniq:
                 tuzatildi = (t.mahsulot, togri)
