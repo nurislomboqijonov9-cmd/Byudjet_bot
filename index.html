@@ -331,6 +331,11 @@
       <button class="send" onclick="brovSendM(${d.id})">Qo'shish</button>
       <div class="hint">Kimdan olganingizni yozing, keyin tovarlarni oddiy gap bilan. <b>Mijozga hisoblanadi</b>, omborga ta'sir qilmaydi.</div></div>`;
     const smsBtn=`<button class="smsbtn" onclick="smsPick(${d.id})">📩 Qarz eslatmasi SMS</button><div id="smsbox" class="addbox" style="display:none"></div>`;
+    const qolganCard=((d.qolganlar||[]).length)?`<div class="addbox"><div class="t">📦 Qolgan mahsulotlar (hozir mijozda)</div>${
+      (d.qolganlar||[]).map(q=>`<div class="retg-i" style="padding:6px 0;border-top:1px solid var(--faint)">
+        <span>${esc(q.mahsulot)}${q.manzillar&&q.manzillar.length?` <span style="color:var(--brand);font-size:12px">📍 ${esc(q.manzillar.join(', '))}</span>`:''}</span>
+        <b>${son(q.qolgan)} ta</b></div>`).join('')}
+      <div class="hint">Jami <b>${som((d.qolganlar||[]).reduce((s,x)=>s+x.qolgan,0))} dona</b> qaytarilmagan.</div></div>`:'';
     const manzilCard=((d.manzillar||[]).some(m=>m.manzil!=='Manzil belgilanmagan'))?`<div class="addbox"><div class="t">📍 Manzillar bo'yicha (qolgan)</div>${
       (d.manzillar||[]).map(m=>`<div class="mzg"><div class="mzg-h">📍 ${esc(m.manzil)} · <span class="num">${som(m.qolgan_dona)} dona</span></div>${
         m.items.map(it=>`<div class="mzg-i"><span>${esc(it.mahsulot)} — <b>${son(it.qolgan)} ta</b></span><span style="color:var(--soft)">${som(it.narx)} so'm</span></div>`).join('')}</div>`).join('')}</div>`:'';
@@ -405,6 +410,7 @@
         <div class="hint">Summani yozib, turini tanlang. Qarzga qo'shiladi.</div>
         ${qlist?'<div style="margin-top:10px">'+qlist+'</div>':''}</div>
       <div id="plist">${ps}</div>
+      ${qolganCard}
       ${manzilCard}
       ${retCard}
       <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>`;

@@ -764,6 +764,23 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         g["items"].sort(key=lambda x: x["partiya_raqam"])
     yetkazmalar = sorted(deliv.values(), key=lambda x: x["sana"], reverse=True)
 
+    # Qolgan mahsulotlar (mahsulot bo'yicha jamlab)
+    qmap = {}
+    for h in ps:
+        if h["qolgan"] <= 0:
+            continue
+        key = (h["mahsulot"] or "").strip().lower()
+        g = qmap.setdefault(key, {"mahsulot": h["mahsulot"], "qolgan": 0.0, "narx": 0.0, "manzillar": set()})
+        g["qolgan"] += h["qolgan"]
+        g["narx"] += h["narx"]
+        if h.get("manzil"):
+            g["manzillar"].add(h["manzil"])
+    qolganlar = []
+    for g in qmap.values():
+        qolganlar.append({"mahsulot": g["mahsulot"], "qolgan": g["qolgan"], "narx": g["narx"],
+                          "manzillar": sorted(g["manzillar"])})
+    qolganlar.sort(key=lambda x: -x["qolgan"])
+
     # Qaytarishlar: bir kunda qaytgan mahsulotlar = bitta yozuv
     rgr = {}
     for h in ps:
@@ -824,6 +841,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         "zakazlar": zakazlar_list,
         "yetkazmalar": yetkazmalar,
         "manzillar": manzillar,
+        "qolganlar": qolganlar,
         "brovdan": brovdan,
         "brovlar": brov_list(mijoz_id),
         "qaydlar": qaydlar_of(mijoz_id),
