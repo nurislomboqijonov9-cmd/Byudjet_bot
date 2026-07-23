@@ -10,7 +10,7 @@
   :root{--bg:#F3F5F4;--card:#FFFFFF;--ink:#1B2A26;--soft:#63736D;--line:#E7EBE9;
     --brand:#1F4B45;--brand2:#2C6A60;--pos:#2E7D5B;--neg:#C0674F;--faint:#EEF2F0;}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-  body{background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;max-width:520px;margin:0 auto;
+  body{background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;max-width:520px;margin:0 auto;transition:max-width .18s;
     padding:0 14px 40px;line-height:1.4;-webkit-font-smoothing:antialiased;}
   .num{font-family:'Space Grotesk',sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
   header{padding:20px 4px 12px;display:flex;align-items:flex-end;}
@@ -91,6 +91,10 @@
   .mic-sm{height:46px;}
   .thint{font-size:12px;color:var(--brand2);margin:0 0 8px 2px;min-height:15px;}
   .thint b{cursor:pointer;text-decoration:underline;}
+  body.wide{max-width:1100px;}
+  body.wide .card,body.wide .addbox{padding-left:20px;padding-right:20px;}
+  .fsbtn{background:#12202B;color:#fff;border:none;border-radius:11px;padding:9px 12px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;margin-left:6px;}
+  @media (max-width:600px){.fsbtn{display:none;}}
   .qbtn{float:right;border:1px solid var(--line);background:#fff;color:var(--brand);border-radius:8px;padding:4px 10px;font-size:12px;font-family:inherit;cursor:pointer;font-weight:600;}
   .ta.qsmall{height:92px!important;min-height:92px!important;overflow:auto!important;}
   .thint.ok{color:var(--pos);}
@@ -144,6 +148,15 @@
   const tg = window.Telegram && window.Telegram.WebApp;
   if (tg){ try{ tg.ready(); tg.expand(); tg.setHeaderColor('#1F4B45'); tg.setBackgroundColor('#F3F5F4'); }catch(e){} }
   const H = { 'X-Init-Data': (tg && tg.initData) || '' };
+  // Keng rejim (noutbukda katta ekran)
+  try{ if(localStorage.getItem('wide')==='1') document.body.classList.add('wide'); }catch(e){}
+  window.wideTgl=function(){
+    const on=!document.body.classList.contains('wide');
+    document.body.classList.toggle('wide',on);
+    try{ localStorage.setItem('wide',on?'1':'0'); }catch(e){}
+    try{ if(on){ tg&&tg.requestFullscreen&&tg.requestFullscreen(); } else { tg&&tg.exitFullscreen&&tg.exitFullscreen(); } }catch(e){}
+    const b=document.getElementById('fsb'); if(b) b.textContent=on?'⤡':'⛶';
+  };
   const app = document.getElementById('app');
   let rec=null, recChunks=[], recMid=null;
 
@@ -161,8 +174,10 @@
     app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
     let d; try{const r=await fetch('/api/mijozlar',{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+m.qolgan_qarz,0);
+    setTimeout(()=>{const b=document.getElementById('fsb');if(b)b.textContent=document.body.classList.contains('wide')?'⤡':'⛶';},0);
     app.innerHTML=`<header><div><div class="eyebrow">Ijara hisobi</div><h1>Mijozlar</h1></div>
         <button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>
+        <button class="fsbtn" id="fsb" onclick="wideTgl()">⛶</button>
         <button class="plus" style="margin-left:8px" onclick="showNew()">➕</button></header>
       <div class="hero"><div class="arc"></div><div class="lbl">Umumiy qarz</div>
         <div class="amt num">${som(jami)} <small>so'm</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
