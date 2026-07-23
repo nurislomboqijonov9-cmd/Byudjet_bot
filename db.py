@@ -772,8 +772,8 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
     # Qolgan mahsulotlar (mahsulot bo'yicha jamlab)
     qmap = {}
     for h in ps:
-        if h["qolgan"] <= 0:
-            continue
+        if h["qolgan"] == 0:
+            continue          # minus bo'lsa ham ko'rsatamiz (ortiqcha qaytgan)
         key = (h["mahsulot"] or "").strip().lower()
         g = qmap.setdefault(key, {"mahsulot": h["mahsulot"], "qolgan": 0.0, "narx": 0.0,
                                   "birlik": h.get("birlik") or "ta", "manzillar": set()})
@@ -785,6 +785,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
     for g in qmap.values():
         qolganlar.append({"mahsulot": g["mahsulot"], "qolgan": g["qolgan"], "narx": g["narx"],
                           "birlik": g.get("birlik") or "ta", "manzillar": sorted(g["manzillar"])})
+    qolganlar = [q for q in qolganlar if abs(q["qolgan"]) > 1e-9]
     qolganlar.sort(key=lambda x: -x["qolgan"])
 
     # Qaytarishlar: bir kunda qaytgan mahsulotlar = bitta yozuv
@@ -2357,8 +2358,8 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
     # Qolgan mahsulotlar (mahsulot bo'yicha jamlab)
     qmap = {}
     for h in ps:
-        if h["qolgan"] <= 0:
-            continue
+        if h["qolgan"] == 0:
+            continue          # minus bo'lsa ham ko'rsatamiz (ortiqcha qaytgan)
         key = (h["mahsulot"] or "").strip().lower()
         g = qmap.setdefault(key, {"mahsulot": h["mahsulot"], "qolgan": 0.0, "narx": 0.0,
                                   "birlik": h.get("birlik") or "ta", "manzillar": set()})
@@ -2370,6 +2371,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
     for g in qmap.values():
         qolganlar.append({"mahsulot": g["mahsulot"], "qolgan": g["qolgan"], "narx": g["narx"],
                           "birlik": g.get("birlik") or "ta", "manzillar": sorted(g["manzillar"])})
+    qolganlar = [q for q in qolganlar if abs(q["qolgan"]) > 1e-9]
     qolganlar.sort(key=lambda x: -x["qolgan"])
 
     # Qaytarishlar: bir kunda qaytgan mahsulotlar = bitta yozuv

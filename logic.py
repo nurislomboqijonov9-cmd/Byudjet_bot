@@ -120,15 +120,10 @@ def apply(mijoz_id, t):
                 return {"ok": False, "xato": f"{t.partiya}-partiya topilmadi"}
             h = db.partiya_hisob(p)
             qolgan = h["qolgan"]
-            if qolgan <= 0:
-                return {"ok": False, "xato": f"{p['partiya_raqam']}-partiya allaqachon to'liq qaytarilgan"}
             qty = qolgan if getattr(t, "hammasi", False) else t.miqdor
             if not qty:
                 return {"ok": False, "xato": "Nechta qaytarganini ayting"}
-            ortdi = False
-            if qty > qolgan:
-                qty = qolgan
-                ortdi = True
+            ortdi = qty > qolgan   # ortiqcha bo'lsa minusga ketadi, cheklanmaydi
             rid = db.add_return(p["id"], qty, _sana(t))
             _oz_ret = _oz_ulush(p, qty)   # brovdan olingani omborga qo'shilmaydi
             if _oz_ret > 0:
@@ -183,14 +178,11 @@ def apply(mijoz_id, t):
             order = target
             cap_all = sum(h["qolgan"] for p, h in order)
 
-        cap_max = sum(h["qolgan"] for p, h in order)  # raqam berilsa — fallback bilan yetadigan maksimum
+        cap_max = sum(h["qolgan"] for p, h in order)
         qty = cap_all if getattr(t, "hammasi", False) else t.miqdor
         if not qty:
             return {"ok": False, "xato": "Nechta qaytarganini ayting"}
-        kam = False
-        if qty > cap_max:
-            qty = cap_max
-            kam = True
+        kam = qty > cap_max   # ortiqcha bo'lsa minusga ketadi, cheklanmaydi
 
         remaining = qty
         sana = _sana(t)
@@ -205,6 +197,13 @@ def apply(mijoz_id, t):
             return_ids.append(rid)
             taqsim.append({"partiya_raqam": p["partiya_raqam"], "qty": take})
             remaining -= take
+        # Ortib qolgani (chiqmagan tovar qaytdi) — eng eski partiyaga, minusga
+        if remaining > 0 and order:
+            p0 = order[0][0]
+            rid = db.add_return(p0["id"], remaining, sana)
+            return_ids.append(rid)
+            taqsim.append({"partiya_raqam": p0["partiya_raqam"], "qty": remaining})
+            remaining = 0
 
         d = db.mijoz_detail(mijoz_id)
         prodname = target[0][0]["mahsulot"]
