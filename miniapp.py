@@ -155,11 +155,15 @@ def make_web_app(bot_token):
                             content_type="application/javascript",
                             headers={"Cache-Control": "no-cache"})
 
+    RUXSAT_RASM = {"icon-192.png", "icon-512.png", "logo.png"}
+
     async def icon(request):
-        nom = request.match_info.get("nom", "icon-192.png")
+        nom = request.match_info.get("nom") or request.path.lstrip("/")
+        if nom not in RUXSAT_RASM:
+            return web.Response(status=404)
         yol = Path(__file__).parent / nom
         if yol.exists():
-            return web.FileResponse(yol)
+            return web.FileResponse(yol, headers={"Cache-Control": "public, max-age=86400"})
         return web.Response(status=404)
 
     async def api_mijozlar(request):
@@ -698,6 +702,7 @@ def make_web_app(bot_token):
     app.router.add_get("/manifest.json", manifest)
     app.router.add_get("/sw.js", sw_js)
     app.router.add_get("/{nom:icon-\\d+\\.png}", icon)
+    app.router.add_get("/logo.png", icon)
     app.router.add_get("/api/mijozlar", api_mijozlar)
     app.router.add_get("/api/mijoz", api_mijoz)
     app.router.add_post("/api/mijoz_qosh", api_mijoz_qosh)

@@ -6,7 +6,7 @@
 <title>Ijara hisobi</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;450;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;450;500;600&family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
   :root{--bg:#F3F5F4;--card:#FFFFFF;--ink:#1B2A26;--soft:#63736D;--line:#E7EBE9;
     --brand:#1F4B45;--brand2:#2C6A60;--pos:#2E7D5B;--neg:#C0674F;--faint:#EEF2F0;}
   body.tun{--bg:#0E1518;--card:#16211F;--ink:#E7EFEC;--soft:#8FA39D;--line:#243330;
@@ -107,7 +107,7 @@
   body.tun .tabb{background:#101A18;}
   body.tun .tabb.on{background:var(--brand);color:#08110F;}
   .login{max-width:340px;margin:0 auto;padding:36px 0;}
-  .loginlogo{display:block;width:132px;height:132px;margin:0 auto;border-radius:50%;box-shadow:0 6px 22px rgba(0,0,0,.10);}
+  .loginlogo{display:block;width:132px;height:132px;margin:0 auto;border-radius:26px;box-shadow:0 10px 30px -12px rgba(10,23,41,.45);}
   .login .sub{text-align:center;color:var(--soft);font-size:13px;margin-bottom:22px;}
   .login input{margin-bottom:10px;}
   .qrow{border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px;background:var(--faint);}
@@ -181,6 +181,94 @@
   .omb-tab{flex:1;padding:11px;border-radius:11px;border:none;background:#131C26;color:#8A9AA8;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;}
   .omb-tab.on{background:#F3F5F4;color:#0B1017;}
   .ombnav{margin-left:auto;background:#12202B;color:#fff;border:none;border-radius:11px;padding:9px 13px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;}
+
+  /* ============ ILOVA REJIMI (Telegramdan tashqarida) ============ */
+  body.app{--brand:#16336B;--brand2:#2E5AA8;--bg:#F6F7F9;--card:#FFFFFF;--ink:#0A1729;
+    --soft:#6B7A90;--line:#E4E9F0;--faint:#EDF1F6;--pos:#1E7A5A;--neg:#C4553C;--latun:#C08A2E;
+    background:var(--bg);}
+  body.app.tun{--brand:#7FA5E8;--brand2:#9BBBF0;--bg:#08111F;--card:#101E33;--ink:#E9EFF7;
+    --soft:#7E90A8;--line:#1B2C46;--faint:#16253D;--latun:#D9A94E;}
+
+  /* --- yuqori panel: logo + soat --- */
+  body.app #clockbar{background:linear-gradient(180deg,#16336B,#122A57);padding:11px 16px 12px;
+    display:flex;align-items:center;gap:10px;text-align:left;font-size:0;box-shadow:0 2px 14px rgba(10,23,41,.18);}
+  body.app.tun #clockbar{background:linear-gradient(180deg,#0D2148,#0A1A37);}
+  body.app #clockbar::before{content:'';width:118px;height:30px;flex-shrink:0;margin-right:auto;
+    background:url('/logo.png') left center/contain no-repeat;}
+  body.app #clock{font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:400;
+    color:rgba(255,255,255,.72);letter-spacing:.03em;}
+
+  /* --- sarlavha --- */
+  body.app header{padding:16px 2px 10px;}
+  body.app .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;color:var(--soft);font-weight:400;}
+  body.app h1{font-family:'Archivo',sans-serif;font-weight:800;font-size:25px;letter-spacing:-.025em;}
+  body.app .ombnav,body.app .tunbtn,body.app .fsbtn{background:var(--faint);color:var(--brand);
+    border:1px solid var(--line);font-weight:600;}
+  body.app.tun .ombnav,body.app.tun .tunbtn,body.app.tun .fsbtn{background:var(--faint);color:var(--brand2);}
+  body.app .plus{background:linear-gradient(135deg,#16336B,#0F2650);box-shadow:0 8px 18px -10px rgba(22,51,107,.8);}
+
+  /* --- hero: qarz kartasi --- */
+  body.app .hero{background:linear-gradient(145deg,#16336B 0%,#0E2350 60%,#0A1B3E 100%);
+    border-radius:22px;padding:22px 20px 20px;box-shadow:0 18px 34px -18px rgba(22,51,107,.55);}
+  body.app.tun .hero{background:linear-gradient(145deg,#12294F,#0A1B3A)!important;}
+  body.app .hero .arc{background:radial-gradient(circle,rgba(192,138,46,.4),transparent 65%);
+    right:-50px;top:-70px;width:180px;height:180px;}
+  body.app .hero::before{content:'';position:absolute;inset:0;opacity:.13;pointer-events:none;
+    background-image:linear-gradient(45deg,rgba(255,255,255,.5) 1px,transparent 1px),
+                     linear-gradient(-45deg,rgba(255,255,255,.5) 1px,transparent 1px);
+    background-size:26px 26px;}
+  body.app .hero .lbl{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.2em;font-weight:400;}
+  body.app .hero .amt{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:32px;letter-spacing:-.02em;}
+  body.app .hero .amt small{font-family:'IBM Plex Mono',monospace;font-weight:400;}
+
+  /* --- qidiruv --- */
+  body.app .search input{border-radius:15px;padding:13px 16px;background:var(--card);border-color:var(--line);}
+  body.app.tun .search input{background:var(--card);color:var(--ink);}
+
+  /* --- mijoz kartalari --- */
+  body.app .card{border-radius:17px;padding:14px 15px;border:1px solid transparent;position:relative;overflow:hidden;
+    box-shadow:0 1px 2px rgba(10,23,41,.05),0 6px 18px -13px rgba(10,23,41,.3);}
+  body.app.tun .card{box-shadow:none;border-color:var(--line);}
+  body.app .card.mcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:#9AA7B8;}
+  body.app .card.mcard.st-faol::before{background:var(--pos);}
+  body.app .card.mcard.st-sotuv::before{background:var(--latun);}
+  body.app .card.mcard.perech::before{background:#6B4FB8;}
+  body.app .card{background:var(--card);}
+  body.app .av{border-radius:11px;transform:rotate(45deg);background:linear-gradient(135deg,#EDF1F7,#DDE5EF);
+    border:1px solid #D5DEEA;color:var(--brand);font-family:'Archivo',sans-serif;font-weight:700;}
+  body.app.tun .av{background:linear-gradient(135deg,#16253D,#101C30);border-color:#22344F;color:var(--brand2);}
+  body.app .av>*{display:block;transform:rotate(-45deg);}
+  body.app .nm{font-family:'Archivo',sans-serif;font-weight:600;font-size:15px;letter-spacing:-.01em;}
+  body.app .mt{font-size:11.5px;line-height:1.45;}
+  body.app .val b,body.app .num{font-family:'IBM Plex Mono',monospace;font-weight:600;letter-spacing:-.02em;}
+  body.app .val span{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;}
+
+  /* --- bo'limlar --- */
+  body.app .addbox{border-radius:18px;padding:15px;box-shadow:0 1px 2px rgba(10,23,41,.05),0 6px 18px -14px rgba(10,23,41,.26);
+    border-color:transparent;}
+  body.app.tun .addbox{box-shadow:none;border-color:var(--line);}
+  body.app .addbox .t,body.app .card .t{font-family:'Archivo',sans-serif;font-weight:700;font-size:13px;letter-spacing:.02em;}
+  body.app .p-badge{background:linear-gradient(135deg,#16336B,#0F2650);border-radius:9px;font-family:'Archivo',sans-serif;}
+  body.app .p-title{font-family:'Archivo',sans-serif;font-weight:700;}
+  body.app .li-nm{font-family:'Archivo',sans-serif;font-weight:600;}
+  body.app .li-val,body.app .li-sub{font-family:'IBM Plex Mono',monospace;font-size:11.5px;}
+
+  /* --- tugmalar --- */
+  body.app .send{background:linear-gradient(135deg,#16336B,#0F2650);color:#fff;border-radius:14px;padding:14px;
+    font-family:'Archivo',sans-serif;font-weight:700;letter-spacing:.01em;box-shadow:0 10px 20px -12px rgba(22,51,107,.8);}
+  body.app.tun .send{background:linear-gradient(135deg,#1E4691,#12295A);color:#fff;}
+  body.app .smsbtn{background:linear-gradient(135deg,#C08A2E,#A26F1E);color:#fff;border:none;border-radius:14px;
+    font-family:'Archivo',sans-serif;font-weight:700;box-shadow:0 10px 20px -12px rgba(192,138,46,.7);}
+  body.app .mini-btn,body.app .li-btn{border-radius:11px;font-weight:600;}
+  body.app .tabb.on{background:linear-gradient(135deg,#16336B,#0F2650);border-color:transparent;}
+  body.app .unitb{border-color:var(--brand);color:var(--brand);}
+
+  /* --- manzil / brovdan belgilari --- */
+  body.app .li-manzil::before,body.app .mzg-h::before{content:'◇ ';opacity:.8;}
+  body.app .li-manzil,body.app .mzg-h{color:var(--brand);}
+  body.app.tun .li-manzil,body.app.tun .mzg-h{color:var(--brand2);}
+  body.app .stbadge{font-family:'Archivo',sans-serif;font-weight:700;font-size:12.5px;letter-spacing:.01em;}
+  body.app .loginlogo{width:112px;height:112px;}
 </style>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#1F4B45">
@@ -201,6 +289,7 @@
   const H = { 'X-Init-Data': (tg && tg.initData) || '', 'X-Token': tokenGet() };
   function tokenSet(t){ try{ localStorage.setItem('tok',t||''); }catch(e){} H['X-Token']=t||''; }
   // Keng rejim (noutbuk / kompyuterda katta ekran)
+  if(!(tg && tg.initData)) document.body.classList.add('app');   // ilova rejimi (Telegramdan tashqarida)
   const PLAT = ((tg && tg.platform) || '').toLowerCase();
   const MOBIL = /android|ios/.test(PLAT);
   if(!MOBIL) document.body.classList.add('desk');
@@ -296,8 +385,8 @@
   window.renderCards=function(q){
     q=(q||'').toLowerCase().trim();
     const list=(window._ml||[]).filter(m=>!q || (m.mijoz||'').toLowerCase().includes(q) || (m.telefon||'').includes(q) || (m.adres||'').toLowerCase().includes(q));
-    let cards=list.map(m=>`<div class="card${m.tolov_turi==='perech'?' perech':''}"><div class="mijoz" onclick="loadMijoz(${m.id})">
-        <div class="av">${ini(m.mijoz)}</div>
+    let cards=list.map(m=>`<div class="card mcard st-${esc(m.status||'')}${m.tolov_turi==='perech'?' perech':''}"><div class="mijoz" onclick="loadMijoz(${m.id})">
+        <div class="av"><span>${ini(m.mijoz)}</span></div>
         <div><div class="nm">${m.status&&STAT[m.status]?`<span class="stdot" style="background:${STAT[m.status].c}"></span>`:''}${esc(m.mijoz)}</div>
           <div class="mt">${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan${m.tolov_turi==='perech'?' · <b style="color:#7A4FC0">🏦 perech</b>':(m.tolov_turi==='naqd'?' · 💵':'')}</div>
           ${m.adres?`<div class="mt" style="color:var(--brand)">📍 ${esc(m.adres)}</div>`:''}</div>
