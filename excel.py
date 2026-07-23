@@ -64,7 +64,11 @@ def mijoz_excel(d):
         ws.row_dimensions[row].height = 22
 
     r = 1
-    title(f"MIJOZ: {d['mijoz']}", r); r += 1
+    kes = d.get("kesim_sana")
+    bosh = f"MIJOZ: {d['mijoz']}"
+    if kes:
+        bosh += f"   —   {_dmy(kes)} HOLATIGA"
+    title(bosh, r); r += 1
     for lbl, val in [("Telefon", d.get("telefon") or "-"), ("Manzil", d.get("adres") or "-"),
                      ("Status", _status_uz(d.get("status")))]:
         ws.cell(row=r, column=1, value=lbl).font = Font(bold=True)

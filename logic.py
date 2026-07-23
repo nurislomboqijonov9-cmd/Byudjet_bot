@@ -219,6 +219,17 @@ def apply(mijoz_id, t):
 
     # ----- MA'LUMOT (mijoz haqida) -----
     if amal == "malumot":
-        return {"ok": True, "amal": "malumot", "mijoz_id": mijoz_id, "detail": db.mijoz_detail(mijoz_id)}
+        # Sana aytilgan bo'lsa — o'sha kundagi holat (kesim)
+        sana = getattr(t, "sana", None)
+        sana = str(sana)[:10] if sana else None
+        bugun = db.today_tk().isoformat()
+        if sana and sana != bugun:
+            try:
+                d = db.mijoz_detail(mijoz_id, date.fromisoformat(sana), kesim=True)
+            except Exception:
+                d = db.mijoz_detail(mijoz_id)
+        else:
+            d = db.mijoz_detail(mijoz_id)
+        return {"ok": True, "amal": "malumot", "mijoz_id": mijoz_id, "detail": d}
 
     return {"ok": False, "xato": "Tushunolmadim"}

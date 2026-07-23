@@ -669,13 +669,16 @@ def _pdate(s):
     return date.fromisoformat(str(s)[:10])
 
 
-def partiya_hisob(p, today=None):
+def partiya_hisob(p, today=None, kesim=False):
     today = today or today_tk()
     issue = _pdate(p["chiqgan_sana"])
     daily = p["kunlik_narx"]
     narx = 0.0
     qaytgan = 0.0
     rets = returns_for(p["id"])
+    if kesim:
+        kes = str(today)[:10]
+        rets = [r for r in rets if str(r["qaytgan_sana"])[:10] <= kes]
     for r in rets:
         narx += r["miqdor"] * daily * _billable_days(issue, _pdate(r["qaytgan_sana"]))
         qaytgan += r["miqdor"]
@@ -693,23 +696,31 @@ def partiya_hisob(p, today=None):
     }
 
 
-def mijoz_detail(mijoz_id, today=None):
+def mijoz_detail(mijoz_id, today=None, kesim=False):
+    """kesim=True bo'lsa — o'sha sanadagi holat (keyingi harakatlar hisobga olinmaydi)."""
     today = today or today_tk()
     m = get_mijoz(mijoz_id)
     if not m:
         return None
+    kes = str(today)[:10] if kesim else None
     raw = partiyalar_of(mijoz_id)
+    if kes:
+        raw = [p for p in raw if str(p["chiqgan_sana"])[:10] <= kes]
     ps = []
     for p in raw:
-        h = partiya_hisob(p, today)
+        h = partiya_hisob(p, today, kesim=kesim)
         h["zakaz_id"] = p.get("zakaz_id")
         h["manzil"] = p.get("manzil")
         h["brov_kim"] = p.get("brov_kim")
         h["brov_miqdor"] = p.get("brov_miqdor")
         ps.append(h)
     hisoblangan = sum(x["narx"] for x in ps)
-    tolangan = jami_tolov(mijoz_id)
+    tolovlar_l = tolovlar_of(mijoz_id)
     qo = qoshimcha_of(mijoz_id)
+    if kes:
+        tolovlar_l = [t for t in tolovlar_l if str(t["sana"])[:10] <= kes]
+        qo = [q for q in qo if str(q["sana"])[:10] <= kes]
+    tolangan = sum(t["summa"] for t in tolovlar_l)
     yolkira = sum(x["summa"] for x in qo if x["tur"] == "yolkira")
     remont = sum(x["summa"] for x in qo if x["tur"] == "remont")
 
@@ -824,7 +835,8 @@ def mijoz_detail(mijoz_id, today=None):
         "remont": remont,
         "tolangan": tolangan,
         "qolgan_qarz": hisoblangan + yolkira + remont - tolangan,
-        "tolovlar": tolovlar_of(mijoz_id),
+        "tolovlar": tolovlar_l,
+        "kesim_sana": kes,
         "qoshimcha": qo,
         "eslatmalar": eslatmalar_of(mijoz_id),
         "jami_qolgan": sum(x["qolgan"] for x in ps),

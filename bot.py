@@ -27,7 +27,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-APP_VERSION = "60"
+APP_VERSION = "61"
 
 # Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
 YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
@@ -45,6 +45,9 @@ def son(n):
 
 def _malumot_text(d):
     lines = [f"👤 *{d['mijoz']}*"]
+    if d.get("kesim_sana"):
+        k = d["kesim_sana"].split("-")
+        lines.append(f"📆 _{k[2]}.{k[1]}.{k[0]} holatiga_")
     if d.get("telefon"):
         lines.append(f"📞 {d['telefon']}")
     if d.get("adres"):
@@ -183,6 +186,8 @@ async def _send_excel(message, detail):
     try:
         bio = excel.mijoz_excel(detail)
         nom = "".join(c for c in detail["mijoz"] if c.isalnum() or c in " _-").strip() or "mijoz"
+        if detail.get("kesim_sana"):
+            nom += "_" + detail["kesim_sana"]
         await message.reply_document(document=InputFile(bio, filename=f"{nom}.xlsx"))
     except Exception:
         log.exception("excel yuborishda xatolik")
