@@ -841,6 +841,7 @@ def mijozlar(today=None):
         d = mijoz_detail(mid, today)
         res.append({
             "id": mid, "mijoz": d["mijoz"], "telefon": d["telefon"], "status": d["status"],
+            "adres": d.get("adres"),
             "jami": d["jami"], "tolangan": d["tolangan"], "qolgan_qarz": d["qolgan_qarz"],
             "jami_qolgan": d["jami_qolgan"],
             "partiya_soni": len(d["partiyalar"]),

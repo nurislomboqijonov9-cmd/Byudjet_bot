@@ -167,18 +167,19 @@
       <div class="hero"><div class="arc"></div><div class="lbl">Umumiy qarz</div>
         <div class="amt num">${som(jami)} <small>so'm</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
       <div id="newform"></div>
-      <div class="search"><input id="qidir" placeholder="🔍 Ism yoki telefon..." oninput="renderCards(this.value)"></div>
+      <div class="search"><input id="qidir" placeholder="🔍 Ism, telefon yoki manzil..." oninput="renderCards(this.value)"></div>
       <div id="cards"></div>`;
     renderCards('');
   }
 
   window.renderCards=function(q){
     q=(q||'').toLowerCase().trim();
-    const list=(window._ml||[]).filter(m=>!q || (m.mijoz||'').toLowerCase().includes(q) || (m.telefon||'').includes(q));
+    const list=(window._ml||[]).filter(m=>!q || (m.mijoz||'').toLowerCase().includes(q) || (m.telefon||'').includes(q) || (m.adres||'').toLowerCase().includes(q));
     let cards=list.map(m=>`<div class="card"><div class="mijoz" onclick="loadMijoz(${m.id})">
         <div class="av">${ini(m.mijoz)}</div>
         <div><div class="nm">${m.status&&STAT[m.status]?`<span class="stdot" style="background:${STAT[m.status].c}"></span>`:''}${esc(m.mijoz)}</div>
-          <div class="mt">${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan</div></div>
+          <div class="mt">${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan</div>
+          ${m.adres?`<div class="mt" style="color:var(--brand)">📍 ${esc(m.adres)}</div>`:''}</div>
         <div class="val"><b>${som(m.qolgan_qarz)}</b><span>so'm</span></div><div class="chev">›</div></div></div>`).join('');
     if(!list.length) cards='<div class="empty">'+(q?'Topilmadi':'Hozircha mijoz yo\'q. «➕ Yangi» bosing.')+'</div>';
     document.getElementById('cards').innerHTML=cards;
@@ -300,6 +301,9 @@
         <div class="brk"><span class="k">To'langan</span><b class="num" style="color:var(--pos)">${som(d.tolangan)} so'm</b></div>
         <div class="brk"><span class="k">${neg?'Ortiqcha (haqi)':'Qolgan qarz'}</span><b class="num" style="color:${neg?'var(--pos)':'var(--ink)'}">${som(Math.abs(d.qolgan_qarz))} so'm</b></div>
       </div>
+      <div class="addbox"><div class="t">📍 Manzil</div>
+        <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
+        <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
       ${eslCard}
       ${brovIn}
       <div class="addbox"><div class="t">➕ Shu mijozga qo'shish</div>
@@ -323,9 +327,6 @@
         <div class="hint">Summani yozib, turini tanlang. Qarzga qo'shiladi.</div>
         ${qlist?'<div style="margin-top:10px">'+qlist+'</div>':''}</div>
       ${qaydCard}
-      <div class="addbox"><div class="t">📍 Manzil</div>
-        <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
-        <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
       <div id="plist">${ps}</div>
       ${manzilCard}
       ${retCard}
