@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Temirchi — hisobingiz</title>
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#16336B">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+  :root{--navy:#16336B;--navy2:#2E5AA8;--bg:#F6F7F9;--card:#FFFFFF;--ink:#0A1729;
+        --soft:#6B7A90;--line:#E4E9F0;--faint:#EDF1F6;--pos:#1E7A5A;--neg:#C4553C;--latun:#C08A2E;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;max-width:560px;margin:0 auto;
+       padding:0 14px 46px;line-height:1.45;-webkit-font-smoothing:antialiased;}
+  .bar{position:sticky;top:0;z-index:10;margin:0 -14px 14px;padding:11px 16px 12px;
+       background:linear-gradient(180deg,#16336B,#122A57);display:flex;align-items:center;
+       box-shadow:0 2px 14px rgba(10,23,41,.18);}
+  .bar .logo{width:118px;height:30px;background:url('/logo.png') left center/contain no-repeat;}
+  .bar .vaqt{margin-left:auto;font-family:'IBM Plex Mono';font-size:11px;color:rgba(255,255,255,.7);}
+  h1{font-family:'Archivo';font-weight:800;font-size:24px;letter-spacing:-.025em;margin:6px 0 2px;}
+  .eyebrow{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--soft);}
+  .hero{margin-top:14px;border-radius:22px;padding:22px 20px 20px;position:relative;overflow:hidden;
+        background:linear-gradient(145deg,#16336B 0%,#0E2350 60%,#0A1B3E 100%);
+        box-shadow:0 18px 34px -18px rgba(22,51,107,.55);}
+  .hero::before{content:'';position:absolute;inset:0;opacity:.13;
+    background-image:linear-gradient(45deg,rgba(255,255,255,.5) 1px,transparent 1px),
+                     linear-gradient(-45deg,rgba(255,255,255,.5) 1px,transparent 1px);background-size:26px 26px;}
+  .hero .glow{position:absolute;width:180px;height:180px;right:-50px;top:-70px;border-radius:50%;
+    background:radial-gradient(circle,rgba(192,138,46,.4),transparent 65%);}
+  .hero .lbl{position:relative;font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.2em;
+    text-transform:uppercase;color:rgba(255,255,255,.6);}
+  .hero .amt{position:relative;font-family:'IBM Plex Mono';font-weight:600;font-size:31px;
+    letter-spacing:-.02em;color:#fff;margin-top:7px;line-height:1.05;}
+  .hero .amt small{font-size:14px;color:rgba(255,255,255,.55);font-weight:400;margin-left:5px;}
+  .hero .sub{position:relative;font-size:12px;color:rgba(255,255,255,.55);margin-top:7px;}
+  .karta{background:var(--card);border-radius:18px;padding:15px;margin-top:12px;
+    box-shadow:0 1px 2px rgba(10,23,41,.05),0 6px 18px -14px rgba(10,23,41,.26);}
+  .karta .t{font-family:'Archivo';font-weight:700;font-size:13px;letter-spacing:.02em;margin-bottom:10px;}
+  .satr{display:flex;align-items:baseline;justify-content:space-between;padding:9px 0;border-top:1px solid var(--line);gap:10px;}
+  .satr:first-of-type{border-top:none;}
+  .satr .nm{font-weight:600;font-size:14.5px;}
+  .satr .mz{font-size:11.5px;color:var(--navy);margin-top:2px;}
+  .satr b{font-family:'IBM Plex Mono';font-weight:600;font-size:14px;white-space:nowrap;}
+  .satr .kun{font-family:'IBM Plex Mono';font-size:12px;color:var(--soft);white-space:nowrap;}
+  .yakun .satr{font-size:14px;}
+  .yakun .satr span{color:var(--soft);}
+  .yakun .oxiri{border-top:2px solid var(--line);margin-top:4px;padding-top:12px;font-weight:700;}
+  .yakun .oxiri span{color:var(--ink);font-weight:700;}
+  .aloqa{margin-top:14px;text-align:center;color:var(--soft);font-size:13px;line-height:1.7;}
+  .aloqa a{color:var(--navy);font-weight:600;text-decoration:none;font-family:'IBM Plex Mono';}
+  .yuk{text-align:center;padding:60px 0;color:var(--soft);}
+  .spin{width:26px;height:26px;border:2.5px solid var(--line);border-top-color:var(--navy);
+    border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 12px;}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .xato{background:#FBEAE4;border:1px solid #E3B4A4;color:#8E3B22;border-radius:14px;padding:16px;
+    margin-top:20px;font-size:14px;text-align:center;}
+  .izoh{font-size:11.5px;color:var(--soft);margin-top:8px;line-height:1.5;}
+</style>
+</head>
+<body>
+  <div class="bar"><div class="logo"></div><div class="vaqt" id="vaqt"></div></div>
+  <div id="app"><div class="yuk"><div class="spin"></div>Yuklanmoqda…</div></div>
+
+<script>
+  const som=n=>{n=Math.round(Number(n)||0);return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');};
+  const son=n=>{n=Number(n)||0;return Number.isInteger(n)?n:parseFloat(n.toFixed(2)).toString();};
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const dmy=s=>{const p=String(s||'').slice(0,10).split('-');return p.length===3?`${p[2]}.${p[1]}.${p[0].slice(2)}`:s;};
+
+  function soat(){
+    try{
+      const f=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tashkent',day:'2-digit',month:'2-digit',
+        year:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+      const p={}; for(const x of f.formatToParts(new Date())) p[x.type]=x.value;
+      return `${p.day}.${p.month}.${p.year} · ${p.hour}:${p.minute}:${p.second}`;
+    }catch(e){ return ''; }
+  }
+  setInterval(()=>{const el=document.getElementById('vaqt'); if(el) el.textContent=soat();},1000);
+
+  const token=location.pathname.split('/').filter(Boolean).pop();
+  const app=document.getElementById('app');
+
+  async function yukla(){
+    try{
+      const r=await fetch('/api/m/'+encodeURIComponent(token));
+      if(!r.ok) throw 0;
+      const d=await r.json();
+      chiz(d);
+    }catch(e){
+      app.innerHTML='<div class="xato">Havola topilmadi yoki eskirgan.<br>Iltimos, biz bilan bog\'laning.</div>';
+    }
+  }
+
+  function chiz(d){
+    const manfiy=d.qolgan_qarz<0;
+    const mollar=(d.qolganlar||[]).filter(q=>q.qolgan>0);
+    const tolovlar=(d.tolovlar||[]).filter(t=>t.summa>0);
+
+    const mollarHtml = mollar.length ? `<div class="karta"><div class="t">📦 Sizdagi mahsulotlar</div>${
+      mollar.map(q=>`<div class="satr">
+        <div><div class="nm">${esc(q.mahsulot)}</div>${
+          (q.manzillar&&q.manzillar.length)?`<div class="mz">◇ ${esc(q.manzillar.join(', '))}</div>`:''}</div>
+        <b>${son(q.qolgan)} ${esc(q.birlik||'')}</b></div>`).join('')}
+      <div class="izoh">Jami ${son(mollar.reduce((s,x)=>s+x.qolgan,0))} dona qaytarilmagan.</div></div>` : '';
+
+    const tolovHtml = tolovlar.length ? `<div class="karta"><div class="t">💵 To'lovlaringiz</div>${
+      tolovlar.map(t=>`<div class="satr"><span class="kun">${dmy(t.sana)}</span>
+        <b style="color:var(--pos)">+${som(t.summa)}</b></div>`).join('')}</div>` : '';
+
+    app.innerHTML=`
+      <div class="eyebrow">Hisobingiz</div>
+      <h1>${esc(d.mijoz)}</h1>
+      <div class="hero"><div class="glow"></div>
+        <div class="lbl">${manfiy?'Sizning haqingiz':'Qolgan qarz'}</div>
+        <div class="amt">${som(Math.abs(d.qolgan_qarz))}<small>so'm</small></div>
+        <div class="sub">${d.jami_qolgan>0?son(d.jami_qolgan)+' dona sizda · ':''}yangilandi ${esc(d.sana)}</div></div>
+
+      ${mollarHtml}
+
+      <div class="karta yakun"><div class="t">🧮 Hisob</div>
+        <div class="satr"><span>Ijara</span><b>${som(d.hisoblangan)}</b></div>
+        ${d.yolkira?`<div class="satr"><span>Yo'lkira</span><b>${som(d.yolkira)}</b></div>`:''}
+        ${d.remont?`<div class="satr"><span>Remont</span><b>${som(d.remont)}</b></div>`:''}
+        <div class="satr"><span>To'langan</span><b style="color:var(--pos)">− ${som(d.tolangan)}</b></div>
+        <div class="satr oxiri"><span>${manfiy?'Haqingiz':'Qolgan qarz'}</span>
+          <b style="color:${manfiy?'var(--pos)':'var(--neg)'}">${som(Math.abs(d.qolgan_qarz))} so'm</b></div>
+        <div class="izoh">Mahsulot sizda turgan har kun uchun ijara hisoblanadi — qarz har kuni ortib boradi.</div></div>
+
+      ${tolovHtml}
+
+      <div class="aloqa">Savol bo'lsa:<br><a href="tel:${esc(d.tel||'')}">${esc(d.tel||'')}</a><br>
+        <span style="font-size:11.5px">TEMIRCHI — o'zbek milliy brendi</span></div>`;
+  }
+
+  yukla();
+  setInterval(yukla, 120000);   // har 2 daqiqada yangilanadi
+</script>
+</body>
+</html>

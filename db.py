@@ -131,6 +131,12 @@ def init_db():
     if "bolim" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN bolim TEXT")
         con.execute("UPDATE mijozlar SET bolim='ijara' WHERE bolim IS NULL OR bolim=''")
+    if "token" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN token TEXT")
+    # Havolasi yo'q mijozlarga token beramiz (bir marta, keyin o'zgarmaydi)
+    import secrets as _sec
+    for r in con.execute("SELECT id FROM mijozlar WHERE token IS NULL OR token=''").fetchall():
+        con.execute("UPDATE mijozlar SET token=? WHERE id=?", (_sec.token_urlsafe(9), r[0]))
 
     # Zakazlar (2 qavatli model): mahsulot bo'yicha umumiy buyurtma. Chiqishlar (partiyalar) shunga bog'lanadi.
     con.execute("""CREATE TABLE IF NOT EXISTS zakazlar (
@@ -251,8 +257,9 @@ def phone_list(s):
 def add_mijoz(ism, telefon=None, bolim="ijara"):
     bolim = "sotuv" if str(bolim or "").lower().startswith("sot") else "ijara"
     con = _con()
-    cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan, bolim) VALUES (?, ?, ?, ?)",
-                      (ism.strip(), clean_phones(telefon), now_tk().isoformat(), bolim))
+    import secrets as _sec
+    cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan, bolim, token) VALUES (?, ?, ?, ?, ?)",
+                      (ism.strip(), clean_phones(telefon), now_tk().isoformat(), bolim, _sec.token_urlsafe(9)))
     con.commit()
     mid = cur.lastrowid
     con.close()
@@ -856,6 +863,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         "status": _st,
         "tolov_turi": m.get("tolov_turi"),
         "bolim": (m.get("bolim") or "ijara"),
+        "token": m.get("token"),
         "partiyalar": ps,
         "zakazlar": zakazlar_list,
         "yetkazmalar": yetkazmalar,
@@ -1737,6 +1745,12 @@ def init_db():
     if "bolim" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN bolim TEXT")
         con.execute("UPDATE mijozlar SET bolim='ijara' WHERE bolim IS NULL OR bolim=''")
+    if "token" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN token TEXT")
+    # Havolasi yo'q mijozlarga token beramiz (bir marta, keyin o'zgarmaydi)
+    import secrets as _sec
+    for r in con.execute("SELECT id FROM mijozlar WHERE token IS NULL OR token=''").fetchall():
+        con.execute("UPDATE mijozlar SET token=? WHERE id=?", (_sec.token_urlsafe(9), r[0]))
 
     # Zakazlar (2 qavatli model): mahsulot bo'yicha umumiy buyurtma. Chiqishlar (partiyalar) shunga bog'lanadi.
     con.execute("""CREATE TABLE IF NOT EXISTS zakazlar (
@@ -1857,8 +1871,9 @@ def phone_list(s):
 def add_mijoz(ism, telefon=None, bolim="ijara"):
     bolim = "sotuv" if str(bolim or "").lower().startswith("sot") else "ijara"
     con = _con()
-    cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan, bolim) VALUES (?, ?, ?, ?)",
-                      (ism.strip(), clean_phones(telefon), now_tk().isoformat(), bolim))
+    import secrets as _sec
+    cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan, bolim, token) VALUES (?, ?, ?, ?, ?)",
+                      (ism.strip(), clean_phones(telefon), now_tk().isoformat(), bolim, _sec.token_urlsafe(9)))
     con.commit()
     mid = cur.lastrowid
     con.close()
@@ -2462,6 +2477,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         "status": _st,
         "tolov_turi": m.get("tolov_turi"),
         "bolim": (m.get("bolim") or "ijara"),
+        "token": m.get("token"),
         "partiyalar": ps,
         "zakazlar": zakazlar_list,
         "yetkazmalar": yetkazmalar,
@@ -3364,3 +3380,40 @@ def brov_kimlar():
             out.append(n)
     out.sort(key=lambda x: x.lower())
     return out
+
+
+# ---------- Mijoz uchun ochiq havola ----------
+def mijoz_by_token(token):
+    token = (token or "").strip()
+    if not token:
+        return None
+    con = _con()
+    r = con.execute("SELECT id FROM mijozlar WHERE token = ?", (token,)).fetchone()
+    con.close()
+    return r[0] if r else None
+
+
+def mijoz_ochiq(token, today=None):
+    """Mijozga ko'rsatiladigan ma'lumot (narxlar va ichki qaydlarsiz)."""
+    mid = mijoz_by_token(token)
+    if not mid:
+        return None
+    d = mijoz_detail(mid, today)
+    if not d:
+        return None
+    return {
+        "mijoz": d["mijoz"],
+        "adres": d.get("adres"),
+        "qolgan_qarz": d["qolgan_qarz"],
+        "hisoblangan": d["hisoblangan"],
+        "yolkira": d["yolkira"],
+        "remont": d["remont"],
+        "tolangan": d["tolangan"],
+        "jami_qolgan": d["jami_qolgan"],
+        "qolganlar": [{"mahsulot": q["mahsulot"], "qolgan": q["qolgan"],
+                       "birlik": q.get("birlik"), "manzillar": q.get("manzillar") or []}
+                      for q in (d.get("qolganlar") or [])],
+        "tolovlar": [{"summa": t["summa"], "sana": str(t["sana"])[:10]}
+                     for t in (d.get("tolovlar") or [])],
+        "sana": now_tk().strftime("%d.%m.%Y %H:%M"),
+    }

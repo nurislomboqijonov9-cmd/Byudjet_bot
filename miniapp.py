@@ -128,6 +128,22 @@ def make_web_app(bot_token):
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache", "Expires": "0"})
 
+    # ---- Mijoz uchun ochiq sahifa (login talab qilinmaydi) ----
+    async def mijoz_sahifa(request):
+        yol = Path(__file__).parent / "mijoz.html"
+        if not yol.exists():
+            return web.Response(status=404)
+        return web.FileResponse(yol, headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate", "X-Robots-Tag": "noindex"})
+
+    async def api_mijoz_ochiq(request):
+        token = request.match_info.get("token", "")
+        d = db.mijoz_ochiq(token)
+        if not d:
+            return web.json_response({"xato": "topilmadi"}, status=404)
+        d["tel"] = os.getenv("FIRMA_TEL", "")
+        return web.json_response(d, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+
     async def api_login(request):
         try:
             b = await request.json()
@@ -708,6 +724,8 @@ def make_web_app(bot_token):
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)
     app.router.add_post("/api/login", api_login)
+    app.router.add_get("/m/{token}", mijoz_sahifa)
+    app.router.add_get("/api/m/{token}", api_mijoz_ochiq)
     app.router.add_get("/manifest.json", manifest)
     app.router.add_get("/sw.js", sw_js)
     app.router.add_get("/{nom:icon-\\d+\\.png}", icon)

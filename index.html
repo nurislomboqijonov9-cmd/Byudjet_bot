@@ -614,6 +614,10 @@
       ${qolganCard}
       ${manzilCard}
       ${retCard}
+      ${d.token?`<div class="addbox"><div class="t">🔗 Mijoz uchun havola</div>
+        <div class="hint" style="margin:0 0 8px">Mijoz shu havoladan o'z qarzini ko'radi. Har doim yangilanib turadi — bir marta yuborsangiz yetadi.</div>
+        <input class="f" id="mlink" readonly value="${location.origin}/m/${esc(d.token)}" onclick="this.select()">
+        <button class="mini-btn" style="width:100%;margin-top:8px" onclick="havolaNusxa()">📋 Nusxa olish</button></div>`:''}
       <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>`;
     if(_y>0) setTimeout(()=>window.scrollTo(0,_y),0);
     window._qolgan=(d.qolganlar||[]).filter(q=>q.qolgan>0).map(q=>q.mahsulot);
@@ -1274,8 +1278,17 @@
       else { loginEkran((d&&d.xato)||'Login yoki parol noto\'g\'ri'); }
     }catch(e){ loginEkran('Tarmoq xatosi'); }
   };
+  window.havolaNusxa=function(){
+    const el=document.getElementById('mlink'); if(!el)return;
+    el.select(); el.setSelectionRange(0,99999);
+    try{
+      if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(el.value); }
+      else { document.execCommand('copy'); }
+      toast('📋 Havola nusxalandi');
+    }catch(e){ toast('Havolani qo\'lda nusxalang'); }
+  };
   window.chiqish=function(){ tokenSet(''); loginEkran(); };
-  window.APPV='93';   // yuklangan versiya (nosozlikni aniqlash uchun)
+  window.APPV='94';   // yuklangan versiya (nosozlikni aniqlash uchun)
 
   // Telegram ichida bo'lsa — to'g'ridan-to'g'ri, aks holda token / login
   if ((tg && tg.initData) || tokenGet()) { loadList(); } else { loginEkran(); }
