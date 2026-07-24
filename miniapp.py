@@ -144,6 +144,26 @@ def make_web_app(bot_token):
         d["tel"] = os.getenv("FIRMA_TEL", "")
         return web.json_response(d, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
 
+    async def tg_xabar(chat_id, matn):
+        """Bot orqali xabar yuborish (Telegram HTTP API)."""
+        try:
+            import aiohttp as _ah
+            async with _ah.ClientSession() as ss:
+                await ss.post(f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                              json={"chat_id": chat_id, "text": matn,
+                                    "parse_mode": "Markdown", "disable_web_page_preview": True},
+                              timeout=_ah.ClientTimeout(total=12))
+            return True
+        except Exception:
+            return False
+
+    def _asos_url(request):
+        base = os.getenv("WEBAPP_URL") or ""
+        if not base:
+            dom = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+            base = f"https://{dom}" if dom else str(request.url.origin())
+        return base.split("?")[0].rstrip("/")
+
     # ---- Haydovchi sahifasi (login talab qilinmaydi, havola maxfiy) ----
     RASM_DIR = Path(os.getenv("DATA_DIR", "/data")) / "rasm"
 
@@ -212,6 +232,19 @@ def make_web_app(bot_token):
             xabar = res.get("xabar") or "Tasdiqlandi"
             if yangi:
                 xabar += " · yangi mijoz ochildi"
+            # Xodimlarga xabar
+            try:
+                m = db.get_mijoz(mid)
+                bild = (f"✅ *YETKAZILDI*\n\n👤 {m['ism'] if m else '—'}\n"
+                        + (f"📍 {v['manzil']}\n" if v.get("manzil") else "")
+                        + f"🤝 Qabul qildi: {b.get('qabul_qildi') or '—'}\n"
+                        + (f"📞 {b.get('telefon')}\n" if b.get("telefon") else "")
+                        + ("🆕 Yangi mijoz ochildi\n" if yangi else "")
+                        + f"\n{xabar}")
+                for x in db.xodim_ids():
+                    await tg_xabar(x, bild)
+            except Exception:
+                pass
             return web.json_response({"ok": True, "xabar": xabar})
         except Exception as e:
             import traceback; traceback.print_exc()
@@ -247,10 +280,38 @@ def make_web_app(bot_token):
                                  lat=float(lat) if lat not in (None, "") else None,
                                  lon=float(lon) if lon not in (None, "") else None,
                                  izoh=b.get("izoh"), haydovchi=b.get("haydovchi"), sana=b.get("sana"),
-                                 mijoz_nom=b.get("mijoz_nom"), telefon=b.get("telefon"))
+                                 mijoz_nom=b.get("mijoz_nom"), telefon=b.get("telefon"),
+                                 haydovchi_id=b.get("haydovchi_id"))
+            # Haydovchiga Telegramда xabar
+            hid = b.get("haydovchi_id")
+            if res.get("ok") and hid:
+                try:
+                    v = db.vazifa_by_token(res["token"])
+                    link = f"{_asos_url(request)}/v/{res['token']}"
+                    tovar = "\n".join(f"• {t['mahsulot']} — {int(t['miqdor']) if float(t['miqdor']).is_integer() else t['miqdor']} {t.get('birlik') or ''}"
+                                      for t in (v.get("tovarlar") or []))
+                    tur = "📥 OLIB KELISH" if v["tur"] == "olib_kelish" else "📤 YETKAZISH"
+                    matn = (f"🚚 *YANGI ZAKAZ*\n{tur}\n\n"
+                            f"👤 {v['mijoz']}\n"
+                            + (f"📞 {v['telefon']}\n" if v.get("telefon") else "")
+                            + (f"📍 {v['manzil']}\n" if v.get("manzil") else "")
+                            + f"📅 {str(v.get('sana') or '')[:10]}\n\n"
+                            + (tovar + "\n\n" if tovar else "")
+                            + (f"📝 {v['izoh']}\n\n" if v.get("izoh") else "")
+                            + f"👉 Ochish: {link}")
+                    await tg_xabar(int(hid), matn)
+                    res["xabar_yuborildi"] = True
+                except Exception:
+                    res["xabar_yuborildi"] = False
             return web.json_response(res)
         except Exception as e:
             return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
+    async def api_haydovchilar(request):
+        uid, err = check(request)
+        if err:
+            return err
+        return web.json_response({"haydovchilar": db.haydovchilar()})
 
     async def api_vazifa_ochir(request):
         uid, err = check(request)
@@ -849,6 +910,7 @@ def make_web_app(bot_token):
     app.router.add_post("/api/v_bajar", api_v_bajar)
     app.router.add_get("/rasm/{nom}", rasm_fayl)
     app.router.add_get("/api/vazifalar", api_vazifalar)
+    app.router.add_get("/api/haydovchilar", api_haydovchilar)
     app.router.add_post("/api/vazifa_qosh", api_vazifa_qosh)
     app.router.add_post("/api/vazifa_ochir", api_vazifa_ochir)
     app.router.add_get("/api/m/{token}", api_mijoz_ochiq)

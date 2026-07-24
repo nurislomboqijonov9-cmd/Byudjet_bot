@@ -502,12 +502,11 @@
           <button class="tabb on" id="vtab1" onclick="vazTur('yetkazish')">📤 Yetkazish</button>
           <button class="tabb" id="vtab2" onclick="vazTur('olib_kelish')">📥 Olib kelish</button></div>
         <input class="f" id="v_manzil" placeholder="📍 Manzil" value="${esc(d.adres||'')}">
-        <div class="inrow" style="margin-top:8px">
-          <input class="f" id="v_lat" inputmode="decimal" placeholder="Kenglik (lat)">
-          <input class="f" id="v_lon" inputmode="decimal" placeholder="Uzunlik (lon)"></div>
-        <div class="hint" style="margin:6px 0">Lokatsiya kiritsangiz — haydovchi navigator bilan boradi. Bo'sh qoldirsangiz manzil bo'yicha qidiradi.</div>
+        <input class="f" id="v_loc" placeholder="📍 Lokatsiya — koordinata yoki xarita havolasi" oninput="locTekshir()" style="margin-top:8px">
+        <div class="hint" id="lochint" style="margin:6px 0">Telegramда kelgan lokatsiyani yoki Yandex/Google xarita havolasini shu yerga tashlang. Bo'sh qoldirsangiz manzil bo'yicha qidiriladi.</div>
+        <input type="hidden" id="v_lat"><input type="hidden" id="v_lon">
         <div class="inrow"><input class="f" id="v_sana" type="date" value="${bugun}">
-          <input class="f" id="v_haydovchi" placeholder="Haydovchi (ixtiyoriy)"></div>
+          <select class="f" id="v_haydovchi"><option value="">Haydovchi tanlang</option></select></div>
         <div id="vrows"></div>
         <button class="mini-btn" style="width:100%;margin-top:8px;border-style:dashed" onclick="vazRowAdd()">➕ Yana tovar</button>
         <input class="f" id="v_izoh" placeholder="Izoh (ixtiyoriy)" style="margin-top:8px">
@@ -644,6 +643,7 @@
     window._qamal='chiqish'; window._qn=0; if(document.getElementById('qrows')) rowAdd();
     window._bamal='chiqish'; window._bn=0; if(document.getElementById('brows')) browAdd();
     window._vtur='yetkazish'; window._vn=0; if(document.getElementById('vrows')) vazRowAdd();
+    loadHaydovchilar();
   };
 
   window.tgl=function(id){const el=document.getElementById(id); if(el) el.style.display=el.style.display==='none'?'block':'none';};
@@ -986,6 +986,14 @@
     const b=window.tovarBest(v);
     if(b&&!b.exact&&b.list.length===1){el.value=b.name;window.tovarHint(el);}
   };
+  async function loadHaydovchilar(){
+    try{const r=await fetch('/api/haydovchilar',{headers:H});const d=await r.json();
+      window._hayd=(d.haydovchilar||[]);
+      const sel=document.getElementById('v_haydovchi');
+      if(sel) sel.innerHTML='<option value="">Haydovchi tanlang</option>'+
+        window._hayd.map(h=>`<option value="${h.id}">${esc(h.ism||h.id)}</option>`).join('');
+    }catch(e){}
+  }
   async function loadTovarlar(){
     try{const r=await fetch('/api/tovarlar',{headers:H});const d=await r.json();
       window._tovarlar=(d.tovarlar||[]); window._tbir=(d.birliklar||{}); window._brovchilar=(d.brovchilar||[]);
@@ -1300,6 +1308,39 @@
   };
   // ===== HAYDOVCHIGA VAZIFA =====
   window._vn=0; window._vtur='yetkazish';
+  window.locAjrat=function(matn){
+    const s=String(matn||'').trim();
+    if(!s) return null;
+    // 1) oddiy koordinata: "41.2856, 69.2034"
+    let m=s.match(/(-?\d{1,2}\.\d{3,})\s*[, ]\s*(-?\d{1,3}\.\d{3,})/);
+    if(m){
+      let a=parseFloat(m[1]), b=parseFloat(m[2]);
+      // O'zbekiston: kenglik ~37-46, uzunlik ~55-74 — kerak bo'lsa almashtiramiz
+      if(a>50 && b<50){ const t=a; a=b; b=t; }
+      return {lat:a, lon:b};
+    }
+    // 2) Yandex: ll=69.20,41.28 yoki pt=69.20,41.28
+    m=s.match(/[?&](?:ll|pt|whatshere\[point\])=(-?\d+\.\d+)[,%2C]+(-?\d+\.\d+)/i);
+    if(m){ return {lat:parseFloat(m[2]), lon:parseFloat(m[1])}; }
+    // 3) Google: @41.28,69.20 yoki q=41.28,69.20
+    m=s.match(/[@=](-?\d+\.\d+),(-?\d+\.\d+)/);
+    if(m){ return {lat:parseFloat(m[1]), lon:parseFloat(m[2])}; }
+    return null;
+  };
+  window.locTekshir=function(){
+    const el=document.getElementById('v_loc'), h=document.getElementById('lochint');
+    if(!el)return;
+    const c=window.locAjrat(el.value);
+    const la=document.getElementById('v_lat'), lo=document.getElementById('v_lon');
+    if(c){ if(la)la.value=c.lat; if(lo)lo.value=c.lon;
+      if(h) h.innerHTML=`✅ Lokatsiya olindi: <b>${c.lat.toFixed(5)}, ${c.lon.toFixed(5)}</b> — haydovchi navigator bilan boradi.`;
+    } else {
+      if(la)la.value=''; if(lo)lo.value='';
+      if(h) h.textContent = el.value.trim()
+        ? "⚠️ Koordinata topilmadi — manzil bo'yicha qidiriladi."
+        : "Telegramда kelgan lokatsiyani yoki Yandex/Google xarita havolasini shu yerga tashlang.";
+    }
+  };
   window.vazTur=function(t){
     window._vtur=t;
     const a=document.getElementById('vtab1'), b=document.getElementById('vtab2');
@@ -1357,7 +1398,8 @@
       lat:(document.getElementById('v_lat').value||'').trim(),
       lon:(document.getElementById('v_lon').value||'').trim(),
       sana:(document.getElementById('v_sana')||{}).value,
-      haydovchi:(document.getElementById('v_haydovchi').value||'').trim(),
+      haydovchi_id:(document.getElementById('v_haydovchi').value||'')||null,
+      haydovchi:((document.getElementById('v_haydovchi').selectedOptions[0]||{}).textContent||'').trim(),
       izoh:(document.getElementById('v_izoh').value||'').trim(), tovarlar:rows};
     toast('⏳ Yaratilyapti…');
     try{const r=await fetch('/api/vazifa_qosh',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify(b)});
@@ -1370,7 +1412,7 @@
             ✅ Vazifa tayyor. Haydovchiga shu havolani yuboring:
             <input class="f" id="vlink" readonly value="${link}" onclick="this.select()" style="margin-top:8px">
             <button class="mini-btn" style="width:100%;margin-top:8px" onclick="vazNusxa()">📋 Nusxa olish</button></div>`;
-        toast('🚚 Vazifa yaratildi');
+        toast(d.xabar_yuborildi?'🚚 Vazifa yaratildi — haydovchiga xabar bordi':'🚚 Vazifa yaratildi');
       } else xatoBox('verr',(d&&d.xato)||'Xato');
     }catch(e){ xatoBox('verr','Tarmoq xatosi'); }
   };
@@ -1390,7 +1432,7 @@
     }catch(e){ toast('Havolani qo\'lda nusxalang'); }
   };
   window.chiqish=function(){ tokenSet(''); loginEkran(); };
-  window.APPV='96';   // yuklangan versiya (nosozlikni aniqlash uchun)
+  window.APPV='98';   // yuklangan versiya (nosozlikni aniqlash uchun)
 
   // Telegram ichida bo'lsa — to'g'ridan-to'g'ri, aks holda token / login
   if ((tg && tg.initData) || tokenGet()) { loadList(); } else { loginEkran(); }

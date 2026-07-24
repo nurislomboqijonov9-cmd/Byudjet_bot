@@ -169,6 +169,11 @@ def init_db():
         con.execute("UPDATE partiyalar SET zakaz_id=? WHERE mijoz_id=? AND mahsulot=? AND zakaz_id IS NULL",
                     (zid, mid, mah))
 
+    # ---------- Haydovchilar ----------
+    con.execute("""CREATE TABLE IF NOT EXISTS haydovchilar (
+        id INTEGER PRIMARY KEY, ism TEXT, telefon TEXT,
+        faol INTEGER NOT NULL DEFAULT 1, yaratilgan TEXT NOT NULL)""")
+
     # ---------- Yetkazma vazifalari (haydovchi uchun) ----------
     con.execute("""CREATE TABLE IF NOT EXISTS vazifalar (
         id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT,
@@ -182,6 +187,8 @@ def init_db():
         con.execute("ALTER TABLE vazifalar ADD COLUMN mijoz_nom TEXT")
     if "telefon" not in vcols:
         con.execute("ALTER TABLE vazifalar ADD COLUMN telefon TEXT")
+    if "haydovchi_id" not in vcols:
+        con.execute("ALTER TABLE vazifalar ADD COLUMN haydovchi_id INTEGER")
     con.execute("""CREATE TABLE IF NOT EXISTS vazifa_tovar (
         id INTEGER PRIMARY KEY AUTOINCREMENT, vazifa_id INTEGER NOT NULL,
         mahsulot TEXT NOT NULL, miqdor REAL NOT NULL,
@@ -1801,6 +1808,11 @@ def init_db():
         con.execute("UPDATE partiyalar SET zakaz_id=? WHERE mijoz_id=? AND mahsulot=? AND zakaz_id IS NULL",
                     (zid, mid, mah))
 
+    # ---------- Haydovchilar ----------
+    con.execute("""CREATE TABLE IF NOT EXISTS haydovchilar (
+        id INTEGER PRIMARY KEY, ism TEXT, telefon TEXT,
+        faol INTEGER NOT NULL DEFAULT 1, yaratilgan TEXT NOT NULL)""")
+
     # ---------- Yetkazma vazifalari (haydovchi uchun) ----------
     con.execute("""CREATE TABLE IF NOT EXISTS vazifalar (
         id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT,
@@ -1814,6 +1826,8 @@ def init_db():
         con.execute("ALTER TABLE vazifalar ADD COLUMN mijoz_nom TEXT")
     if "telefon" not in vcols:
         con.execute("ALTER TABLE vazifalar ADD COLUMN telefon TEXT")
+    if "haydovchi_id" not in vcols:
+        con.execute("ALTER TABLE vazifalar ADD COLUMN haydovchi_id INTEGER")
     con.execute("""CREATE TABLE IF NOT EXISTS vazifa_tovar (
         id INTEGER PRIMARY KEY AUTOINCREMENT, vazifa_id INTEGER NOT NULL,
         mahsulot TEXT NOT NULL, miqdor REAL NOT NULL,
@@ -3457,7 +3471,7 @@ def mijoz_ochiq(token, today=None):
 
 # ================= YETKAZMA VAZIFALARI =================
 def vazifa_qosh(mijoz_id, tovarlar, tur="yetkazish", manzil=None, lat=None, lon=None,
-                izoh=None, haydovchi=None, sana=None, mijoz_nom=None, telefon=None):
+                izoh=None, haydovchi=None, sana=None, mijoz_nom=None, telefon=None, haydovchi_id=None):
     import secrets as _sec
     if mijoz_id and not get_mijoz(mijoz_id):
         return {"ok": False, "xato": "Mijoz topilmadi"}
@@ -3469,12 +3483,12 @@ def vazifa_qosh(mijoz_id, tovarlar, tur="yetkazish", manzil=None, lat=None, lon=
         return {"ok": False, "xato": "Tovar qo'shing"}
     con = _con()
     cur = con.execute(
-        """INSERT INTO vazifalar (token, mijoz_id, tur, manzil, lat, lon, izoh, haydovchi, holat, sana, yaratilgan, mijoz_nom, telefon)
-           VALUES (?,?,?,?,?,?,?,?,'yangi',?,?,?,?)""",
+        """INSERT INTO vazifalar (token, mijoz_id, tur, manzil, lat, lon, izoh, haydovchi, holat, sana, yaratilgan, mijoz_nom, telefon, haydovchi_id)
+           VALUES (?,?,?,?,?,?,?,?,'yangi',?,?,?,?,?)""",
         (_sec.token_urlsafe(9), mijoz_id, ("olib_kelish" if str(tur).startswith("olib") else "yetkazish"),
          (manzil or None), lat, lon, (izoh or None), (haydovchi or None),
          str(sana or today_tk().isoformat())[:10], now_tk().isoformat(),
-         (mijoz_nom or None), clean_phone(telefon)))
+         (mijoz_nom or None), clean_phone(telefon), (int(haydovchi_id) if haydovchi_id else None)))
     vid = cur.lastrowid
     for t in tovarlar:
         try:
@@ -3597,3 +3611,52 @@ def vazifa_mijozini_aniqla(vazifa, telefon=None, bolim="ijara"):
             return (mid, False)
     ism = (vazifa.get("mijoz_nom") or "").strip() or (f"Yangi mijoz {tel[-4:]}" if tel else "Yangi mijoz")
     return (add_mijoz(ism, tel, bolim=bolim), True)
+
+
+# ================= HAYDOVCHILAR =================
+def haydovchi_qosh(uid, ism=None, telefon=None):
+    con = _con()
+    bor = con.execute("SELECT id FROM haydovchilar WHERE id=?", (uid,)).fetchone()
+    if bor:
+        con.execute("UPDATE haydovchilar SET ism=COALESCE(?,ism), telefon=COALESCE(?,telefon), faol=1 WHERE id=?",
+                    (ism or None, clean_phone(telefon), uid))
+    else:
+        con.execute("INSERT INTO haydovchilar (id, ism, telefon, faol, yaratilgan) VALUES (?,?,?,1,?)",
+                    (uid, ism or None, clean_phone(telefon), now_tk().isoformat()))
+    con.commit()
+    con.close()
+    return {"ok": True, "id": uid, "ism": ism}
+
+
+def haydovchi_ochir(uid):
+    con = _con()
+    con.execute("DELETE FROM haydovchilar WHERE id=?", (uid,))
+    con.commit()
+    con.close()
+    return {"ok": True}
+
+
+def haydovchilar(faqat_faol=True):
+    con = _con()
+    q = "SELECT * FROM haydovchilar" + (" WHERE faol=1" if faqat_faol else "") + " ORDER BY ism, id"
+    rows = con.execute(q).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def haydovchi_bormi(uid):
+    con = _con()
+    r = con.execute("SELECT 1 FROM haydovchilar WHERE id=? AND faol=1", (uid,)).fetchone()
+    con.close()
+    return r is not None
+
+
+def haydovchi_vazifalari(uid, limit=20):
+    """Haydovchining tugallanmagan vazifalari."""
+    con = _con()
+    rows = con.execute(
+        "SELECT * FROM vazifalar WHERE haydovchi_id=? AND holat IN ('yangi','yolda') ORDER BY id DESC LIMIT ?",
+        (uid, limit)).fetchall()
+    out = [_vazifa_row(r, con) for r in rows]
+    con.close()
+    return out

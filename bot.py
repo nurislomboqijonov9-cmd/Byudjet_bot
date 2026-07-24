@@ -27,7 +27,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-APP_VERSION = "96"
+APP_VERSION = "98"
 
 # Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
 YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
@@ -77,8 +77,28 @@ def ruxsat(uid):
     return db.is_allowed(uid)
 
 
+def _haydovchi_matni(uid):
+    vz = db.haydovchi_vazifalari(uid)
+    url = webapp_url() or ""
+    base = url.split("?")[0].rstrip("/")
+    if not vz:
+        return "🚚 Salom! Sizda hozircha yangi zakaz yo'q.\n\nYangi zakaz kelsa shu yerga xabar beraman."
+    lines = [f"🚚 *Sizdagi zakazlar* ({len(vz)} ta)\n"]
+    for v in vz:
+        tur = "📥 Olib kelish" if v["tur"] == "olib_kelish" else "📤 Yetkazish"
+        holat = "🟡 yangi" if v["holat"] == "yangi" else "🔵 yo'lda"
+        lines.append(f"{tur} · {holat}\n👤 {v['mijoz']}"
+                     + (f"\n📍 {v['manzil']}" if v.get("manzil") else "")
+                     + f"\n👉 {base}/v/{v['token']}\n")
+    return "\n".join(lines)
+
+
 async def guard(update: Update):
     uid = update.effective_user.id
+    if not db.is_allowed(uid) and db.haydovchi_bormi(uid):
+        await update.message.reply_text(_haydovchi_matni(uid), parse_mode="Markdown",
+                                        disable_web_page_preview=True)
+        return False
     if not db.is_allowed(uid):
         await update.message.reply_text(
             "Kechirasiz, bu korxona boti. 🔒\n\n"
@@ -752,6 +772,46 @@ async def parol_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "Kompyuterda Chrome → manzil yonidagi «O'rnatish» tugmasi._", parse_mode="Markdown")
 
 
+async def haydovchilar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    lst = db.haydovchilar()
+    lines = [f"🚚 *Haydovchilar* ({len(lst)} ta)\n"] if lst else ["🚚 Hali haydovchi qo'shilmagan.\n"]
+    for h in lst:
+        lines.append(f"👤 *{h.get('ism') or h['id']}*"
+                     + (f" · 📞 {h['telefon']}" if h.get("telefon") else "")
+                     + f"\n   🆔 `{h['id']}`")
+    lines.append("\n➕ `/haydovchi_qosh <id> <ism>`\n🗑 `/haydovchi_ochir <id>`\n\n"
+                 "_Haydovchi botga /start bossin — shunda zakaz xabari boradi._")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
+async def haydovchi_qosh_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    uid, ism = _parse_id_ism(ctx.args)
+    if not uid:
+        await update.message.reply_text(
+            "Format: `/haydovchi_qosh <id> <ism>`\nMasalan: `/haydovchi_qosh 12345678 Aziz`",
+            parse_mode="Markdown")
+        return
+    db.haydovchi_qosh(uid, ism)
+    await update.message.reply_text(
+        f"✅ 🚚 Haydovchi qo'shildi: *{ism or uid}*\n🆔 `{uid}`\n\n"
+        "_Haydovchi botga /start bossin — shunda yangi zakaz xabari boradi._", parse_mode="Markdown")
+
+
+async def haydovchi_ochir_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    uid, _ = _parse_id_ism(ctx.args)
+    if not uid:
+        await update.message.reply_text("Format: `/haydovchi_ochir <id>`", parse_mode="Markdown")
+        return
+    db.haydovchi_ochir(uid)
+    await update.message.reply_text("🗑 Haydovchi o'chirildi.")
+
+
 async def tovarlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await admin_guard(update):
         return
@@ -996,6 +1056,23 @@ async def _set_yonalish(update: Update, ctx: ContextTypes.DEFAULT_TYPE, yon):
         await update.message.reply_text("⬆️ (chiqish) yoki ⬇️ (qaytarish) stikerini yuboring.")
 
 
+async def handle_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await guard(update):
+        return
+    loc = update.message.location or (update.message.venue.location if update.message.venue else None)
+    if not loc:
+        return
+    nom = ""
+    if update.message.venue:
+        nom = f"\n🏢 {update.message.venue.title}"
+    await update.message.reply_text(
+        f"📍 *Lokatsiya qabul qilindi*{nom}\n\n"
+        f"`{loc.latitude:.6f}, {loc.longitude:.6f}`\n\n"
+        "\U0001F446 Bosib nusxa oling \u2192 ilovadagi mijoz sahifasida\n"
+        "«🚚 Haydovchiga vazifa» → «📍 Lokatsiya» maydoniga qo'ying.",
+        parse_mode="Markdown")
+
+
 async def handle_sticker(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await guard(update):
         return
@@ -1180,6 +1257,7 @@ async def _set_commands(app):
     admin_extra = umumiy + [
         BotCommand("limit", "📏 Yig'ish chegarasi"),
         BotCommand("xodimlar", "🧑‍🔧 Xodimlar"),
+        BotCommand("haydovchilar", "🚚 Haydovchilar"),
         BotCommand("parol", "🔑 Ilova uchun login/parol"),
         BotCommand("tovarlar", "📋 Tovarlar ro'yxati"),
         BotCommand("nomlar", "🔤 Tovar nomlarini tekshirish"),
@@ -1232,6 +1310,9 @@ async def run():
     app.add_handler(CommandHandler("nom", nom_cmd))
     app.add_handler(CommandHandler("ombor_hisobla", ombor_hisobla_cmd))
     app.add_handler(CommandHandler("parol", parol_cmd))
+    app.add_handler(CommandHandler("haydovchilar", haydovchilar_cmd))
+    app.add_handler(CommandHandler("haydovchi_qosh", haydovchi_qosh_cmd))
+    app.add_handler(CommandHandler("haydovchi_ochir", haydovchi_ochir_cmd))
     app.add_handler(CommandHandler("tovarlar", tovarlar_cmd))
     app.add_handler(CommandHandler("tekshir", tekshir_cmd))
     app.add_handler(CommandHandler("shablon", shablon_cmd))
@@ -1243,6 +1324,7 @@ async def run():
     app.add_handler(CommandHandler("ochir", ochir_cmd))
     app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:|sms:|smsok:|smsno)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
+    app.add_handler(MessageHandler(filters.LOCATION | filters.VENUE, handle_location))
     app.add_handler(MessageHandler(filters.Sticker.ALL, handle_sticker))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
