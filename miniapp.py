@@ -507,6 +507,16 @@ def make_web_app(bot_token):
         db.delete_mijoz(mid)
         return web.json_response({"ok": True})
 
+    async def api_mijoz_loc(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            return web.json_response(db.set_mijoz_loc(int(b.get("mijoz_id")), b.get("lat"), b.get("lon")))
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
     async def api_adres(request):
         uid, err = check(request)
         if err:
@@ -927,6 +937,7 @@ def make_web_app(bot_token):
     app.router.add_post("/api/qoshish_audio", api_qoshish_audio)
     app.router.add_post("/api/ochirish", api_ochirish)
     app.router.add_post("/api/adres", api_adres)
+    app.router.add_post("/api/mijoz_loc", api_mijoz_loc)
     app.router.add_post("/api/tolov", api_tolov)
     app.router.add_post("/api/tolov_del", api_tolov_del)
     app.router.add_post("/api/partiya_edit", api_partiya_edit)

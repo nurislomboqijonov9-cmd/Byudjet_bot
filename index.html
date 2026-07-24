@@ -110,6 +110,17 @@
   .loginlogo{display:block;width:132px;height:132px;margin:0 auto;border-radius:26px;box-shadow:0 10px 30px -12px rgba(10,23,41,.45);}
   .login .sub{text-align:center;color:var(--soft);font-size:13px;margin-bottom:22px;}
   .login input{margin-bottom:10px;}
+  #xarita{position:fixed;inset:0;z-index:200;background:var(--bg);display:none;flex-direction:column;}
+  #xarita.on{display:flex;}
+  #xmap{flex:1;width:100%;}
+  .xbar{padding:12px 14px;background:var(--brand);color:#fff;display:flex;align-items:center;gap:10px;}
+  .xbar b{font-family:'Archivo',sans-serif;font-size:15px;}
+  .xbar button{margin-left:auto;background:rgba(255,255,255,.16);color:#fff;border:none;
+    border-radius:10px;padding:8px 14px;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;}
+  .xpin{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);z-index:500;font-size:34px;
+    pointer-events:none;filter:drop-shadow(0 3px 6px rgba(0,0,0,.35));}
+  .xpast{padding:12px 14px;background:var(--card);border-top:1px solid var(--line);}
+  .xpast .koor{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--soft);text-align:center;margin-bottom:8px;}
   .qrow{border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px;background:var(--faint);}
   .pickwrap{position:relative;}
   .pickb{position:absolute;right:6px;top:6px;border:none;background:none;font-size:16px;color:var(--soft);cursor:pointer;padding:4px 8px;}
@@ -283,6 +294,12 @@
   <div id="app"><div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div></div>
   <div id="toast"></div>
   <datalist id="tovarlist"></datalist>
+  <div id="xarita">
+    <div class="xbar"><b>🗺 Nuqtani tanlang</b><button onclick="xaritaYop()">✖ Yopish</button></div>
+    <div style="flex:1;position:relative"><div id="xmap"></div><div class="xpin">📍</div></div>
+    <div class="xpast"><div class="koor" id="xkoor">Xaritani suring — belgi markazda turadi</div>
+      <button class="send" style="margin:0" onclick="xaritaTanla()">✅ Shu nuqtani tanlash</button></div>
+  </div>
 <script>
   const tg = window.Telegram && window.Telegram.WebApp;
   if (tg){ try{ tg.ready(); tg.expand(); tg.setHeaderColor('#1F4B45'); tg.setBackgroundColor('#F3F5F4'); }catch(e){} }
@@ -501,10 +518,12 @@
         <div class="inrow" style="margin-bottom:8px">
           <button class="tabb on" id="vtab1" onclick="vazTur('yetkazish')">📤 Yetkazish</button>
           <button class="tabb" id="vtab2" onclick="vazTur('olib_kelish')">📥 Olib kelish</button></div>
-        <input class="f" id="v_manzil" placeholder="📍 Manzil" value="${esc(d.adres||'')}">
-        <input class="f" id="v_loc" placeholder="📍 Lokatsiya — koordinata yoki xarita havolasi" oninput="locTekshir()" style="margin-top:8px">
-        <div class="hint" id="lochint" style="margin:6px 0">Telegramда kelgan lokatsiyani yoki Yandex/Google xarita havolasini shu yerga tashlang. Bo'sh qoldirsangiz manzil bo'yicha qidiriladi.</div>
-        <input type="hidden" id="v_lat"><input type="hidden" id="v_lon">
+        <input class="f" id="v_manzil" placeholder="📍 Manzil yoki lokatsiya" value="${esc(d.adres||'')}" oninput="locTekshir()">
+        <div class="inrow" style="margin-top:8px">
+          <button class="mini-btn" onclick="xaritaOch()">🗺 Xaritadan tanlash</button>
+          <button class="mini-btn" onclick="mengaJoy()">📍 Hozirgi joyim</button></div>
+        <div class="hint" id="lochint" style="margin:6px 0"></div>
+        <input type="hidden" id="v_lat" value="${d.lat||''}"><input type="hidden" id="v_lon" value="${d.lon||''}">
         <div class="inrow"><input class="f" id="v_sana" type="date" value="${bugun}">
           <select class="f" id="v_haydovchi"><option value="">Haydovchi tanlang</option></select></div>
         <div id="vrows"></div>
@@ -644,6 +663,7 @@
     window._bamal='chiqish'; window._bn=0; if(document.getElementById('brows')) browAdd();
     window._vtur='yetkazish'; window._vn=0; if(document.getElementById('vrows')) vazRowAdd();
     loadHaydovchilar();
+    if(document.getElementById('lochint')) locTekshir();
   };
 
   window.tgl=function(id){const el=document.getElementById(id); if(el) el.style.display=el.style.display==='none'?'block':'none';};
@@ -1328,18 +1348,78 @@
     return null;
   };
   window.locTekshir=function(){
-    const el=document.getElementById('v_loc'), h=document.getElementById('lochint');
-    if(!el)return;
-    const c=window.locAjrat(el.value);
+    const el=document.getElementById('v_manzil'), h=document.getElementById('lochint');
+    if(!el||!h)return;
     const la=document.getElementById('v_lat'), lo=document.getElementById('v_lon');
+    const c=window.locAjrat(el.value);
     if(c){ if(la)la.value=c.lat; if(lo)lo.value=c.lon;
-      if(h) h.innerHTML=`✅ Lokatsiya olindi: <b>${c.lat.toFixed(5)}, ${c.lon.toFixed(5)}</b> — haydovchi navigator bilan boradi.`;
-    } else {
-      if(la)la.value=''; if(lo)lo.value='';
-      if(h) h.textContent = el.value.trim()
-        ? "⚠️ Koordinata topilmadi — manzil bo'yicha qidiriladi."
-        : "Telegramда kelgan lokatsiyani yoki Yandex/Google xarita havolasini shu yerga tashlang.";
+      h.innerHTML=`✅ Lokatsiya: <b>${c.lat.toFixed(5)}, ${c.lon.toFixed(5)}</b> — haydovchi navigator bilan boradi.`;
+      return;
     }
+    if(la&&la.value&&lo&&lo.value){
+      h.innerHTML=`✅ Bu mijozning lokatsiyasi saqlangan — haydovchi navigator bilan boradi. `
+        +`<b style="cursor:pointer;text-decoration:underline" onclick="locOchir()">o'chirish</b>`;
+      return;
+    }
+    h.innerHTML = "Manzilni yozing. Aniq nuqta kerak bo'lsa — <b>🗺 Xaritadan tanlang</b> "
+      + "yoki koordinata/xarita havolasini shu maydonga qo'ying.";
+  };
+  window._xmap=null;
+  function leafletYukla(){
+    return new Promise((ok,xato)=>{
+      if(window.L) return ok();
+      const css=document.createElement('link');
+      css.rel='stylesheet'; css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(css);
+      const js=document.createElement('script');
+      js.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      js.onload=ok; js.onerror=xato;
+      document.head.appendChild(js);
+    });
+  }
+  window.xaritaOch=async function(){
+    const box=document.getElementById('xarita'); if(!box)return;
+    box.classList.add('on');
+    try{ await leafletYukla(); }catch(e){ toast('Xarita yuklanmadi'); box.classList.remove('on'); return; }
+    const la=parseFloat((document.getElementById('v_lat')||{}).value)||41.3111;
+    const lo=parseFloat((document.getElementById('v_lon')||{}).value)||69.2797;
+    const bor=!!parseFloat((document.getElementById('v_lat')||{}).value);
+    if(!window._xmap){
+      window._xmap=L.map('xmap',{zoomControl:true}).setView([la,lo], bor?17:12);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        {maxZoom:19, attribution:'© OpenStreetMap'}).addTo(window._xmap);
+      window._xmap.on('move',()=>{
+        const c=window._xmap.getCenter();
+        const el=document.getElementById('xkoor');
+        if(el) el.textContent=c.lat.toFixed(6)+', '+c.lng.toFixed(6);
+      });
+    } else {
+      window._xmap.setView([la,lo], bor?17:12);
+    }
+    setTimeout(()=>{ window._xmap.invalidateSize(); },120);
+  };
+  window.xaritaYop=function(){const b=document.getElementById('xarita'); if(b) b.classList.remove('on');};
+  window.xaritaTanla=function(){
+    if(!window._xmap){ xaritaYop(); return; }
+    const c=window._xmap.getCenter();
+    const la=document.getElementById('v_lat'), lo=document.getElementById('v_lon');
+    if(la) la.value=c.lat.toFixed(6);
+    if(lo) lo.value=c.lng.toFixed(6);
+    xaritaYop(); locTekshir(); toast('📍 Lokatsiya tanlandi');
+  };
+  window.mengaJoy=function(){
+    if(!navigator.geolocation){ toast('Qurilma joylashuvni bermaydi'); return; }
+    toast('📍 Aniqlanyapti…');
+    navigator.geolocation.getCurrentPosition(p=>{
+      const la=document.getElementById('v_lat'), lo=document.getElementById('v_lon');
+      if(la) la.value=p.coords.latitude.toFixed(6);
+      if(lo) lo.value=p.coords.longitude.toFixed(6);
+      locTekshir(); toast('📍 Hozirgi joyingiz olindi');
+    }, e=>{ toast('Joylashuvga ruxsat berilmadi'); }, {enableHighAccuracy:true, timeout:12000});
+  };
+  window.locOchir=function(){
+    const la=document.getElementById('v_lat'), lo=document.getElementById('v_lon');
+    if(la)la.value=''; if(lo)lo.value=''; locTekshir();
   };
   window.vazTur=function(t){
     window._vtur=t;
@@ -1406,6 +1486,8 @@
       const d=await r.json();
       if(d&&d.ok){
         xatoTozala('verr');
+        if(b.lat&&b.lon){ try{ fetch('/api/mijoz_loc',{method:'POST',headers:{...H,'Content-Type':'application/json'},
+          body:JSON.stringify({mijoz_id:mid,lat:b.lat,lon:b.lon})}); }catch(e){} }
         const link=location.origin+'/v/'+d.token;
         document.getElementById('vlist').innerHTML=
           `<div class="errbox" style="background:rgba(30,122,90,.10);border-color:#9CCFB8;color:#14603F">
@@ -1432,7 +1514,7 @@
     }catch(e){ toast('Havolani qo\'lda nusxalang'); }
   };
   window.chiqish=function(){ tokenSet(''); loginEkran(); };
-  window.APPV='98';   // yuklangan versiya (nosozlikni aniqlash uchun)
+  window.APPV='100';   // yuklangan versiya (nosozlikni aniqlash uchun)
 
   // Telegram ichida bo'lsa — to'g'ridan-to'g'ri, aks holda token / login
   if ((tg && tg.initData) || tokenGet()) { loadList(); } else { loginEkran(); }

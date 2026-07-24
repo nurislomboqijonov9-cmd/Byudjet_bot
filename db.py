@@ -133,6 +133,10 @@ def init_db():
         con.execute("UPDATE mijozlar SET bolim='ijara' WHERE bolim IS NULL OR bolim=''")
     if "token" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN token TEXT")
+    if "lat" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN lat REAL")
+    if "lon" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN lon REAL")
     # Havolasi yo'q mijozlarga token beramiz (bir marta, keyin o'zgarmaydi)
     import secrets as _sec
     for r in con.execute("SELECT id FROM mijozlar WHERE token IS NULL OR token=''").fetchall():
@@ -889,6 +893,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         "tolov_turi": m.get("tolov_turi"),
         "bolim": (m.get("bolim") or "ijara"),
         "token": m.get("token"),
+        "lat": m.get("lat"), "lon": m.get("lon"),
         "partiyalar": ps,
         "zakazlar": zakazlar_list,
         "yetkazmalar": yetkazmalar,
@@ -1772,6 +1777,10 @@ def init_db():
         con.execute("UPDATE mijozlar SET bolim='ijara' WHERE bolim IS NULL OR bolim=''")
     if "token" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN token TEXT")
+    if "lat" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN lat REAL")
+    if "lon" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN lon REAL")
     # Havolasi yo'q mijozlarga token beramiz (bir marta, keyin o'zgarmaydi)
     import secrets as _sec
     for r in con.execute("SELECT id FROM mijozlar WHERE token IS NULL OR token=''").fetchall():
@@ -2528,6 +2537,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         "tolov_turi": m.get("tolov_turi"),
         "bolim": (m.get("bolim") or "ijara"),
         "token": m.get("token"),
+        "lat": m.get("lat"), "lon": m.get("lon"),
         "partiyalar": ps,
         "zakazlar": zakazlar_list,
         "yetkazmalar": yetkazmalar,
@@ -3660,3 +3670,13 @@ def haydovchi_vazifalari(uid, limit=20):
     out = [_vazifa_row(r, con) for r in rows]
     con.close()
     return out
+
+
+def set_mijoz_loc(mijoz_id, lat, lon):
+    con = _con()
+    con.execute("UPDATE mijozlar SET lat=?, lon=? WHERE id=?",
+                (float(lat) if lat not in (None, "") else None,
+                 float(lon) if lon not in (None, "") else None, mijoz_id))
+    con.commit()
+    con.close()
+    return {"ok": True}

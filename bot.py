@@ -27,7 +27,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-APP_VERSION = "98"
+APP_VERSION = "100"
 
 # Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
 YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
@@ -1013,6 +1013,8 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await guard(update):
         return
     txt = update.message.text or ""
+    if ctx.user_data.get("loc") and await _loc_biriktir(update, ctx, txt.strip()):
+        return
     if ctx.user_data.pop("await_edit", False):
         try:
             actions = ai.from_text(txt)
@@ -1062,15 +1064,41 @@ async def handle_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     loc = update.message.location or (update.message.venue.location if update.message.venue else None)
     if not loc:
         return
-    nom = ""
-    if update.message.venue:
-        nom = f"\n🏢 {update.message.venue.title}"
+    ctx.user_data["loc"] = (loc.latitude, loc.longitude)
+    nom = f"\n🏢 {update.message.venue.title}" if update.message.venue else ""
     await update.message.reply_text(
-        f"📍 *Lokatsiya qabul qilindi*{nom}\n\n"
+        f"📍 *Lokatsiya qabul qilindi*{nom}\n"
         f"`{loc.latitude:.6f}, {loc.longitude:.6f}`\n\n"
-        "\U0001F446 Bosib nusxa oling \u2192 ilovadagi mijoz sahifasida\n"
-        "«🚚 Haydovchiga vazifa» → «📍 Lokatsiya» maydoniga qo'ying.",
+        "👤 Endi *mijoz ismini yozing* — lokatsiya o'shanga biriktiriladi.\n"
+        "_(Keyin vazifa yaratganda o'zi qo'yiladi.)_\n\n"
+        "Yoki koordinatani nusxalab, ilovaga qo'ying.",
         parse_mode="Markdown")
+
+
+async def _loc_biriktir(update: Update, ctx: ContextTypes.DEFAULT_TYPE, ism):
+    """Lokatsiya kutilayotgan bo'lsa — ismga qarab mijozga biriktiradi."""
+    loc = ctx.user_data.get("loc")
+    if not loc:
+        return False
+    ms = db.mijozlar_by_name(ism)
+    if not ms:
+        ms = db.similar_mijozlar(ism)
+    if not ms:
+        await update.message.reply_text(
+            f"«{ism}» topilmadi. Mijoz ismini aniq yozing yoki /start bosing.")
+        return True
+    if len(ms) > 1:
+        ctx.user_data["loc_pending"] = True
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton(f"{m['ism']} · {m['telefon'] or 'raqamsiz'}",
+                                                        callback_data=f"loc:{m['id']}")] for m in ms[:8]])
+        await update.message.reply_text("Qaysi mijozga biriktiray? 👇", reply_markup=kb)
+        return True
+    db.set_mijoz_loc(ms[0]["id"], loc[0], loc[1])
+    ctx.user_data.pop("loc", None)
+    await update.message.reply_text(
+        f"✅ Lokatsiya *{ms[0]['ism']}* ga biriktirildi.\n\n"
+        "Endi vazifa yaratganingizda haydovchiga avtomat yuboriladi.", parse_mode="Markdown")
+    return True
 
 
 async def handle_sticker(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1129,6 +1157,16 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data == "tasdiq:no":
         ctx.user_data.pop("tasdiq", None)
         await q.edit_message_text("❌ Bekor qilindi.")
+    elif data.startswith("loc:"):
+        mid = int(data.split(":")[1])
+        loc = ctx.user_data.pop("loc", None)
+        if not loc:
+            await q.edit_message_text("Lokatsiya eskirdi. Qaytadan yuboring.")
+            return
+        db.set_mijoz_loc(mid, loc[0], loc[1])
+        m = db.get_mijoz(mid)
+        await q.edit_message_text(f"✅ Lokatsiya *{m['ism'] if m else mid}* ga biriktirildi.",
+                                  parse_mode="Markdown")
     elif data.startswith("sms:"):
         await q.edit_message_reply_markup(reply_markup=None)
         await _sms_sorov(q.message, int(data.split(":")[1]))
@@ -1322,7 +1360,7 @@ async def run():
     app.add_handler(CommandHandler("xodim_qosh", xodim_qosh_cmd))
     app.add_handler(CommandHandler("admin_qosh", admin_qosh_cmd))
     app.add_handler(CommandHandler("ochir", ochir_cmd))
-    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:|sms:|smsok:|smsno)"))
+    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:|sms:|smsok:|smsno|loc:)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.LOCATION | filters.VENUE, handle_location))
     app.add_handler(MessageHandler(filters.Sticker.ALL, handle_sticker))
