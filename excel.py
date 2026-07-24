@@ -125,12 +125,14 @@ def mijoz_excel(d):
     rets = [(p, rr) for p in d.get("partiyalar", []) for rr in p.get("qaytarishlar", [])]
     if rets:
         title("QAYTARISHLAR", r); r += 1
-        for h, col in [("Partiya", 1), ("Mahsulot", 2), ("Soni", 3), ("Sana", 4)]:
+        for h, col in [("Partiya", 1), ("Mahsulot", 2), ("Soni", 3), ("Sana", 4), ("Brovdan (kim)", 5)]:
             c = ws.cell(row=r, column=col, value=h)
             c.font = Font(bold=True); c.fill = PatternFill("solid", fgColor=LIGHT); c.border = BORDER
         r += 1
         for p, rr in rets:
-            for i, v in enumerate([p["partiya_raqam"], p["mahsulot"], rr["miqdor"], _dmy(rr["qaytgan_sana"])], 1):
+            qator = [p["partiya_raqam"], p["mahsulot"], rr["miqdor"], _dmy(rr["qaytgan_sana"]),
+                     p.get("brov_kim") or "—"]
+            for i, v in enumerate(qator, 1):
                 ws.cell(row=r, column=i, value=v).border = BORDER
             r += 1
         r += 1

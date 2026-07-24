@@ -805,6 +805,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
             g["items"].append({
                 "mahsulot": h["mahsulot"], "miqdor": r["miqdor"],
                 "partiya_raqam": h["partiya_raqam"], "return_id": r["id"],
+                "brov_kim": h.get("brov_kim"), "birlik": h.get("birlik"),
             })
     qaytarishlar_guruh = sorted(rgr.values(), key=lambda x: x["sana"], reverse=True)
 
@@ -2396,6 +2397,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
             g["items"].append({
                 "mahsulot": h["mahsulot"], "miqdor": r["miqdor"],
                 "partiya_raqam": h["partiya_raqam"], "return_id": r["id"],
+                "brov_kim": h.get("brov_kim"), "birlik": h.get("birlik"),
             })
     qaytarishlar_guruh = sorted(rgr.values(), key=lambda x: x["sana"], reverse=True)
 

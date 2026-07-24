@@ -188,13 +188,20 @@ def apply(mijoz_id, t):
         target = list(target)
         target.sort(key=lambda x: x[0]["partiya_raqam"])  # eng eski chiqishdan
 
-        # Brovdan: kimdanligi aytilgan bo'lsa — avval o'sha odamdan olingan tovardan ayiramiz
+        # Brovdan tartibi:
+        #  - kimdanligi aytilgan bo'lsa → avval o'sha odamning tovaridan
+        #  - aytilmagan bo'lsa → avval O'ZIMIZNIKIDAN (brovdan olingani tegilmaydi)
         _bk = (getattr(t, "brov_kim", None) or "").strip().lower()
         if _bk:
             _bir = [(p, h) for p, h in target if (p.get("brov_kim") or "").strip().lower() == _bk]
             _boshqa = [(p, h) for p, h in target if (p.get("brov_kim") or "").strip().lower() != _bk]
             if _bir:
                 target = _bir + _boshqa
+        else:
+            _oz = [(p, h) for p, h in target if not (p.get("brov_kim") or "").strip()]
+            _brov = [(p, h) for p, h in target if (p.get("brov_kim") or "").strip()]
+            if _oz and _brov:
+                target = _oz + _brov
 
         # Narx aytilgan bo'lsa: avval aynan shu narxdagilardan (eng eskisidan),
         # yetmasa qolganini eng eski chiqishlardan (boshqa narxdagilardan) ayiramiz.

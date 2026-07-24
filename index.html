@@ -469,7 +469,7 @@
     // Qaytarishlar (bir kunda qaytganlar bitta yozuvda)
     const retCard=(d.qaytarishlar_guruh||[]).length?`<div class="addbox"><div class="t">↩️ Qaytgan mahsulotlar</div>${
       (d.qaytarishlar_guruh||[]).map(g=>`<div class="retg"><div class="retg-d">📅 ${dmy(g.sana)}</div>${
-        g.items.map(it=>`<div class="retg-i"><span>${esc(it.mahsulot)} — <b>${son(it.miqdor)}</b></span>
+        g.items.map(it=>`<div class="retg-i"><span>${esc(it.mahsulot)} — <b>${son(it.miqdor)}</b> ${esc(it.birlik||'')}${it.brov_kim?` <span style="color:#B26A31">🔁 ${esc(it.brov_kim)}</span>`:''}</span>
           <button class="x" onclick="delRet(${it.return_id},${d.id})">×</button></div>`).join('')}</div>`).join('')}</div>`:'';
     const qaydCard=`<div class="addbox"><div class="t">📝 Qayd (o'zimiz uchun)
         <button class="qbtn" id="qtgl" onclick="qaydTgl()">⤢ Kattalashtirish</button></div>
@@ -490,13 +490,16 @@
           <b style="${it.qolgan<=0?'color:var(--pos)':''}">${son(it.qolgan)}/${son(it.miqdor)}${it.qolgan<=0?' ✓ qaytdi':''}</b></div>`).join('')}</div>`).join('')}`:'';
     const brovIn=`<div class="addbox"><div class="t">🔁 Brovdan olindi (shu mijoz uchun)</div>
       ${brovRoy}
-      <input class="f" id="bi_kim${d.id}" placeholder="Kimdan olindi (masalan: Alisher aka)" style="margin-top:8px">
+      <div class="inrow" style="margin-top:8px">
+        <button class="tabb on" id="btabout" onclick="brovTab('chiqish')">📤 Olindi</button>
+        <button class="tabb" id="btabret" onclick="brovTab('qaytarish')">📥 Qaytdi</button></div>
+      <input class="f" id="bi_kim${d.id}" placeholder="Kimdan (masalan: Alisher aka)" style="margin-top:8px">
       <input class="f" id="bi_sana${d.id}" type="date" value="${bugun}" style="margin-top:8px">
       <div id="brows"></div>
       <button class="mini-btn" style="width:100%;margin-top:8px;border-style:dashed" onclick="browAdd()">➕ Yana tovar</button>
-      <button class="send" onclick="brovQator(${d.id})">Qo'shish</button>
+      <button class="send" id="bsendb" onclick="brovQator(${d.id})">Qo'shish</button>
       <div id="berr"></div>
-      <div class="hint">Boshqadan olib turib shu mijozga bergan tovar. <b>Mijozga hisoblanadi</b>, omborga ta'sir qilmaydi.</div></div>`;
+      <div class="hint" id="bhint">Boshqadan olib turib shu mijozga bergan tovar. <b>Mijozga hisoblanadi</b>, omborga ta'sir qilmaydi.</div></div>`;
     const smsBtn=`<button class="smsbtn" onclick="smsPick(${d.id})">📩 Qarz eslatmasi SMS</button><div id="smsbox" class="addbox" style="display:none"></div>`;
     const qolganCard=((d.qolganlar||[]).length)?`<div class="addbox"><div class="t">📦 Qolgan mahsulotlar (hozir mijozda)</div>${
       (d.qolganlar||[]).map(q=>`<div class="retg-i" style="padding:6px 0;border-top:1px solid var(--faint)">
@@ -600,7 +603,7 @@
     if(_y>0) setTimeout(()=>window.scrollTo(0,_y),0);
     window._qolgan=(d.qolganlar||[]).filter(q=>q.qolgan>0).map(q=>q.mahsulot);
     window._qamal='chiqish'; window._qn=0; if(document.getElementById('qrows')) rowAdd();
-    window._bn=0; if(document.getElementById('brows')) browAdd();
+    window._bamal='chiqish'; window._bn=0; if(document.getElementById('brows')) browAdd();
   };
 
   window.tgl=function(id){const el=document.getElementById(id); if(el) el.style.display=el.style.display==='none'?'block':'none';};
@@ -1107,7 +1110,20 @@
   };
 
   // ===== BROVDAN JADVALI =====
-  window._bn=0;
+  window._bn=0; window._bamal='chiqish';
+  window.brovTab=function(a){
+    window._bamal=a;
+    const o=document.getElementById('btabout'), r=document.getElementById('btabret'),
+          b=document.getElementById('bsendb'), h=document.getElementById('bhint');
+    if(o) o.classList.toggle('on', a==='chiqish');
+    if(r) r.classList.toggle('on', a==='qaytarish');
+    if(b) b.textContent = (a==='qaytarish') ? 'Qaytganini yozish' : 'Qo\'shish';
+    if(h) h.innerHTML = (a==='qaytarish')
+      ? 'Brovdan olingan tovar qaytdi. <b>O\'sha odamning tovaridan ayriladi</b>, omborga ta\'sir qilmaydi.'
+      : 'Boshqadan olib turib shu mijozga bergan tovar. <b>Mijozga hisoblanadi</b>, omborga ta\'sir qilmaydi.';
+    const box=document.getElementById('brows'); if(box) box.innerHTML='';
+    window._bn=0; browAdd();
+  };
   window.browAdd=function(){
     const i=++window._bn;
     const box=document.getElementById('brows'); if(!box)return;
@@ -1121,7 +1137,7 @@
       <div class="inrow" style="margin-top:6px">
         <input class="f" id="bq${i}" inputmode="decimal" placeholder="Soni">
         <button class="unitb" id="bu${i}" onclick="bunitTgl(${i})">ta</button>
-        <input class="f" id="bp${i}" inputmode="numeric" placeholder="Narx/kun">
+        ${window._bamal==='qaytarish'?'':`<input class="f" id="bp${i}" inputmode="numeric" placeholder="Narx/kun">`}
         <button class="delrow" onclick="browDel(${i})">🗑</button></div>`;
     box.appendChild(div);
     return i;
@@ -1155,16 +1171,16 @@
       const i=el.id.replace('brow','');
       const m=(document.getElementById('bm'+i).value||'').trim();
       const q=(document.getElementById('bq'+i).value||'').trim();
-      const p=(document.getElementById('bp'+i).value||'').trim();
+      const pe=document.getElementById('bp'+i); const p=pe?(pe.value||'').trim():'';
       const u=(document.getElementById('bu'+i).textContent||'ta').trim();
       if(m||q) rows.push({mahsulot:m,miqdor:q,kunlik_narx:p||0,birlik:u});
     });
     if(!rows.length){toast('Tovar qo\'shing');return;}
     toast('⏳ Qo\'shilyapti…');
     try{const r=await fetch('/api/qator',{method:'POST',headers:{...H,'Content-Type':'application/json'},
-        body:JSON.stringify({mijoz_id:mid,sana,qatorlar:rows,brov_kim:kim})});
+        body:JSON.stringify({mijoz_id:mid,sana,qatorlar:rows,brov_kim:kim,amal:window._bamal||'chiqish'})});
       const d=await r.json();
-      if(d&&d.ok){ xatoTozala('berr'); toast('🔁 '+(d.xabar||'Qo\'shildi')); loadMijoz(mid); }
+      if(d&&d.ok){ xatoTozala('berr'); toast('🔁 '+(d.xabar||'Bajarildi')); loadMijoz(mid); }
       else xatoBox('berr',(d&&d.xabar)||'Xato');
     }catch(e){ xatoBox('berr','Tarmoq xatosi'); }
   };
