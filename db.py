@@ -169,6 +169,24 @@ def init_db():
         con.execute("UPDATE partiyalar SET zakaz_id=? WHERE mijoz_id=? AND mahsulot=? AND zakaz_id IS NULL",
                     (zid, mid, mah))
 
+    # ---------- Yetkazma vazifalari (haydovchi uchun) ----------
+    con.execute("""CREATE TABLE IF NOT EXISTS vazifalar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT,
+        mijoz_id INTEGER NOT NULL, tur TEXT NOT NULL DEFAULT 'yetkazish',
+        manzil TEXT, lat REAL, lon REAL, izoh TEXT,
+        haydovchi TEXT, holat TEXT NOT NULL DEFAULT 'yangi',
+        sana TEXT, yaratilgan TEXT NOT NULL, bajarilgan TEXT,
+        rasm TEXT, imzo TEXT, qabul_qildi TEXT)""")
+    vcols = [r[1] for r in con.execute("PRAGMA table_info(vazifalar)").fetchall()]
+    if "mijoz_nom" not in vcols:
+        con.execute("ALTER TABLE vazifalar ADD COLUMN mijoz_nom TEXT")
+    if "telefon" not in vcols:
+        con.execute("ALTER TABLE vazifalar ADD COLUMN telefon TEXT")
+    con.execute("""CREATE TABLE IF NOT EXISTS vazifa_tovar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, vazifa_id INTEGER NOT NULL,
+        mahsulot TEXT NOT NULL, miqdor REAL NOT NULL,
+        birlik TEXT, kunlik_narx REAL DEFAULT 0)""")
+
     # ---------- Brovdan (boshqadan olib turilgan) ----------
     con.execute("""CREATE TABLE IF NOT EXISTS brovlar (
         id INTEGER PRIMARY KEY AUTOINCREMENT, kim TEXT NOT NULL, mahsulot TEXT NOT NULL,
@@ -1782,6 +1800,24 @@ def init_db():
                               (mid, mah, summ, now_tk().isoformat())).lastrowid
         con.execute("UPDATE partiyalar SET zakaz_id=? WHERE mijoz_id=? AND mahsulot=? AND zakaz_id IS NULL",
                     (zid, mid, mah))
+
+    # ---------- Yetkazma vazifalari (haydovchi uchun) ----------
+    con.execute("""CREATE TABLE IF NOT EXISTS vazifalar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT,
+        mijoz_id INTEGER NOT NULL, tur TEXT NOT NULL DEFAULT 'yetkazish',
+        manzil TEXT, lat REAL, lon REAL, izoh TEXT,
+        haydovchi TEXT, holat TEXT NOT NULL DEFAULT 'yangi',
+        sana TEXT, yaratilgan TEXT NOT NULL, bajarilgan TEXT,
+        rasm TEXT, imzo TEXT, qabul_qildi TEXT)""")
+    vcols = [r[1] for r in con.execute("PRAGMA table_info(vazifalar)").fetchall()]
+    if "mijoz_nom" not in vcols:
+        con.execute("ALTER TABLE vazifalar ADD COLUMN mijoz_nom TEXT")
+    if "telefon" not in vcols:
+        con.execute("ALTER TABLE vazifalar ADD COLUMN telefon TEXT")
+    con.execute("""CREATE TABLE IF NOT EXISTS vazifa_tovar (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, vazifa_id INTEGER NOT NULL,
+        mahsulot TEXT NOT NULL, miqdor REAL NOT NULL,
+        birlik TEXT, kunlik_narx REAL DEFAULT 0)""")
 
     # ---------- Brovdan (boshqadan olib turilgan) ----------
     con.execute("""CREATE TABLE IF NOT EXISTS brovlar (
@@ -3417,3 +3453,147 @@ def mijoz_ochiq(token, today=None):
                      for t in (d.get("tolovlar") or [])],
         "sana": now_tk().strftime("%d.%m.%Y %H:%M"),
     }
+
+
+# ================= YETKAZMA VAZIFALARI =================
+def vazifa_qosh(mijoz_id, tovarlar, tur="yetkazish", manzil=None, lat=None, lon=None,
+                izoh=None, haydovchi=None, sana=None, mijoz_nom=None, telefon=None):
+    import secrets as _sec
+    if mijoz_id and not get_mijoz(mijoz_id):
+        return {"ok": False, "xato": "Mijoz topilmadi"}
+    if not mijoz_id and not (mijoz_nom or "").strip():
+        return {"ok": False, "xato": "Mijoz yoki ism kerak"}
+    mijoz_id = int(mijoz_id or 0)   # 0 = mijoz hali tanlanmagan
+    tovarlar = [t for t in (tovarlar or []) if (t.get("mahsulot") or "").strip()]
+    if not tovarlar:
+        return {"ok": False, "xato": "Tovar qo'shing"}
+    con = _con()
+    cur = con.execute(
+        """INSERT INTO vazifalar (token, mijoz_id, tur, manzil, lat, lon, izoh, haydovchi, holat, sana, yaratilgan, mijoz_nom, telefon)
+           VALUES (?,?,?,?,?,?,?,?,'yangi',?,?,?,?)""",
+        (_sec.token_urlsafe(9), mijoz_id, ("olib_kelish" if str(tur).startswith("olib") else "yetkazish"),
+         (manzil or None), lat, lon, (izoh or None), (haydovchi or None),
+         str(sana or today_tk().isoformat())[:10], now_tk().isoformat(),
+         (mijoz_nom or None), clean_phone(telefon)))
+    vid = cur.lastrowid
+    for t in tovarlar:
+        try:
+            miq = float(str(t.get("miqdor") or 0).replace(",", "."))
+        except Exception:
+            miq = 0
+        if miq <= 0:
+            continue
+        try:
+            narx = float(str(t.get("kunlik_narx") or 0).replace(",", "."))
+        except Exception:
+            narx = 0
+        con.execute("INSERT INTO vazifa_tovar (vazifa_id, mahsulot, miqdor, birlik, kunlik_narx) VALUES (?,?,?,?,?)",
+                    (vid, (t.get("mahsulot") or "").strip(), miq,
+                     ("kom" if str(t.get("birlik") or "").lower().startswith("kom") else "ta"), narx))
+    con.commit()
+    tok = con.execute("SELECT token FROM vazifalar WHERE id=?", (vid,)).fetchone()[0]
+    con.close()
+    return {"ok": True, "id": vid, "token": tok}
+
+
+def _vazifa_row(r, con):
+    d = dict(r)
+    d["tovarlar"] = [dict(x) for x in con.execute(
+        "SELECT mahsulot, miqdor, birlik, kunlik_narx FROM vazifa_tovar WHERE vazifa_id=?", (r["id"],)).fetchall()]
+    m = con.execute("SELECT ism, telefon FROM mijozlar WHERE id=?", (r["mijoz_id"],)).fetchone() if r["mijoz_id"] else None
+    d["mijoz"] = (m["ism"] if m else (d.get("mijoz_nom") or "Yangi mijoz"))
+    d["telefon"] = (m["telefon"] if m else d.get("telefon"))
+    return d
+
+
+def vazifalar(holat=None, limit=100):
+    con = _con()
+    if holat:
+        rows = con.execute("SELECT * FROM vazifalar WHERE holat=? ORDER BY id DESC LIMIT ?",
+                           (holat, limit)).fetchall()
+    else:
+        rows = con.execute("SELECT * FROM vazifalar ORDER BY (holat='bajarildi'), id DESC LIMIT ?",
+                           (limit,)).fetchall()
+    out = [_vazifa_row(r, con) for r in rows]
+    con.close()
+    return out
+
+
+def vazifa_by_token(token):
+    con = _con()
+    r = con.execute("SELECT * FROM vazifalar WHERE token=?", ((token or "").strip(),)).fetchone()
+    d = _vazifa_row(r, con) if r else None
+    con.close()
+    return d
+
+
+def vazifa_holat(vazifa_id, holat):
+    if holat not in ("yangi", "yolda", "bajarildi", "bekor"):
+        return {"ok": False, "xato": "holat"}
+    con = _con()
+    con.execute("UPDATE vazifalar SET holat=? WHERE id=?", (holat, vazifa_id))
+    con.commit()
+    con.close()
+    return {"ok": True}
+
+
+def vazifa_ochir(vazifa_id):
+    con = _con()
+    con.execute("DELETE FROM vazifa_tovar WHERE vazifa_id=?", (vazifa_id,))
+    con.execute("DELETE FROM vazifalar WHERE id=?", (vazifa_id,))
+    con.commit()
+    con.close()
+    return {"ok": True}
+
+
+def vazifa_bajarildi(vazifa_id, rasm=None, imzo=None, qabul_qildi=None):
+    con = _con()
+    con.execute("""UPDATE vazifalar SET holat='bajarildi', bajarilgan=?, rasm=COALESCE(?,rasm),
+                   imzo=COALESCE(?,imzo), qabul_qildi=COALESCE(?,qabul_qildi) WHERE id=?""",
+                (now_tk().isoformat(), rasm, imzo, (qabul_qildi or None), vazifa_id))
+    con.commit()
+    con.close()
+    return {"ok": True}
+
+
+def mijoz_by_phone(tel):
+    """Telefon raqami bo'yicha mijozni topadi (bir nechta raqamli mijozlar ham)."""
+    t = clean_phone(tel)
+    if not t:
+        return None
+    t9 = t[-9:] if len(t) >= 9 else t
+    con = _con()
+    rows = con.execute("SELECT id, telefon FROM mijozlar ORDER BY id").fetchall()
+    con.close()
+    for r in rows:
+        for x in phone_list(r["telefon"]):
+            xx = x[-9:] if len(x) >= 9 else x
+            if xx and xx == t9:
+                return r["id"]
+    return None
+
+
+def vazifa_mijozini_aniqla(vazifa, telefon=None, bolim="ijara"):
+    """Tasdiqlashda: raqam bo'yicha mijozni topadi, bo'lmasa yangisini ochadi.
+    Qaytaradi: (mijoz_id, yangimi)"""
+    tel = clean_phone(telefon) or clean_phone(vazifa.get("telefon"))
+    if tel:
+        mid = mijoz_by_phone(tel)
+        if mid:
+            # raqam mijozda yo'q bo'lsa — qo'shib qo'yamiz
+            m = get_mijoz(mid)
+            bor = phone_list(m["telefon"]) if m else []
+            if tel not in bor:
+                update_mijoz(mid, m["ism"], " ".join(bor + [tel]))
+            return (mid, False)
+    if vazifa.get("mijoz_id"):
+        mid = vazifa["mijoz_id"]
+        if get_mijoz(mid):
+            if tel:
+                m = get_mijoz(mid)
+                bor = phone_list(m["telefon"])
+                if tel not in bor:
+                    update_mijoz(mid, m["ism"], " ".join(bor + [tel]))
+            return (mid, False)
+    ism = (vazifa.get("mijoz_nom") or "").strip() or (f"Yangi mijoz {tel[-4:]}" if tel else "Yangi mijoz")
+    return (add_mijoz(ism, tel, bolim=bolim), True)

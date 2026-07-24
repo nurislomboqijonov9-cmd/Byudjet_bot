@@ -496,6 +496,24 @@
         <button class="mini-btn" style="color:#2E7D5B;border-color:#2E7D5B" onclick="setTur(${d.id},'naqd')">💵 Naqd</button>
         <button class="mini-btn" style="color:#7A4FC0;border-color:#7A4FC0" onclick="setTur(${d.id},'perech')">🏦 Perechisleniye</button>
         <button class="mini-btn" onclick="setTur(${d.id},'')">✖️ Tozalash</button></div></div>`;
+    let vazCard='';
+    try{ vazCard=`      <div class="addbox"><div class="t">🚚 Haydovchiga vazifa</div>
+        <div class="inrow" style="margin-bottom:8px">
+          <button class="tabb on" id="vtab1" onclick="vazTur('yetkazish')">📤 Yetkazish</button>
+          <button class="tabb" id="vtab2" onclick="vazTur('olib_kelish')">📥 Olib kelish</button></div>
+        <input class="f" id="v_manzil" placeholder="📍 Manzil" value="${esc(d.adres||'')}">
+        <div class="inrow" style="margin-top:8px">
+          <input class="f" id="v_lat" inputmode="decimal" placeholder="Kenglik (lat)">
+          <input class="f" id="v_lon" inputmode="decimal" placeholder="Uzunlik (lon)"></div>
+        <div class="hint" style="margin:6px 0">Lokatsiya kiritsangiz — haydovchi navigator bilan boradi. Bo'sh qoldirsangiz manzil bo'yicha qidiradi.</div>
+        <div class="inrow"><input class="f" id="v_sana" type="date" value="${bugun}">
+          <input class="f" id="v_haydovchi" placeholder="Haydovchi (ixtiyoriy)"></div>
+        <div id="vrows"></div>
+        <button class="mini-btn" style="width:100%;margin-top:8px;border-style:dashed" onclick="vazRowAdd()">➕ Yana tovar</button>
+        <input class="f" id="v_izoh" placeholder="Izoh (ixtiyoriy)" style="margin-top:8px">
+        <button class="send" onclick="vazYarat(${d.id})">Vazifa yaratish</button>
+        <div id="verr"></div>
+        <div id="vlist"></div></div>`; }catch(e){ vazCard=''; }
     const brovRoy=((d.brovdan||[]).length)?`${(d.brovdan||[]).map(g=>`<div class="mzg">
         <div class="mzg-h">🔁 ${esc(g.kim)}</div>${
         g.items.map(it=>`<div class="mzg-i"><span>${esc(it.mahsulot)}</span>
@@ -614,6 +632,7 @@
       ${qolganCard}
       ${manzilCard}
       ${retCard}
+      ${vazCard}
       ${d.token?`<div class="addbox"><div class="t">🔗 Mijoz uchun havola</div>
         <div class="hint" style="margin:0 0 8px">Mijoz shu havoladan o'z qarzini ko'radi. Har doim yangilanib turadi — bir marta yuborsangiz yetadi.</div>
         <input class="f" id="mlink" readonly value="${location.origin}/m/${esc(d.token)}" onclick="this.select()">
@@ -624,6 +643,7 @@
     loadTovarlar();
     window._qamal='chiqish'; window._qn=0; if(document.getElementById('qrows')) rowAdd();
     window._bamal='chiqish'; window._bn=0; if(document.getElementById('brows')) browAdd();
+    window._vtur='yetkazish'; window._vn=0; if(document.getElementById('vrows')) vazRowAdd();
   };
 
   window.tgl=function(id){const el=document.getElementById(id); if(el) el.style.display=el.style.display==='none'?'block':'none';};
@@ -1278,6 +1298,88 @@
       else { loginEkran((d&&d.xato)||'Login yoki parol noto\'g\'ri'); }
     }catch(e){ loginEkran('Tarmoq xatosi'); }
   };
+  // ===== HAYDOVCHIGA VAZIFA =====
+  window._vn=0; window._vtur='yetkazish';
+  window.vazTur=function(t){
+    window._vtur=t;
+    const a=document.getElementById('vtab1'), b=document.getElementById('vtab2');
+    if(a) a.classList.toggle('on', t==='yetkazish');
+    if(b) b.classList.toggle('on', t==='olib_kelish');
+  };
+  window.vazRowAdd=function(){
+    const i=++window._vn, box=document.getElementById('vrows'); if(!box)return;
+    const div=document.createElement('div');
+    div.className='qrow'; div.id='vrow'+i;
+    div.innerHTML=`<div class="pickwrap">
+        <input class="f" id="vm${i}" placeholder="Mahsulot — bosing yoki yozing" autocomplete="off"
+          oninput="vpickShow(${i})" onfocus="vpickShow(${i},1)">
+        <button class="pickb" onclick="vpickShow(${i},1,1)">▾</button>
+        <div class="picklist" id="vpl${i}"></div></div>
+      <div class="inrow" style="margin-top:6px">
+        <input class="f" id="vq${i}" inputmode="decimal" placeholder="Soni">
+        <button class="unitb" id="vu${i}" onclick="vunitTgl(${i})">ta</button>
+        <input class="f" id="vp${i}" inputmode="numeric" placeholder="Narx/kun">
+        <button class="delrow" onclick="vazRowDel(${i})">🗑</button></div>`;
+    box.appendChild(div);
+  };
+  window.vazRowDel=function(i){const el=document.getElementById('vrow'+i); if(el) el.remove();};
+  window.vpickShow=function(i,hammasi,tugma){
+    const inp=document.getElementById('vm'+i), lst=document.getElementById('vpl'+i);
+    if(!inp||!lst)return;
+    if(tugma && lst.style.display==='block'){lst.style.display='none';return;}
+    const q=(inp.value||'').toLowerCase().trim();
+    let arr=window._tovarlar||[];
+    if(q && !hammasi) arr=arr.filter(n=>n.toLowerCase().includes(q));
+    if(!arr.length){lst.style.display='none';return;}
+    lst.innerHTML=arr.map(n=>`<div onclick="vpickSet(${i},'${n.replace(/'/g,"\\'")}')">${esc(n)}</div>`).join('');
+    lst.style.display='block';
+  };
+  window.vpickSet=function(i,nom){
+    const inp=document.getElementById('vm'+i), lst=document.getElementById('vpl'+i), u=document.getElementById('vu'+i);
+    if(inp) inp.value=nom; if(lst) lst.style.display='none';
+    const b=(window._tbir||{})[nom]; if(u&&b) u.textContent=b;
+    const q=document.getElementById('vq'+i); if(q) q.focus();
+  };
+  window.vunitTgl=function(i){const u=document.getElementById('vu'+i); if(u) u.textContent=(u.textContent.trim()==='ta')?'kom':'ta';};
+  window.vazYarat=async function(mid){
+    const rows=[];
+    document.querySelectorAll('#vrows .qrow').forEach(el=>{
+      const i=el.id.replace('vrow','');
+      const m=(document.getElementById('vm'+i).value||'').trim();
+      const q=(document.getElementById('vq'+i).value||'').trim();
+      const p=(document.getElementById('vp'+i).value||'').trim();
+      const u=(document.getElementById('vu'+i).textContent||'ta').trim();
+      if(m&&q) rows.push({mahsulot:m,miqdor:q,kunlik_narx:p||0,birlik:u});
+    });
+    if(!rows.length){toast('Tovar qo\'shing');return;}
+    const b={mijoz_id:mid, tur:window._vtur||'yetkazish',
+      manzil:(document.getElementById('v_manzil').value||'').trim(),
+      lat:(document.getElementById('v_lat').value||'').trim(),
+      lon:(document.getElementById('v_lon').value||'').trim(),
+      sana:(document.getElementById('v_sana')||{}).value,
+      haydovchi:(document.getElementById('v_haydovchi').value||'').trim(),
+      izoh:(document.getElementById('v_izoh').value||'').trim(), tovarlar:rows};
+    toast('⏳ Yaratilyapti…');
+    try{const r=await fetch('/api/vazifa_qosh',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify(b)});
+      const d=await r.json();
+      if(d&&d.ok){
+        xatoTozala('verr');
+        const link=location.origin+'/v/'+d.token;
+        document.getElementById('vlist').innerHTML=
+          `<div class="errbox" style="background:rgba(30,122,90,.10);border-color:#9CCFB8;color:#14603F">
+            ✅ Vazifa tayyor. Haydovchiga shu havolani yuboring:
+            <input class="f" id="vlink" readonly value="${link}" onclick="this.select()" style="margin-top:8px">
+            <button class="mini-btn" style="width:100%;margin-top:8px" onclick="vazNusxa()">📋 Nusxa olish</button></div>`;
+        toast('🚚 Vazifa yaratildi');
+      } else xatoBox('verr',(d&&d.xato)||'Xato');
+    }catch(e){ xatoBox('verr','Tarmoq xatosi'); }
+  };
+  window.vazNusxa=function(){
+    const el=document.getElementById('vlink'); if(!el)return;
+    el.select(); el.setSelectionRange(0,99999);
+    try{ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(el.value);}
+         else{document.execCommand('copy');} toast('📋 Nusxalandi'); }catch(e){ toast('Qo\'lda nusxalang'); }
+  };
   window.havolaNusxa=function(){
     const el=document.getElementById('mlink'); if(!el)return;
     el.select(); el.setSelectionRange(0,99999);
@@ -1288,7 +1390,7 @@
     }catch(e){ toast('Havolani qo\'lda nusxalang'); }
   };
   window.chiqish=function(){ tokenSet(''); loginEkran(); };
-  window.APPV='94';   // yuklangan versiya (nosozlikni aniqlash uchun)
+  window.APPV='96';   // yuklangan versiya (nosozlikni aniqlash uchun)
 
   // Telegram ichida bo'lsa — to'g'ridan-to'g'ri, aks holda token / login
   if ((tg && tg.initData) || tokenGet()) { loadList(); } else { loginEkran(); }

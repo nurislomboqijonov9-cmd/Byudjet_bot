@@ -144,6 +144,124 @@ def make_web_app(bot_token):
         d["tel"] = os.getenv("FIRMA_TEL", "")
         return web.json_response(d, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
 
+    # ---- Haydovchi sahifasi (login talab qilinmaydi, havola maxfiy) ----
+    RASM_DIR = Path(os.getenv("DATA_DIR", "/data")) / "rasm"
+
+    def _rasm_saqla(data_url, old="v"):
+        """base64 data-url ni faylga yozadi, fayl nomini qaytaradi."""
+        import base64, secrets, re as _re
+        if not data_url or "," not in data_url:
+            return None
+        bosh, b64 = data_url.split(",", 1)
+        kengaytma = "png" if "png" in bosh else "jpg"
+        try:
+            xom = base64.b64decode(b64)
+        except Exception:
+            return None
+        if len(xom) > 6 * 1024 * 1024:
+            return None
+        RASM_DIR.mkdir(parents=True, exist_ok=True)
+        nom = f"{old}-{secrets.token_urlsafe(8)}.{kengaytma}"
+        (RASM_DIR / nom).write_bytes(xom)
+        return nom
+
+    async def haydovchi_sahifa(request):
+        yol = Path(__file__).parent / "haydovchi.html"
+        if not yol.exists():
+            return web.Response(status=404)
+        return web.FileResponse(yol, headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate", "X-Robots-Tag": "noindex"})
+
+    async def api_vazifa_ochiq(request):
+        d = db.vazifa_by_token(request.match_info.get("token", ""))
+        if not d:
+            return web.json_response({"xato": "topilmadi"}, status=404)
+        return web.json_response(d, headers={"Cache-Control": "no-store"})
+
+    async def api_v_holat(request):
+        try:
+            b = await request.json()
+            v = db.vazifa_by_token(b.get("token"))
+            if not v:
+                return web.json_response({"ok": False, "xato": "topilmadi"}, status=404)
+            return web.json_response(db.vazifa_holat(v["id"], b.get("holat")))
+        except Exception:
+            return web.json_response({"ok": False}, status=400)
+
+    async def api_v_bajar(request):
+        try:
+            b = await request.json()
+            v = db.vazifa_by_token(b.get("token"))
+            if not v:
+                return web.json_response({"ok": False, "xato": "topilmadi"}, status=404)
+            if v["holat"] == "bajarildi":
+                return web.json_response({"ok": True, "xabar": "Allaqachon tasdiqlangan"})
+            rasm = _rasm_saqla(b.get("rasm"), "r")
+            imzo = _rasm_saqla(b.get("imzo"), "i")
+            db.vazifa_bajarildi(v["id"], rasm, imzo, b.get("qabul_qildi"))
+            # Telefon bo'yicha mijozni aniqlaymiz: bor bo'lsa o'shanga, yo'q bo'lsa yangi yacheyka
+            mid, yangi = db.vazifa_mijozini_aniqla(v, b.get("telefon"))
+            qatorlar = [{"mahsulot": t["mahsulot"], "miqdor": t["miqdor"],
+                         "birlik": t.get("birlik"), "kunlik_narx": t.get("kunlik_narx") or 0}
+                        for t in (v.get("tovarlar") or [])]
+            sana = db.today_tk().isoformat()
+            if v["tur"] == "olib_kelish":
+                res = logic.qator_qaytarish(mid, qatorlar, sana)
+            else:
+                res = logic.qator_chiqish(mid, qatorlar, sana, manzil=v.get("manzil"))
+            xabar = res.get("xabar") or "Tasdiqlandi"
+            if yangi:
+                xabar += " · yangi mijoz ochildi"
+            return web.json_response({"ok": True, "xabar": xabar})
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return web.json_response({"ok": False, "xato": f"{type(e).__name__}"}, status=500)
+
+    async def rasm_fayl(request):
+        nom = request.match_info.get("nom", "")
+        if not nom or "/" in nom or "\\" in nom or ".." in nom:
+            return web.Response(status=404)
+        yol = RASM_DIR / nom
+        if not yol.exists():
+            return web.Response(status=404)
+        return web.FileResponse(yol, headers={"Cache-Control": "public, max-age=86400",
+                                              "X-Robots-Tag": "noindex"})
+
+    # ---- Vazifalar (menejer uchun, login bilan) ----
+    async def api_vazifalar(request):
+        uid, err = check(request)
+        if err:
+            return err
+        return web.json_response({"vazifalar": db.vazifalar(request.query.get("holat") or None)})
+
+    async def api_vazifa_qosh(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            lat = b.get("lat"); lon = b.get("lon")
+            mid = b.get("mijoz_id")
+            res = db.vazifa_qosh(int(mid) if mid not in (None, "", 0) else None, b.get("tovarlar") or [],
+                                 tur=b.get("tur") or "yetkazish", manzil=b.get("manzil"),
+                                 lat=float(lat) if lat not in (None, "") else None,
+                                 lon=float(lon) if lon not in (None, "") else None,
+                                 izoh=b.get("izoh"), haydovchi=b.get("haydovchi"), sana=b.get("sana"),
+                                 mijoz_nom=b.get("mijoz_nom"), telefon=b.get("telefon"))
+            return web.json_response(res)
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
+    async def api_vazifa_ochir(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            return web.json_response(db.vazifa_ochir(int(b.get("id"))))
+        except Exception:
+            return web.json_response({"ok": False}, status=400)
+
     async def api_login(request):
         try:
             b = await request.json()
@@ -725,6 +843,14 @@ def make_web_app(bot_token):
     app.router.add_get("/", index)
     app.router.add_post("/api/login", api_login)
     app.router.add_get("/m/{token}", mijoz_sahifa)
+    app.router.add_get("/v/{token}", haydovchi_sahifa)
+    app.router.add_get("/api/v/{token}", api_vazifa_ochiq)
+    app.router.add_post("/api/v_holat", api_v_holat)
+    app.router.add_post("/api/v_bajar", api_v_bajar)
+    app.router.add_get("/rasm/{nom}", rasm_fayl)
+    app.router.add_get("/api/vazifalar", api_vazifalar)
+    app.router.add_post("/api/vazifa_qosh", api_vazifa_qosh)
+    app.router.add_post("/api/vazifa_ochir", api_vazifa_ochir)
     app.router.add_get("/api/m/{token}", api_mijoz_ochiq)
     app.router.add_get("/manifest.json", manifest)
     app.router.add_get("/sw.js", sw_js)

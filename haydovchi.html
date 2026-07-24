@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="robots" content="noindex, nofollow">
+<title>Temirchi — yetkazma</title>
+<link rel="icon" href="/icon-192.png">
+<meta name="theme-color" content="#16336B">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+  :root{--navy:#16336B;--bg:#F6F7F9;--card:#FFFFFF;--ink:#0A1729;--soft:#6B7A90;
+        --line:#E4E9F0;--faint:#EDF1F6;--pos:#1E7A5A;--neg:#C4553C;--latun:#C08A2E;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;max-width:560px;margin:0 auto;
+       padding:0 14px 40px;line-height:1.45;-webkit-font-smoothing:antialiased;}
+  .bar{position:sticky;top:0;z-index:20;margin:0 -14px 14px;padding:11px 16px 12px;
+       background:linear-gradient(180deg,#16336B,#122A57);display:flex;align-items:center;
+       box-shadow:0 2px 14px rgba(10,23,41,.18);}
+  .bar .logo{width:112px;height:29px;background:url('/logo.png') left center/contain no-repeat;}
+  .bar .vaqt{margin-left:auto;font-family:'IBM Plex Mono';font-size:11px;color:rgba(255,255,255,.7);}
+  h1{font-family:'Archivo';font-weight:800;font-size:23px;letter-spacing:-.025em;margin:4px 0 2px;}
+  .eyebrow{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--soft);}
+  .karta{background:var(--card);border-radius:18px;padding:15px;margin-top:12px;
+    box-shadow:0 1px 2px rgba(10,23,41,.05),0 6px 18px -14px rgba(10,23,41,.26);}
+  .karta .t{font-family:'Archivo';font-weight:700;font-size:13px;letter-spacing:.02em;margin-bottom:10px;}
+  .satr{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-top:1px solid var(--line);gap:10px;}
+  .satr:first-of-type{border-top:none;}
+  .satr .nm{font-weight:600;font-size:15px;}
+  .satr b{font-family:'IBM Plex Mono';font-weight:600;font-size:15px;white-space:nowrap;}
+  .manzil{background:linear-gradient(145deg,#16336B,#0E2350);color:#fff;border-radius:18px;padding:18px;margin-top:12px;
+    position:relative;overflow:hidden;box-shadow:0 16px 30px -18px rgba(22,51,107,.6);}
+  .manzil::before{content:'';position:absolute;inset:0;opacity:.12;
+    background-image:linear-gradient(45deg,rgba(255,255,255,.5) 1px,transparent 1px),
+                     linear-gradient(-45deg,rgba(255,255,255,.5) 1px,transparent 1px);background-size:24px 24px;}
+  .manzil .lbl{position:relative;font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.2em;
+    text-transform:uppercase;color:rgba(255,255,255,.6);}
+  .manzil .adr{position:relative;font-family:'Archivo';font-weight:700;font-size:18px;margin-top:6px;line-height:1.3;}
+  .manzil .tel{position:relative;font-family:'IBM Plex Mono';font-size:13px;color:rgba(255,255,255,.75);margin-top:6px;}
+  .tugma{width:100%;padding:15px;border-radius:14px;border:none;cursor:pointer;font-family:'Archivo';
+    font-weight:700;font-size:15px;margin-top:10px;display:block;text-align:center;text-decoration:none;}
+  .asosiy{background:linear-gradient(135deg,#16336B,#0F2650);color:#fff;box-shadow:0 10px 20px -12px rgba(22,51,107,.8);}
+  .nav{background:linear-gradient(135deg,#C08A2E,#A26F1E);color:#fff;box-shadow:0 10px 20px -12px rgba(192,138,46,.7);}
+  .yashil{background:linear-gradient(135deg,#1E7A5A,#14603F);color:#fff;box-shadow:0 10px 20px -12px rgba(30,122,90,.7);}
+  .ikkinchi{background:#fff;color:var(--navy);border:1.5px solid var(--line);}
+  .f{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:12px;font-size:16px;
+     font-family:inherit;background:#fff;color:var(--ink);outline:none;margin-top:8px;}
+  .imzo{border:2px dashed var(--line);border-radius:14px;background:#fff;margin-top:8px;touch-action:none;display:block;width:100%;}
+  .hint{font-size:11.5px;color:var(--soft);margin-top:8px;line-height:1.5;}
+  .badge{display:inline-block;font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;
+    text-transform:uppercase;padding:4px 10px;border-radius:8px;}
+  .b-yangi{background:rgba(192,138,46,.14);color:#8A6318;}
+  .b-yolda{background:rgba(46,90,168,.14);color:#2E5AA8;}
+  .b-bajarildi{background:rgba(30,122,90,.14);color:var(--pos);}
+  .yuk{text-align:center;padding:60px 0;color:var(--soft);}
+  .spin{width:26px;height:26px;border:2.5px solid var(--line);border-top-color:var(--navy);
+    border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 12px;}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .xato{background:#FBEAE4;border:1px solid #E3B4A4;color:#8E3B22;border-radius:14px;padding:16px;margin-top:20px;text-align:center;}
+  #toast{position:fixed;left:14px;right:14px;bottom:18px;z-index:99;}
+  .toast{background:var(--ink);color:#fff;padding:13px 16px;border-radius:12px;font-size:14px;text-align:center;
+    box-shadow:0 10px 30px rgba(0,0,0,.25);}
+  .oldko{max-width:100%;border-radius:12px;margin-top:8px;display:block;}
+</style>
+</head>
+<body>
+  <div class="bar"><div class="logo"></div><div class="vaqt" id="vaqt"></div></div>
+  <div id="app"><div class="yuk"><div class="spin"></div>Yuklanmoqda…</div></div>
+  <div id="toast"></div>
+
+<script>
+  const som=n=>{n=Math.round(Number(n)||0);return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');};
+  const son=n=>{n=Number(n)||0;return Number.isInteger(n)?n:parseFloat(n.toFixed(2)).toString();};
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const dmy=s=>{const p=String(s||'').slice(0,10).split('-');return p.length===3?`${p[2]}.${p[1]}.${p[0].slice(2)}`:s;};
+  function toast(m){const t=document.getElementById('toast');t.innerHTML='<div class="toast">'+esc(m)+'</div>';setTimeout(()=>t.innerHTML='',3500);}
+  function soat(){try{const f=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tashkent',day:'2-digit',month:'2-digit',
+      year:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});const p={};
+      for(const x of f.formatToParts(new Date()))p[x.type]=x.value;
+      return `${p.day}.${p.month}.${p.year} · ${p.hour}:${p.minute}`;}catch(e){return '';}}
+  setInterval(()=>{const e=document.getElementById('vaqt');if(e)e.textContent=soat();},1000);
+
+  const token=location.pathname.split('/').filter(Boolean).pop();
+  const app=document.getElementById('app');
+  let V=null, rasmData=null, imzoBosh=false;
+
+  async function yukla(){
+    try{const r=await fetch('/api/v/'+encodeURIComponent(token));
+      if(!r.ok)throw 0; V=await r.json(); chiz();
+    }catch(e){ app.innerHTML='<div class="xato">Vazifa topilmadi yoki bekor qilingan.</div>'; }
+  }
+
+  function navHavola(){
+    if(V.lat&&V.lon) return 'https://yandex.uz/maps/?rtext=~'+V.lat+','+V.lon+'&rtt=auto';
+    const q=encodeURIComponent(V.manzil||V.mijoz||'');
+    return 'https://yandex.uz/maps/?text='+q;
+  }
+
+  function chiz(){
+    const bajarildi = V.holat==='bajarildi';
+    const tur = V.tur==='olib_kelish' ? 'Olib kelish' : 'Yetkazish';
+    const badge = {yangi:['b-yangi','Yangi'],yolda:['b-yolda','Yo\'lda'],
+                   bajarildi:['b-bajarildi','Bajarildi'],bekor:['b-yangi','Bekor']}[V.holat]||['b-yangi',V.holat];
+
+    app.innerHTML=`
+      <div class="eyebrow">${esc(tur)} · ${dmy(V.sana)}</div>
+      <h1>${esc(V.mijoz)}</h1>
+      <div style="margin-top:6px"><span class="badge ${badge[0]}">${badge[1]}</span></div>
+
+      <div class="manzil">
+        <div class="lbl">Manzil</div>
+        <div class="adr">${esc(V.manzil||'Manzil ko\'rsatilmagan')}</div>
+        ${V.telefon?`<div class="tel">📞 ${esc(V.telefon)}</div>`:''}
+      </div>
+      <a class="tugma nav" href="${navHavola()}" target="_blank" rel="noopener">🧭 Yo'lga tushish</a>
+      ${V.telefon?`<a class="tugma ikkinchi" href="tel:${esc((V.telefon||'').split(' ')[0])}">📞 Mijozga qo'ng'iroq</a>`:''}
+
+      <div class="karta"><div class="t">📦 ${V.tur==='olib_kelish'?'Olib kelinadi':'Yetkaziladi'}</div>
+        ${(V.tovarlar||[]).map(t=>`<div class="satr"><span class="nm">${esc(t.mahsulot)}</span>
+          <b>${son(t.miqdor)} ${esc(t.birlik||'')}</b></div>`).join('')}
+        ${V.izoh?`<div class="hint">📝 ${esc(V.izoh)}</div>`:''}</div>
+
+      ${bajarildi ? tugallanganHtml() : jarayonHtml()}`;
+
+    if(!bajarildi) imzoTayyorla();
+  }
+
+  function tugallanganHtml(){
+    return `<div class="karta"><div class="t">✅ Bajarildi</div>
+      <div class="hint">${esc((V.bajarilgan||'').replace('T',' ').slice(0,16))}
+        ${V.qabul_qildi?' · qabul qildi: '+esc(V.qabul_qildi):''}</div>
+      ${V.rasm?`<img class="oldko" src="/rasm/${esc(V.rasm)}" alt="surat">`:''}
+      ${V.imzo?`<img class="oldko" style="background:#fff" src="/rasm/${esc(V.imzo)}" alt="imzo">`:''}</div>`;
+  }
+
+  function jarayonHtml(){
+    return `
+      ${V.holat==='yangi'?`<button class="tugma asosiy" onclick="yolda()">🚚 Yo'lga chiqdim</button>`:''}
+      <div class="karta"><div class="t">📸 Yetkazishni tasdiqlash</div>
+        <input class="f" id="kim" placeholder="Kim qabul qildi (ismi)" value="${esc(V.qabul_qildi||'')}">
+        <input class="f" id="tel" inputmode="tel" placeholder="📞 Mijoz telefon raqami" value="${esc((V.telefon||'').split(' ')[0]||'')}">
+        <div class="hint" style="margin-top:4px">Bu raqamli mijoz bo'lsa — o'sha hisobga yoziladi, bo'lmasa yangisi ochiladi.</div>
+        <label class="tugma ikkinchi" style="margin-top:8px">📷 Surat olish
+          <input type="file" accept="image/*" capture="environment" style="display:none" onchange="rasmTanla(this)"></label>
+        <div id="rasmko"></div>
+        <div class="hint" style="margin-top:12px">✍️ Mijoz imzosi (barmoq bilan chizing):</div>
+        <canvas class="imzo" id="imzo" height="150"></canvas>
+        <button class="tugma ikkinchi" style="margin-top:6px;padding:9px" onclick="imzoTozala()">Imzoni tozalash</button>
+        <button class="tugma yashil" onclick="tasdiqla()">✅ Yetkazildi — tasdiqlash</button>
+        <div class="hint">Tasdiqlagach tovar mijoz hisobiga yoziladi.</div></div>`;
+  }
+
+  window.rasmTanla=function(inp){
+    const f=inp.files&&inp.files[0]; if(!f)return;
+    const rd=new FileReader();
+    rd.onload=()=>{
+      const im=new Image();
+      im.onload=()=>{
+        const max=1100, k=Math.min(1, max/Math.max(im.width,im.height));
+        const c=document.createElement('canvas');
+        c.width=Math.round(im.width*k); c.height=Math.round(im.height*k);
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        rasmData=c.toDataURL('image/jpeg',0.72);
+        document.getElementById('rasmko').innerHTML='<img class="oldko" src="'+rasmData+'">';
+      };
+      im.src=rd.result;
+    };
+    rd.readAsDataURL(f);
+  };
+
+  function imzoTayyorla(){
+    const c=document.getElementById('imzo'); if(!c)return;
+    c.width=c.offsetWidth;
+    const x=c.getContext('2d');
+    x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height);
+    x.lineWidth=2.4; x.lineCap='round'; x.lineJoin='round'; x.strokeStyle='#0A1729';
+    let chiz=false;
+    const nuqta=e=>{const r=c.getBoundingClientRect();
+      const t=(e.touches&&e.touches[0])||e;
+      return {x:t.clientX-r.left, y:t.clientY-r.top};};
+    const bosh=e=>{e.preventDefault();chiz=true;imzoBosh=true;const p=nuqta(e);x.beginPath();x.moveTo(p.x,p.y);};
+    const yur=e=>{if(!chiz)return;e.preventDefault();const p=nuqta(e);x.lineTo(p.x,p.y);x.stroke();};
+    const tuga=()=>{chiz=false;};
+    c.addEventListener('mousedown',bosh); c.addEventListener('mousemove',yur);
+    window.addEventListener('mouseup',tuga);
+    c.addEventListener('touchstart',bosh,{passive:false});
+    c.addEventListener('touchmove',yur,{passive:false});
+    c.addEventListener('touchend',tuga);
+  }
+  window.imzoTozala=function(){
+    const c=document.getElementById('imzo'); if(!c)return;
+    const x=c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); imzoBosh=false;
+  };
+
+  window.yolda=async function(){
+    try{await fetch('/api/v_holat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({token,holat:'yolda'})}); toast('🚚 Yo\'lga chiqdingiz'); yukla();}catch(e){toast('Xato');}
+  };
+
+  window.tasdiqla=async function(){
+    const kim=(document.getElementById('kim').value||'').trim();
+    const tel=(document.getElementById('tel').value||'').trim();
+    if(!kim){toast('Kim qabul qilganini yozing');return;}
+    if(!tel){toast('Telefon raqamini yozing');return;}
+    if(!rasmData){toast('Surat oling');return;}
+    if(!imzoBosh){toast('Mijoz imzosini oling');return;}
+    const c=document.getElementById('imzo');
+    const imzoData=c.toDataURL('image/png');
+    toast('⏳ Yuborilyapti…');
+    try{
+      const r=await fetch('/api/v_bajar',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({token,qabul_qildi:kim,telefon:tel,rasm:rasmData,imzo:imzoData})});
+      const d=await r.json();
+      if(d&&d.ok){ toast('✅ '+(d.xabar||'Tasdiqlandi')); yukla(); }
+      else toast('❌ '+((d&&d.xato)||'Xato'));
+    }catch(e){ toast('Tarmoq xatosi'); }
+  };
+
+  yukla();
+</script>
+</body>
+</html>
