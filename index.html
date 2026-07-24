@@ -573,7 +573,6 @@
             <button class="tabb on" id="tabout" onclick="qatorTab('chiqish')">📤 Chiqdi</button>
             <button class="tabb" id="tabret" onclick="qatorTab('qaytarish')">📥 Qaytdi</button></div>
           <input class="f" id="qsana2" type="date" value="${bugun}">
-          <input class="f" id="qbrov" placeholder="🔁 Brovdan bo'lsa: kimdan (ixtiyoriy)" style="display:none;margin-top:8px">
           <div id="qrows"></div>
           <button class="mini-btn" style="width:100%;margin-top:8px;border-style:dashed" onclick="rowAdd()">➕ Yana tovar</button>
           <button class="send" id="qsendb" onclick="qatorSend(${d.id})">Hammasini qo'shish</button>
@@ -963,7 +962,6 @@
     if(o) o.classList.toggle('on', a==='chiqish');
     if(r) r.classList.toggle('on', a==='qaytarish');
     if(b) b.textContent = (a==='qaytarish') ? 'Qaytganini yozish' : 'Hammasini qo\'shish';
-    const qb=document.getElementById('qbrov'); if(qb) qb.style.display=(a==='qaytarish')?'block':'none';
     const box=document.getElementById('qrows'); if(box) box.innerHTML='';
     window._qn=0; rowAdd();
   };
@@ -1035,8 +1033,7 @@
     toast('⏳ Qo\'shilyapti…');
     try{
       const r=await fetch('/api/qator',{method:'POST',headers:{...H,'Content-Type':'application/json'},
-        body:JSON.stringify({mijoz_id:mid,sana,qatorlar:rows,amal:window._qamal||'chiqish',
-          brov_kim:((document.getElementById('qbrov')||{}).value||'').trim()||null})});
+        body:JSON.stringify({mijoz_id:mid,sana,qatorlar:rows,amal:window._qamal||'chiqish'})});
       let d=null; try{d=await r.json();}catch(_){}
       if(d&&d.ok){ xatoTozala('qerr'); toast('✅ '+(d.xabar||'Qo\'shildi')); loadMijoz(mid); }
       else { xatoBox('qerr',(d&&d.xabar)||('Xato '+r.status)); }
