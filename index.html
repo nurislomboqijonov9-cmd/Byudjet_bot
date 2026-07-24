@@ -315,7 +315,8 @@
       return `${z(d.getDate())}.${z(d.getMonth()+1)}.${String(d.getFullYear()).slice(2)} · ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`;
     }
   }
-  function tickClock(){ const el=document.getElementById('clock'); if(el) el.textContent='🇺🇿 '+tkNow(); }
+  function tickClock(){ const el=document.getElementById('clock');
+    if(el) el.textContent = (document.body.classList.contains('app') ? ('v'+window.APPV+' · ') : '🇺🇿 ') + tkNow(); }
   setInterval(tickClock,1000);
 
   window.tunTgl=function(){
@@ -1227,6 +1228,7 @@
     }catch(e){ loginEkran('Tarmoq xatosi'); }
   };
   window.chiqish=function(){ tokenSet(''); loginEkran(); };
+  window.APPV='89';   // yuklangan versiya (nosozlikni aniqlash uchun)
 
   // Telegram ichida bo'lsa — to'g'ridan-to'g'ri, aks holda token / login
   if ((tg && tg.initData) || tokenGet()) { loadList(); } else { loginEkran(); }

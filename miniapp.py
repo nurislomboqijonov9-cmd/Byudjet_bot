@@ -123,7 +123,10 @@ def make_web_app(bot_token):
         return uid, None
 
     async def index(request):
-        return web.FileResponse(INDEX)
+        # Ilova (PWA) eski faylni keshda ushlab qolmasin
+        return web.FileResponse(INDEX, headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache", "Expires": "0"})
 
     async def api_login(request):
         try:
@@ -151,7 +154,11 @@ def make_web_app(bot_token):
         }, headers={"Cache-Control": "no-cache"})
 
     async def sw_js(request):
-        return web.Response(text="self.addEventListener('fetch',function(e){});\n",
+        return web.Response(text=(
+            "self.addEventListener('install',e=>self.skipWaiting());\n"
+            "self.addEventListener('activate',e=>{e.waitUntil(caches.keys()"
+            ".then(k=>Promise.all(k.map(x=>caches.delete(x)))).then(()=>self.clients.claim()));});\n"
+            "self.addEventListener('fetch',function(e){});\n"),
                             content_type="application/javascript",
                             headers={"Cache-Control": "no-cache"})
 
