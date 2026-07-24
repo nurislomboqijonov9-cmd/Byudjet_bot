@@ -3311,3 +3311,25 @@ def partiyalarni_toplam_yangila(ozgarishlar):
     con.commit()
     con.close()
     return {"ok": True, "soni": n, "xatolar": xato}
+
+
+def brov_kimlar():
+    """Brovdan olingan odamlar ro'yxati (partiyalar va brovlardan)."""
+    con = _con()
+    nomlar = []
+    for r in con.execute("SELECT DISTINCT brov_kim FROM partiyalar WHERE brov_kim IS NOT NULL AND TRIM(brov_kim)<>''").fetchall():
+        nomlar.append(r[0].strip())
+    try:
+        for r in con.execute("SELECT DISTINCT kim FROM brovlar WHERE kim IS NOT NULL AND TRIM(kim)<>''").fetchall():
+            nomlar.append(r[0].strip())
+    except Exception:
+        pass
+    con.close()
+    korilgan, out = set(), []
+    for n in nomlar:
+        k = n.lower()
+        if k not in korilgan:
+            korilgan.add(k)
+            out.append(n)
+    out.sort(key=lambda x: x.lower())
+    return out

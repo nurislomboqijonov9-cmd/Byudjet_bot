@@ -636,6 +636,7 @@ def make_web_app(bot_token):
             return err
         return web.json_response({"tovarlar": db.tovar_barcha(),
                                   "birliklar": {n: db.tovar_birlik(n) for n in db.tovar_barcha()},
+                                  "brovchilar": db.brov_kimlar(),
                                   "tekshir": db.get_sozlama("tovar_tekshir") == "1"})
 
     async def api_ombor(request):
