@@ -3313,10 +3313,13 @@ def partiyalarni_toplam_yangila(ozgarishlar):
     return {"ok": True, "soni": n, "xatolar": xato}
 
 
+BROV_DEFAULT = ["Alisher aka", "Oqil aka", "Sardor"]
+
+
 def brov_kimlar():
-    """Brovdan olingan odamlar ro'yxati (partiyalar va brovlardan)."""
+    """Brovdan olinadigan odamlar: doimiylar + bazadagilar."""
     con = _con()
-    nomlar = []
+    nomlar = list(BROV_DEFAULT)
     for r in con.execute("SELECT DISTINCT brov_kim FROM partiyalar WHERE brov_kim IS NOT NULL AND TRIM(brov_kim)<>''").fetchall():
         nomlar.append(r[0].strip())
     try:

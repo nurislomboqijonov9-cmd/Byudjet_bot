@@ -114,7 +114,8 @@
   .pickwrap{position:relative;}
   .pickb{position:absolute;right:6px;top:6px;border:none;background:none;font-size:16px;color:var(--soft);cursor:pointer;padding:4px 8px;}
   .picklist{display:none;position:absolute;left:0;right:0;top:100%;z-index:70;background:var(--card);
-    border:1px solid var(--line);border-radius:12px;max-height:230px;overflow:auto;box-shadow:0 8px 24px rgba(0,0,0,.14);margin-top:4px;}
+    border:1px solid var(--line);border-radius:12px;max-height:190px;overflow:auto;
+    box-shadow:0 10px 28px rgba(0,0,0,.22);margin-top:4px;}
   .picklist div{padding:11px 13px;font-size:14.5px;cursor:pointer;border-bottom:1px solid var(--faint);}
   .unitb{min-width:56px;border:1px solid var(--brand);background:#fff;color:var(--brand);border-radius:11px;
     font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;flex-shrink:0;}
@@ -1046,6 +1047,21 @@
     }catch(e){ xatoBox('qerr','Tarmoq xatosi'); }
   };
 
+  // Ro'yxatlar: tashqariga bosilsa yoki Esc bosilsa yopiladi
+  document.addEventListener('click',function(e){
+    if(e.target.closest && e.target.closest('.pickwrap')) return;
+    document.querySelectorAll('.picklist').forEach(l=>l.style.display='none');
+  },true);
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape') document.querySelectorAll('.picklist').forEach(l=>l.style.display='none');
+  });
+
+  // Ro'yxat tashqarisiga bosilsa — yopiladi
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('.pickwrap')) return;
+    document.querySelectorAll('.picklist').forEach(function(l){ l.style.display='none'; });
+  }, true);
+
   window.autoGrow=function(el){el.style.height='auto';el.style.height=Math.max(46,Math.min(el.scrollHeight,340))+'px';};
 
   // ======== BROVDAN (alohida yacheyka) ========
@@ -1249,7 +1265,7 @@
     }catch(e){ loginEkran('Tarmoq xatosi'); }
   };
   window.chiqish=function(){ tokenSet(''); loginEkran(); };
-  window.APPV='90';   // yuklangan versiya (nosozlikni aniqlash uchun)
+  window.APPV='92';   // yuklangan versiya (nosozlikni aniqlash uchun)
 
   // Telegram ichida bo'lsa — to'g'ridan-to'g'ri, aks holda token / login
   if ((tg && tg.initData) || tokenGet()) { loadList(); } else { loginEkran(); }
