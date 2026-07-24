@@ -128,6 +128,9 @@ def init_db():
         con.execute("ALTER TABLE mijozlar ADD COLUMN qayd TEXT")
     if "tolov_turi" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN tolov_turi TEXT")
+    if "bolim" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN bolim TEXT")
+        con.execute("UPDATE mijozlar SET bolim='ijara' WHERE bolim IS NULL OR bolim=''")
 
     # Zakazlar (2 qavatli model): mahsulot bo'yicha umumiy buyurtma. Chiqishlar (partiyalar) shunga bog'lanadi.
     con.execute("""CREATE TABLE IF NOT EXISTS zakazlar (
@@ -245,10 +248,11 @@ def phone_list(s):
     return [d for p in re.split(r"[,;\n/]+", str(s)) if (d := "".join(c for c in p if c.isdigit()))]
 
 
-def add_mijoz(ism, telefon=None):
+def add_mijoz(ism, telefon=None, bolim="ijara"):
+    bolim = "sotuv" if str(bolim or "").lower().startswith("sot") else "ijara"
     con = _con()
-    cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan) VALUES (?, ?, ?)",
-                      (ism.strip(), clean_phones(telefon), now_tk().isoformat()))
+    cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan, bolim) VALUES (?, ?, ?, ?)",
+                      (ism.strip(), clean_phones(telefon), now_tk().isoformat(), bolim))
     con.commit()
     mid = cur.lastrowid
     con.close()
@@ -851,6 +855,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         "telefonlar": phone_list(m["telefon"]),
         "status": _st,
         "tolov_turi": m.get("tolov_turi"),
+        "bolim": (m.get("bolim") or "ijara"),
         "partiyalar": ps,
         "zakazlar": zakazlar_list,
         "yetkazmalar": yetkazmalar,
@@ -875,10 +880,19 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
     }
 
 
-def mijozlar(today=None):
+def mijozlar(today=None, bolim=None):
+    """bolim: 'ijara' | 'sotuv' | None (hammasi)"""
     today = today or today_tk()
     con = _con()
-    ids = [r[0] for r in con.execute("SELECT id FROM mijozlar ORDER BY id").fetchall()]
+    if bolim:
+        b = "sotuv" if str(bolim).lower().startswith("sot") else "ijara"
+        if b == "ijara":
+            ids = [r[0] for r in con.execute(
+                "SELECT id FROM mijozlar WHERE bolim IS NULL OR bolim='' OR bolim='ijara' ORDER BY id").fetchall()]
+        else:
+            ids = [r[0] for r in con.execute("SELECT id FROM mijozlar WHERE bolim='sotuv' ORDER BY id").fetchall()]
+    else:
+        ids = [r[0] for r in con.execute("SELECT id FROM mijozlar ORDER BY id").fetchall()]
     con.close()
     res = []
     for mid in ids:
@@ -1720,6 +1734,9 @@ def init_db():
         con.execute("ALTER TABLE mijozlar ADD COLUMN qayd TEXT")
     if "tolov_turi" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN tolov_turi TEXT")
+    if "bolim" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN bolim TEXT")
+        con.execute("UPDATE mijozlar SET bolim='ijara' WHERE bolim IS NULL OR bolim=''")
 
     # Zakazlar (2 qavatli model): mahsulot bo'yicha umumiy buyurtma. Chiqishlar (partiyalar) shunga bog'lanadi.
     con.execute("""CREATE TABLE IF NOT EXISTS zakazlar (
@@ -1837,10 +1854,11 @@ def phone_list(s):
     return [d for p in re.split(r"[,;\n/]+", str(s)) if (d := "".join(c for c in p if c.isdigit()))]
 
 
-def add_mijoz(ism, telefon=None):
+def add_mijoz(ism, telefon=None, bolim="ijara"):
+    bolim = "sotuv" if str(bolim or "").lower().startswith("sot") else "ijara"
     con = _con()
-    cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan) VALUES (?, ?, ?)",
-                      (ism.strip(), clean_phones(telefon), now_tk().isoformat()))
+    cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan, bolim) VALUES (?, ?, ?, ?)",
+                      (ism.strip(), clean_phones(telefon), now_tk().isoformat(), bolim))
     con.commit()
     mid = cur.lastrowid
     con.close()
@@ -2443,6 +2461,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         "telefonlar": phone_list(m["telefon"]),
         "status": _st,
         "tolov_turi": m.get("tolov_turi"),
+        "bolim": (m.get("bolim") or "ijara"),
         "partiyalar": ps,
         "zakazlar": zakazlar_list,
         "yetkazmalar": yetkazmalar,
@@ -2467,10 +2486,19 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
     }
 
 
-def mijozlar(today=None):
+def mijozlar(today=None, bolim=None):
+    """bolim: 'ijara' | 'sotuv' | None (hammasi)"""
     today = today or today_tk()
     con = _con()
-    ids = [r[0] for r in con.execute("SELECT id FROM mijozlar ORDER BY id").fetchall()]
+    if bolim:
+        b = "sotuv" if str(bolim).lower().startswith("sot") else "ijara"
+        if b == "ijara":
+            ids = [r[0] for r in con.execute(
+                "SELECT id FROM mijozlar WHERE bolim IS NULL OR bolim='' OR bolim='ijara' ORDER BY id").fetchall()]
+        else:
+            ids = [r[0] for r in con.execute("SELECT id FROM mijozlar WHERE bolim='sotuv' ORDER BY id").fetchall()]
+    else:
+        ids = [r[0] for r in con.execute("SELECT id FROM mijozlar ORDER BY id").fetchall()]
     con.close()
     res = []
     for mid in ids:

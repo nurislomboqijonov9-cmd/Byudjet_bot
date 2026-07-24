@@ -177,7 +177,8 @@ def make_web_app(bot_token):
         uid, err = check(request)
         if err:
             return err
-        return web.json_response({"mijozlar": db.mijozlar()})
+        bolim = request.query.get("bolim") or None
+        return web.json_response({"mijozlar": db.mijozlar(bolim=bolim)})
 
     async def api_mijoz(request):
         uid, err = check(request)
@@ -200,7 +201,7 @@ def make_web_app(bot_token):
         ism = (body.get("ism") or "").strip()
         if not ism:
             return web.json_response({"xato": "ism kerak"}, status=400)
-        mid = db.add_mijoz(ism, body.get("telefon"))
+        mid = db.add_mijoz(ism, body.get("telefon"), bolim=(body.get("bolim") or "ijara"))
         return web.json_response({"ok": True, "id": mid})
 
     async def api_mijoz_edit(request):

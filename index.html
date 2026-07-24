@@ -364,18 +364,28 @@
   function authXato(r){ if(r&&r.status===401&&!(tg&&tg.initData)){ tokenSet(''); loginEkran('Qaytadan kiring'); return true; } return false; }
   function errScreen(){app.innerHTML='<div class="center"><div>Ma\'lumot yuklanmadi.<br><br>Botdagi <b>«📊 Hisob»</b> tugmasi orqali oching.</div></div>';}
 
+  window.BOLIM='ijara';
+  try{ const b=localStorage.getItem('bolim'); if(b==='sotuv'||b==='ijara') window.BOLIM=b; }catch(e){}
+  window.bolimTgl=function(b){
+    window.BOLIM=b;
+    try{ localStorage.setItem('bolim',b); }catch(e){}
+    loadList();
+  };
   async function loadList(){
     window._lastMijoz=null;
     app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
-    let d; try{const r=await fetch('/api/mijozlar',{headers:H});if(authXato(r))return;if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
+    let d; try{const r=await fetch('/api/mijozlar?bolim='+(window.BOLIM||'ijara'),{headers:H});if(authXato(r))return;if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+m.qolgan_qarz,0);
     setTimeout(()=>{const b=document.getElementById('fsb');if(b)b.textContent=document.body.classList.contains('wide')?'⤡':'⛶';tunSync();tickClock();},0);
-    app.innerHTML=`<header><div><div class="eyebrow">Ijara hisobi</div><h1>Mijozlar</h1></div>
+    app.innerHTML=`<header><div><div class="eyebrow">${BOLIM==='sotuv'?'Sotuv hisobi':'Ijara hisobi'}</div><h1>Mijozlar</h1></div>
         <button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>
         <button class="fsbtn" id="fsb" onclick="wideTgl()">⛶</button>
         <button class="tunbtn" id="tunb" onclick="tunTgl()">🌙</button>
         ${(tg&&tg.initData)?'':'<button class="tunbtn" onclick="chiqish()">🚪</button>'}
         <button class="plus" style="margin-left:8px" onclick="showNew()">➕</button></header>
+      <div class="inrow" style="margin:0 0 12px">
+        <button class="tabb ${BOLIM==='ijara'?'on':''}" onclick="bolimTgl('ijara')">🏗 Ijara</button>
+        <button class="tabb ${BOLIM==='sotuv'?'on':''}" onclick="bolimTgl('sotuv')">🏷 Sotuv</button></div>
       <div class="hero"><div class="arc"></div><div class="lbl">Umumiy qarz</div>
         <div class="amt num">${som(jami)} <small>so'm</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
       <div id="newform"></div>
@@ -409,7 +419,7 @@
     const ism=document.getElementById('n_ism').value.trim();
     const tel=document.getElementById('n_tel').value.trim();
     if(!ism){toast('Ism kiriting');return;}
-    try{const r=await fetch('/api/mijoz_qosh',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({ism,telefon:tel})});
+    try{const r=await fetch('/api/mijoz_qosh',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({ism,telefon:tel,bolim:(window.BOLIM||'ijara')})});
       const d=await r.json(); if(d.ok){toast('Mijoz qo\'shildi');loadMijoz(d.id);} else toast(d.xato||'Xato');}catch(e){toast('Xato');}
   };
 
@@ -1265,7 +1275,7 @@
     }catch(e){ loginEkran('Tarmoq xatosi'); }
   };
   window.chiqish=function(){ tokenSet(''); loginEkran(); };
-  window.APPV='92';   // yuklangan versiya (nosozlikni aniqlash uchun)
+  window.APPV='93';   // yuklangan versiya (nosozlikni aniqlash uchun)
 
   // Telegram ichida bo'lsa — to'g'ridan-to'g'ri, aks holda token / login
   if ((tg && tg.initData) || tokenGet()) { loadList(); } else { loginEkran(); }
