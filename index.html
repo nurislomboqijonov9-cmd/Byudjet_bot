@@ -104,6 +104,11 @@
   .tabb{flex:1;padding:10px;border-radius:11px;border:1px solid var(--line);background:#fff;color:var(--soft);
     font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;}
   .tabb.on{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .mtabs{display:flex;gap:6px;margin:2px 0 12px;position:sticky;top:0;z-index:25;background:var(--bg);padding:8px 0 7px;}
+  .mtabs .tabb{padding:9px 4px;font-size:12.5px;}
+  body.app .mtabs .tabb{border-radius:13px;}
+  .mpanel{animation:mfade .13s ease;}
+  @keyframes mfade{from{opacity:.35}to{opacity:1}}
   body.tun .tabb{background:#101A18;}
   body.tun .tabb.on{background:var(--brand);color:#08110F;}
   .login{max-width:340px;margin:0 auto;padding:36px 0;}
@@ -518,7 +523,8 @@
         <div class="inrow" style="margin-bottom:8px">
           <button class="tabb on" id="vtab1" onclick="vazTur('yetkazish')">📤 Yetkazish</button>
           <button class="tabb" id="vtab2" onclick="vazTur('olib_kelish')">📥 Olib kelish</button></div>
-        <input class="f" id="v_manzil" placeholder="📍 Manzil yoki lokatsiya" value="${esc(d.adres||'')}" oninput="locTekshir()">
+        <input class="f" id="v_manzil" placeholder="📍 Manzil (masalan: Chilonzor 5-kvartal)" value="${esc(d.adres||'')}">
+        <input class="f" id="v_loc" placeholder="🔗 Lokatsiya havolasi yoki koordinata" oninput="locTekshir()" style="margin-top:8px">
         <div class="inrow" style="margin-top:8px">
           <button class="mini-btn" onclick="xaritaOch()">🗺 Xaritadan tanlash</button>
           <button class="mini-btn" onclick="mengaJoy()">📍 Hozirgi joyim</button></div>
@@ -526,6 +532,7 @@
         <input type="hidden" id="v_lat" value="${d.lat||''}"><input type="hidden" id="v_lon" value="${d.lon||''}">
         <div class="inrow"><input class="f" id="v_sana" type="date" value="${bugun}">
           <select class="f" id="v_haydovchi"><option value="">Haydovchi tanlang</option></select></div>
+        <div class="hint" id="haydhint" style="margin:6px 0"></div>
         <div id="vrows"></div>
         <button class="mini-btn" style="width:100%;margin-top:8px;border-style:dashed" onclick="vazRowAdd()">➕ Yana tovar</button>
         <input class="f" id="v_izoh" placeholder="Izoh (ixtiyoriy)" style="margin-top:8px">
@@ -595,30 +602,14 @@
       <div class="hero"><div class="arc"></div><div class="lbl">${neg?'Mijozning haqi':'Qolgan qarzi'}</div>
         <div class="amt num">${som(Math.abs(d.qolgan_qarz))} <small>so'm</small></div>
         <div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan</div></div>
-      ${statHtml}
-      ${turHtml}
-      ${smsBtn}
-      ${(d.partiyalar||[]).length>1?'<div class="search"><input id="psearch" placeholder="🔍 Mahsulot qidirish (lesa, lulka...)" oninput="filterPartiya(this.value)"></div>':''}
-      <div class="card">
-        <div class="brk"><span class="k">Hisoblangan</span><b class="num">${som(d.hisoblangan)} so'm</b></div>
-        <div class="brk"><span class="k">🚚 Yo'lkira</span><b class="num">${som(d.yolkira||0)} so'm</b></div>
-        <div class="brk"><span class="k">🔧 Remont</span><b class="num">${som(d.remont||0)} so'm</b></div>
-        <div class="brk"><span class="k">To'langan</span><b class="num" style="color:var(--pos)">${som(d.tolangan)} so'm</b></div>
-        <div class="brk"><span class="k">${neg?'Ortiqcha (haqi)':'Qolgan qarz'}</span><b class="num" style="color:${neg?'var(--pos)':'var(--ink)'}">${som(Math.abs(d.qolgan_qarz))} so'm</b></div>
-      </div>
-      <div class="addbox"><div class="t">📍 Manzil</div>
-        <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
-        <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
-            ${eslCard}
-<div class="addbox"><div class="t">💵 To'lov / predoplata (so'm)</div>
-        <div class="inrow"><input class="f" id="paytext" inputmode="numeric" placeholder="Masalan: 1000000">
-          <input class="f" id="paysana" type="date" value="${bugun}"></div>
-        <button class="send" onclick="saveTolov(${d.id},1)">➕ To'lov / predoplata</button>
-        <button class="send" style="margin-top:8px;background:var(--neg)" onclick="saveTolov(${d.id},-1)">➖ Qarz qo'shish</button>
-        <div class="hint">Summani yozing. <b>➕</b> — to'lov (qarz kamayadi). <b>➖</b> — o'sha summa mijozga qarz bo'lib qo'shiladi.</div>
-        ${tlist?'<div style="margin-top:10px">'+tlist+'</div>':''}</div>
-            ${brovIn}
-<div class="addbox"><div class="t">Shu mijozga
+      <div class="mtabs">
+        <button class="tabb on" id="mt_qosh" onclick="mtab('qosh')">➕ Qo'shish</button>
+        <button class="tabb" id="mt_tovar" onclick="mtab('tovar')">📦 Tovarlar</button>
+        <button class="tabb" id="mt_hisob" onclick="mtab('hisob')">💰 Pullar</button>
+        <button class="tabb" id="mt_boshqa" onclick="mtab('boshqa')">⋯ Boshqa</button></div>
+
+      <div id="tab_qosh" class="mpanel">
+        <div class="addbox"><div class="t">Shu mijozga
           <button class="qbtn" id="modeb" onclick="modeTgl()">📝 Matn / ovoz</button></div>
         <div id="formmode">
           <div class="inrow" style="margin-bottom:8px">
@@ -637,25 +628,58 @@
           <div id="adderr"></div>
           <div class="hint">🎤 bosib gapiring, yoki yozib «Qo'shish».</div>
         </div></div>
-      ${qaydCard}
-<div class="addbox"><div class="t">➕ Qo'shimcha</div>
-        <div class="inrow"><input class="f" id="qsum" inputmode="numeric" placeholder="Summa (so'm)">
-          <input class="f" id="qsana" type="date" value="${bugun}"></div>
-        <div class="inrow" style="margin-top:8px">
-          <button class="mini-btn" onclick="saveQosh('yolkira',${d.id})">🚚 Yo'lkira</button>
-          <button class="mini-btn" onclick="saveQosh('remont',${d.id})">🔧 Remont</button></div>
-        <div class="hint">Summani yozib, turini tanlang. Qarzga qo'shiladi.</div>
-        ${qlist?'<div style="margin-top:10px">'+qlist+'</div>':''}</div>
-      <div id="plist">${ps}</div>
-      ${qolganCard}
-      ${manzilCard}
-      ${retCard}
-      ${vazCard}
-      ${d.token?`<div class="addbox"><div class="t">🔗 Mijoz uchun havola</div>
-        <div class="hint" style="margin:0 0 8px">Mijoz shu havoladan o'z qarzini ko'radi. Har doim yangilanib turadi — bir marta yuborsangiz yetadi.</div>
-        <input class="f" id="mlink" readonly value="${location.origin}/m/${esc(d.token)}" onclick="this.select()">
-        <button class="mini-btn" style="width:100%;margin-top:8px" onclick="havolaNusxa()">📋 Nusxa olish</button></div>`:''}
-      <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>`;
+        ${brovIn}
+      </div>
+
+      <div id="tab_tovar" class="mpanel" style="display:none">
+        ${qolganCard}
+        ${(d.partiyalar||[]).length>1?'<div class="search"><input id="psearch" placeholder="🔍 Mahsulot qidirish (lesa, lulka...)" oninput="filterPartiya(this.value)"></div>':''}
+        <div id="plist">${ps}</div>
+        ${manzilCard}
+        ${retCard}
+      </div>
+
+      <div id="tab_hisob" class="mpanel" style="display:none">
+        ${statHtml}
+        ${turHtml}
+        <div class="card">
+          <div class="brk"><span class="k">Hisoblangan</span><b class="num">${som(d.hisoblangan)} so'm</b></div>
+          <div class="brk"><span class="k">🚚 Yo'lkira</span><b class="num">${som(d.yolkira||0)} so'm</b></div>
+          <div class="brk"><span class="k">🔧 Remont</span><b class="num">${som(d.remont||0)} so'm</b></div>
+          <div class="brk"><span class="k">To'langan</span><b class="num" style="color:var(--pos)">${som(d.tolangan)} so'm</b></div>
+          <div class="brk"><span class="k">${neg?'Ortiqcha (haqi)':'Qolgan qarz'}</span><b class="num" style="color:${neg?'var(--pos)':'var(--ink)'}">${som(Math.abs(d.qolgan_qarz))} so'm</b></div>
+        </div>
+        ${smsBtn}
+        <div class="addbox"><div class="t">💵 To'lov / predoplata (so'm)</div>
+          <div class="inrow"><input class="f" id="paytext" inputmode="numeric" placeholder="Masalan: 1000000">
+            <input class="f" id="paysana" type="date" value="${bugun}"></div>
+          <button class="send" onclick="saveTolov(${d.id},1)">➕ To'lov / predoplata</button>
+          <button class="send" style="margin-top:8px;background:var(--neg)" onclick="saveTolov(${d.id},-1)">➖ Qarz qo'shish</button>
+          <div class="hint">Summani yozing. <b>➕</b> — to'lov (qarz kamayadi). <b>➖</b> — o'sha summa mijozga qarz bo'lib qo'shiladi.</div>
+          ${tlist?'<div style="margin-top:10px">'+tlist+'</div>':''}</div>
+        <div class="addbox"><div class="t">➕ Qo'shimcha</div>
+          <div class="inrow"><input class="f" id="qsum" inputmode="numeric" placeholder="Summa (so'm)">
+            <input class="f" id="qsana" type="date" value="${bugun}"></div>
+          <div class="inrow" style="margin-top:8px">
+            <button class="mini-btn" onclick="saveQosh('yolkira',${d.id})">🚚 Yo'lkira</button>
+            <button class="mini-btn" onclick="saveQosh('remont',${d.id})">🔧 Remont</button></div>
+          <div class="hint">Summani yozib, turini tanlang. Qarzga qo'shiladi.</div>
+          ${qlist?'<div style="margin-top:10px">'+qlist+'</div>':''}</div>
+        ${eslCard}
+      </div>
+
+      <div id="tab_boshqa" class="mpanel" style="display:none">
+        ${vazCard}
+        <div class="addbox"><div class="t">📍 Manzil</div>
+          <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
+          <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
+        ${qaydCard}
+        ${d.token?`<div class="addbox"><div class="t">🔗 Mijoz uchun havola</div>
+          <div class="hint" style="margin:0 0 8px">Mijoz shu havoladan o'z qarzini ko'radi. Har doim yangilanib turadi — bir marta yuborsangiz yetadi.</div>
+          <input class="f" id="mlink" readonly value="${location.origin}/m/${esc(d.token)}" onclick="this.select()">
+          <button class="mini-btn" style="width:100%;margin-top:8px" onclick="havolaNusxa()">📋 Nusxa olish</button></div>`:''}
+        <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>
+      </div>`;
     if(_y>0) setTimeout(()=>window.scrollTo(0,_y),0);
     window._qolgan=(d.qolganlar||[]).filter(q=>q.qolgan>0).map(q=>q.mahsulot);
     loadTovarlar();
@@ -664,9 +688,11 @@
     window._vtur='yetkazish'; window._vn=0; if(document.getElementById('vrows')) vazRowAdd();
     loadHaydovchilar();
     if(document.getElementById('lochint')) locTekshir();
+    if(window._mtab && window._mtabId===d.id){ mtab(window._mtab); } else { window._mtabId=d.id; mtab('qosh'); }
   };
 
   window.tgl=function(id){const el=document.getElementById(id); if(el) el.style.display=el.style.display==='none'?'block':'none';};
+  window.mtab=function(t){['qosh','tovar','hisob','boshqa'].forEach(function(k){var p=document.getElementById('tab_'+k),b=document.getElementById('mt_'+k);if(p)p.style.display=(k===t)?'block':'none';if(b)b.classList.toggle('on',k===t);});window._mtab=t;window._mtabId=(window._curMijoz&&window._curMijoz.id)||window._mtabId;try{window.scrollTo(0,0);}catch(e){}};
   window.filterPartiya=function(q){
     q=(q||'').toLowerCase().trim();
     document.querySelectorAll('#plist .pcard').forEach(el=>{
@@ -1010,8 +1036,11 @@
     try{const r=await fetch('/api/haydovchilar',{headers:H});const d=await r.json();
       window._hayd=(d.haydovchilar||[]);
       const sel=document.getElementById('v_haydovchi');
-      if(sel) sel.innerHTML='<option value="">Haydovchi tanlang</option>'+
+      if(sel) sel.innerHTML=(window._hayd.length?'<option value="">Haydovchi tanlang</option>':'<option value="">Haydovchi qo\'shilmagan</option>')+
         window._hayd.map(h=>`<option value="${h.id}">${esc(h.ism||h.id)}</option>`).join('');
+      const hh=document.getElementById('haydhint');
+      if(hh) hh.innerHTML = window._hayd.length ? '' :
+        "⚠️ Haydovchi qo'shilmagan. Botда: <b>/haydovchi_qosh &lt;id&gt; &lt;ism&gt;</b> — keyin haydovchi botga <b>/start</b> bossin.";
     }catch(e){}
   }
   async function loadTovarlar(){
@@ -1348,21 +1377,22 @@
     return null;
   };
   window.locTekshir=function(){
-    const el=document.getElementById('v_manzil'), h=document.getElementById('lochint');
-    if(!el||!h)return;
+    const h=document.getElementById('lochint'); if(!h)return;
+    const el=document.getElementById('v_loc');
     const la=document.getElementById('v_lat'), lo=document.getElementById('v_lon');
-    const c=window.locAjrat(el.value);
+    const c=el ? window.locAjrat(el.value) : null;
     if(c){ if(la)la.value=c.lat; if(lo)lo.value=c.lon;
       h.innerHTML=`✅ Lokatsiya: <b>${c.lat.toFixed(5)}, ${c.lon.toFixed(5)}</b> — haydovchi navigator bilan boradi.`;
       return;
     }
     if(la&&la.value&&lo&&lo.value){
-      h.innerHTML=`✅ Bu mijozning lokatsiyasi saqlangan — haydovchi navigator bilan boradi. `
+      h.innerHTML=`✅ Lokatsiya tayyor: <b>${(+la.value).toFixed(5)}, ${(+lo.value).toFixed(5)}</b> `
         +`<b style="cursor:pointer;text-decoration:underline" onclick="locOchir()">o'chirish</b>`;
       return;
     }
-    h.innerHTML = "Manzilni yozing. Aniq nuqta kerak bo'lsa — <b>🗺 Xaritadan tanlang</b> "
-      + "yoki koordinata/xarita havolasini shu maydonga qo'ying.";
+    if(el && el.value.trim()){ h.textContent="⚠️ Koordinata topilmadi — manzil bo'yicha qidiriladi."; return; }
+    h.innerHTML = "Mijoz tashlagan lokatsiyani: Telegramда bosib ushlab turing → <b>Переслать</b> → "
+      + "Temirchi_bot → koordinatani nusxalab shu yerga qo'ying. Yoki <b>🗺 Xaritadan tanlang</b>.";
   };
   window._xmap=null;
   function leafletYukla(){
@@ -1405,6 +1435,7 @@
     const la=document.getElementById('v_lat'), lo=document.getElementById('v_lon');
     if(la) la.value=c.lat.toFixed(6);
     if(lo) lo.value=c.lng.toFixed(6);
+    const el=document.getElementById('v_loc'); if(el) el.value='';
     xaritaYop(); locTekshir(); toast('📍 Lokatsiya tanlandi');
   };
   window.mengaJoy=function(){
@@ -1414,6 +1445,7 @@
       const la=document.getElementById('v_lat'), lo=document.getElementById('v_lon');
       if(la) la.value=p.coords.latitude.toFixed(6);
       if(lo) lo.value=p.coords.longitude.toFixed(6);
+      const el=document.getElementById('v_loc'); if(el) el.value='';
       locTekshir(); toast('📍 Hozirgi joyingiz olindi');
     }, e=>{ toast('Joylashuvga ruxsat berilmadi'); }, {enableHighAccuracy:true, timeout:12000});
   };
@@ -1489,12 +1521,23 @@
         if(b.lat&&b.lon){ try{ fetch('/api/mijoz_loc',{method:'POST',headers:{...H,'Content-Type':'application/json'},
           body:JSON.stringify({mijoz_id:mid,lat:b.lat,lon:b.lon})}); }catch(e){} }
         const link=location.origin+'/v/'+d.token;
+        let holat, box;
+        if(d.xabar_yuborildi){
+          holat='✅ Haydovchiga «Yangi zakaz» yuborildi — havola va lokatsiya botga bordi.';
+          box={bg:'rgba(30,122,90,.10)',bd:'#9CCFB8',fg:'#14603F'};
+        } else if(!b.haydovchi_id){
+          holat='⚠️ Haydovchi tanlanmadi. Ro\'yxatdan haydovchi tanlang, yoki quyidagi havolani o\'zingiz yuboring.';
+          box={bg:'rgba(192,138,46,.12)',bd:'#E3C489',fg:'#8A5A12'};
+        } else {
+          holat='⚠️ Xabar bormadi — haydovchi botni hali /start qilmagan. U botga bir marta /start bossin, so\'ng qayta urinib ko\'ring. Hozircha havolani o\'zingiz yuboring.';
+          box={bg:'rgba(192,138,46,.12)',bd:'#E3C489',fg:'#8A5A12'};
+        }
         document.getElementById('vlist').innerHTML=
-          `<div class="errbox" style="background:rgba(30,122,90,.10);border-color:#9CCFB8;color:#14603F">
-            ✅ Vazifa tayyor. Haydovchiga shu havolani yuboring:
+          `<div class="errbox" style="background:${box.bg};border-color:${box.bd};color:${box.fg}">
+            ${holat}
             <input class="f" id="vlink" readonly value="${link}" onclick="this.select()" style="margin-top:8px">
-            <button class="mini-btn" style="width:100%;margin-top:8px" onclick="vazNusxa()">📋 Nusxa olish</button></div>`;
-        toast(d.xabar_yuborildi?'🚚 Vazifa yaratildi — haydovchiga xabar bordi':'🚚 Vazifa yaratildi');
+            <button class="mini-btn" style="width:100%;margin-top:8px" onclick="vazNusxa()">📋 Havolani nusxalash</button></div>`;
+        toast(d.xabar_yuborildi?'🚚 Haydovchiga xabar bordi':'🚚 Vazifa yaratildi');
       } else xatoBox('verr',(d&&d.xato)||'Xato');
     }catch(e){ xatoBox('verr','Tarmoq xatosi'); }
   };
@@ -1514,7 +1557,7 @@
     }catch(e){ toast('Havolani qo\'lda nusxalang'); }
   };
   window.chiqish=function(){ tokenSet(''); loginEkran(); };
-  window.APPV='100';   // yuklangan versiya (nosozlikni aniqlash uchun)
+  window.APPV='104';   // yuklangan versiya (nosozlikni aniqlash uchun)
 
   // Telegram ichida bo'lsa — to'g'ridan-to'g'ri, aks holda token / login
   if ((tg && tg.initData) || tokenGet()) { loadList(); } else { loginEkran(); }

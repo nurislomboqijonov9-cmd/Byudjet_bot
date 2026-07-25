@@ -144,16 +144,34 @@ def make_web_app(bot_token):
         d["tel"] = os.getenv("FIRMA_TEL", "")
         return web.json_response(d, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
 
-    async def tg_xabar(chat_id, matn):
-        """Bot orqali xabar yuborish (Telegram HTTP API)."""
+    async def tg_lokatsiya(chat_id, lat, lon):
         try:
             import aiohttp as _ah
             async with _ah.ClientSession() as ss:
-                await ss.post(f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                              json={"chat_id": chat_id, "text": matn,
-                                    "parse_mode": "Markdown", "disable_web_page_preview": True},
+                await ss.post(f"https://api.telegram.org/bot{bot_token}/sendLocation",
+                              json={"chat_id": chat_id, "latitude": float(lat), "longitude": float(lon)},
                               timeout=_ah.ClientTimeout(total=12))
             return True
+        except Exception:
+            return False
+
+    async def tg_xabar(chat_id, matn):
+        """Bot orqali xabar yuborish. Haqiqatan yetib borgan bo'lsa True.
+        Markdown buzilsa (ism/manzilda maxsus belgi bo'lsa) — oddiy matn bilan qayta urinadi."""
+        try:
+            import aiohttp as _ah
+            async with _ah.ClientSession() as ss:
+                async def _send(payload):
+                    async with ss.post(f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                                       json=payload, timeout=_ah.ClientTimeout(total=12)) as r:
+                        return await r.json(content_type=None)
+                j = await _send({"chat_id": chat_id, "text": matn,
+                                 "parse_mode": "Markdown", "disable_web_page_preview": True})
+                if not (isinstance(j, dict) and j.get("ok")):
+                    # Markdown xato bergan bo'lishi mumkin — belgisiz oddiy matn bilan qayta yuboramiz
+                    j = await _send({"chat_id": chat_id, "text": matn.replace("*", ""),
+                                     "disable_web_page_preview": True})
+            return bool(isinstance(j, dict) and j.get("ok"))
         except Exception:
             return False
 
@@ -299,8 +317,10 @@ def make_web_app(bot_token):
                             + (tovar + "\n\n" if tovar else "")
                             + (f"📝 {v['izoh']}\n\n" if v.get("izoh") else "")
                             + f"👉 Ochish: {link}")
-                    await tg_xabar(int(hid), matn)
-                    res["xabar_yuborildi"] = True
+                    ok = await tg_xabar(int(hid), matn)
+                    if ok and v.get("lat") and v.get("lon"):
+                        await tg_lokatsiya(int(hid), v["lat"], v["lon"])
+                    res["xabar_yuborildi"] = bool(ok)
                 except Exception:
                     res["xabar_yuborildi"] = False
             return web.json_response(res)
