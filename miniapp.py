@@ -869,7 +869,8 @@ def make_web_app(bot_token):
         uid, err = check(request)
         if err:
             return err
-        return web.json_response({"mahsulotlar": db.ombor_list()})
+        bolim = request.query.get("bolim") or "ijara"
+        return web.json_response({"mahsulotlar": db.ombor_list(bolim), "bolim": bolim})
 
     async def api_ombor_move(request):
         uid, err = check(request)
@@ -898,7 +899,7 @@ def make_web_app(bot_token):
             return err
         try:
             b = await request.json()
-            return web.json_response(db.ombor_add(b.get("name"), b.get("total") or 0))
+            return web.json_response(db.ombor_add(b.get("name"), b.get("total") or 0, b.get("bolim") or "ijara"))
         except Exception as e:
             return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
 
@@ -928,7 +929,8 @@ def make_web_app(bot_token):
         if err:
             return err
         pid = request.query.get("id") or None
-        return web.json_response({"tarix": db.ombor_history(pid, 200)})
+        bolim = request.query.get("bolim") or None
+        return web.json_response({"tarix": db.ombor_history(pid, 200, bolim)})
 
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)

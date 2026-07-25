@@ -62,6 +62,7 @@ def apply(mijoz_id, t):
     m = db.get_mijoz(mijoz_id)
     if not m:
         return {"ok": False, "xato": "Mijoz topilmadi"}
+    _bolim = (m.get("bolim") or "ijara")
 
     amal = getattr(t, "amal", None)
     amal = amal.value if hasattr(amal, "value") else amal
@@ -99,7 +100,7 @@ def apply(mijoz_id, t):
         _oz = max(0.0, float(t.miqdor) - _brov)
         if _oz > 0:
             _k = db.ombor_koeff(t.mahsulot, _bir)
-            db.ombor_apply_by_name(t.mahsulot, "out", _oz * _k)
+            db.ombor_apply_by_name(t.mahsulot, "out", _oz * _k, bolim=_bolim)
         return {
             "ok": True, "amal": "chiqish", "mijoz": m["ism"], "mijoz_id": mijoz_id,
             "partiya_id": pid, "raqam": raqam, "mahsulot": t.mahsulot,
@@ -144,7 +145,7 @@ def apply(mijoz_id, t):
             _oz_ret = _oz_ulush(p, qty)   # brovdan olingani omborga qo'shilmaydi
             if _oz_ret > 0:
                 _k = db.ombor_koeff(p["mahsulot"], _yozilgan_birlik(t, qty))
-                db.ombor_apply_by_name(p["mahsulot"], "ret", _oz_ret * _k)
+                db.ombor_apply_by_name(p["mahsulot"], "ret", _oz_ret * _k, bolim=_bolim)
             h2 = db.partiya_hisob(p)
             d = db.mijoz_detail(mijoz_id)
             return {
@@ -251,7 +252,7 @@ def apply(mijoz_id, t):
                        for _x in taqsim if _x["partiya_raqam"] == _p["partiya_raqam"])
         if _oz_jami > 0:
             _k = db.ombor_koeff(prodname, _yozilgan_birlik(t, qty))
-            db.ombor_apply_by_name(prodname, "ret", _oz_jami * _k)
+            db.ombor_apply_by_name(prodname, "ret", _oz_jami * _k, bolim=_bolim)
         return {
             "ok": True, "amal": "qaytarish", "aggregate": True, "mijoz": m["ism"], "mijoz_id": mijoz_id,
             "mahsulot": prodname, "qty": qty, "return_ids": return_ids, "taqsim": taqsim,
@@ -312,6 +313,7 @@ def qator_chiqish(mijoz_id, qatorlar, sana=None, brov_kim=None, manzil=None):
     m = db.get_mijoz(mijoz_id)
     if not m:
         return {"ok": False, "xato": "Mijoz topilmadi"}
+    _bolim = (m.get("bolim") or "ijara")
     sana = str(sana or db.today_tk().isoformat())[:10]
     brov_kim = (brov_kim or "").strip() or None
     tekshir = db.get_sozlama("tovar_tekshir") == "1"
@@ -350,7 +352,7 @@ def qator_chiqish(mijoz_id, qatorlar, sana=None, brov_kim=None, manzil=None):
                                     brov_kim=brov_kim, brov_miqdor=(miq if brov_kim else None),
                                     birlik=birlik)
         if not brov_kim:
-            db.ombor_apply_by_name(mah, "out", miq * db.ombor_koeff(mah, birlik))
+            db.ombor_apply_by_name(mah, "out", miq * db.ombor_koeff(mah, birlik), bolim=_bolim)
         natija.append({"partiya_id": pid, "raqam": raqam, "mahsulot": mah,
                        "miqdor": miq, "birlik": birlik, "kunlik_narx": narx})
 
