@@ -602,6 +602,7 @@
       <div class="hero"><div class="arc"></div><div class="lbl">${neg?'Mijozning haqi':'Qolgan qarzi'}</div>
         <div class="amt num">${som(Math.abs(d.qolgan_qarz))} <small>so'm</small></div>
         <div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan</div></div>
+      <div style="display:flex;justify-content:flex-end;margin:-2px 0 8px"><button class="qbtn" id="mviewb" onclick="mviewTgl()">☰ Bitta ro'yxat</button></div>
       <div class="mtabs">
         <button class="tabb on" id="mt_qosh" onclick="mtab('qosh')">➕ Qo'shish</button>
         <button class="tabb" id="mt_tovar" onclick="mtab('tovar')">📦 Tovarlar</button>
@@ -689,10 +690,95 @@
     loadHaydovchilar();
     if(document.getElementById('lochint')) locTekshir();
     if(window._mtab && window._mtabId===d.id){ mtab(window._mtab); } else { window._mtabId=d.id; mtab('qosh'); }
+    try{ applyMview(mviewGet()); }catch(e){}
   };
 
   window.tgl=function(id){const el=document.getElementById(id); if(el) el.style.display=el.style.display==='none'?'block':'none';};
   window.mtab=function(t){['qosh','tovar','hisob','boshqa'].forEach(function(k){var p=document.getElementById('tab_'+k),b=document.getElementById('mt_'+k);if(p)p.style.display=(k===t)?'block':'none';if(b)b.classList.toggle('on',k===t);});window._mtab=t;window._mtabId=(window._curMijoz&&window._curMijoz.id)||window._mtabId;try{window.scrollTo(0,0);}catch(e){}};
+
+  // ===== Ko'rinish: bo'limlar (tab) yoki bitta uzun ro'yxat (scroll) =====
+  window.mviewGet=function(){ try{return localStorage.getItem('mview')||'tab';}catch(e){return 'tab';} };
+  window.applyMview=function(v){
+    var tabs=document.querySelector('.mtabs');
+    var panels=Array.prototype.slice.call(document.querySelectorAll('.mpanel'));
+    var btn=document.getElementById('mviewb');
+    if(v==='scroll'){
+      if(tabs) tabs.style.display='none';
+      panels.forEach(function(p){p.style.display='block';});
+      if(btn) btn.textContent='▦ Bo\'limlar';
+    } else {
+      if(tabs) tabs.style.display='flex';
+      if(btn) btn.textContent='☰ Bitta ro\'yxat';
+      mtab(window._mtab||'qosh');
+    }
+  };
+  window.mviewTgl=function(){ var v=(mviewGet()==='scroll')?'tab':'scroll'; try{localStorage.setItem('mview',v);}catch(e){} applyMview(v); };
+
+  // ===== Qoralama saqlash: saqlaganda boshqa bo'limdagi yozuv o'chmasin =====
+  function _rowsSnap(sel){
+    var out=[];
+    document.querySelectorAll(sel+' .qrow').forEach(function(el){
+      var i=el.id.replace(/^[a-z]+row/,'');
+      var pref = sel==='#brows' ? {m:'bm',q:'bq',p:'bp',u:'bu'} : {m:'qm',q:'qq',p:'qp',u:'qu'};
+      var m=(document.getElementById(pref.m+i)||{}).value||'';
+      var q=(document.getElementById(pref.q+i)||{}).value||'';
+      var pe=document.getElementById(pref.p+i); var p=pe?(pe.value||''):'';
+      var ue=document.getElementById(pref.u+i); var u=ue?(ue.textContent||'ta').trim():'ta';
+      if(m||q||p) out.push({m:m,q:q,p:p,u:u});
+    });
+    return out;
+  }
+  window._draftSnap=function(){
+    var s={simple:{}, qamal:window._qamal, bamal:window._bamal, qrows:_rowsSnap('#qrows'), brows:_rowsSnap('#brows')};
+    document.querySelectorAll('#app input, #app textarea').forEach(function(el){
+      if(!el.id) return;
+      if(el.readOnly) return;
+      if(/^(qm|qq|qp|bm|bq|bp)\d+$/.test(el.id)) return;   // qator inputlari alohida
+      if((el.value||'')==='') return;
+      s.simple[el.id]=el.value;
+    });
+    return s;
+  };
+  function _rebuildRows(which, rows, amal){
+    var boxId = which==='b' ? 'brows' : 'qrows';
+    var box=document.getElementById(boxId); if(!box) return;
+    var hasContent = rows.some(function(r){return r.m||r.q||r.p;});
+    if(!hasContent) return;   // bo'sh bo'lsa — tegmaymiz (tail bitta bo'sh qator qo'ygan)
+    if(which==='b'){ if(amal && window.brovTab) brovTab(amal); box.innerHTML=''; window._bn=0; }
+    else { if(amal && window.qatorTab) qatorTab(amal); box.innerHTML=''; window._qn=0; }
+    rows.forEach(function(r){
+      var i = which==='b' ? browAdd() : rowAdd();
+      var pref = which==='b' ? {m:'bm',q:'bq',p:'bp',u:'bu'} : {m:'qm',q:'qq',p:'qp',u:'qu'};
+      var mE=document.getElementById(pref.m+i); if(mE) mE.value=r.m;
+      var qE=document.getElementById(pref.q+i); if(qE) qE.value=r.q;
+      var pE=document.getElementById(pref.p+i); if(pE&&r.p) pE.value=r.p;
+      var uE=document.getElementById(pref.u+i); if(uE&&r.u) uE.textContent=r.u;
+    });
+  }
+  window._draftRestore=function(s, clear){
+    if(!s) return;
+    var skip={};
+    (clear||'').split(',').forEach(function(c){ if(c) skip[c]=1; });
+    // oddiy maydonlar
+    Object.keys(s.simple||{}).forEach(function(id){
+      if(skip['pay']&&id==='paytext') return;
+      if(skip['qosh']&&id==='qsum') return;
+      if(skip['esl']&&(id==='eizoh'||id==='evada')) return;
+      if(skip['adres']&&id==='adrestext') return;
+      if(skip['text']&&id==='addtext') return;
+      if(skip['b']&&/^bi_/.test(id)) return;
+      var el=document.getElementById(id);
+      if(el && !el.readOnly) el.value=s.simple[id];
+    });
+    if(!skip['q']) _rebuildRows('q', s.qrows||[], s.qamal);
+    if(!skip['b']) _rebuildRows('b', s.brows||[], s.bamal);
+  };
+  // Saqlashdan keyin: yangilash + qoralamalarni tiklash
+  window.mijozReload=async function(mid, clear){
+    var s=_draftSnap();
+    await loadMijoz(mid);
+    try{ _draftRestore(s, clear); }catch(e){}
+  };
   window.filterPartiya=function(q){
     q=(q||'').toLowerCase().trim();
     document.querySelectorAll('#plist .pcard').forEach(el=>{
@@ -714,7 +800,7 @@
       const d=await r.json();
       if(d&&d.ok){
         toast('💾 '+d.soni+' ta saqlandi'+((d.xatolar&&d.xatolar.length)?' · ⚠️ '+d.xatolar.join(' · '):''));
-        loadMijoz(mid);
+        mijozReload(mid);
       } else toast((d&&d.xato)||'Xato');
     }catch(e){toast('Xato');}
   };
@@ -726,7 +812,7 @@
     try{const r=await fetch('/api/yetkazma_sana',{method:'POST',headers:{...H,'Content-Type':'application/json'},
         body:JSON.stringify({mijoz_id:mid,eski_sana:eski,yangi_sana:yangi})});
       const d=await r.json();
-      if(d&&d.ok){toast('📅 '+d.soni+' ta mahsulot sanasi o\'zgardi');loadMijoz(mid);}
+      if(d&&d.ok){toast('📅 '+d.soni+' ta mahsulot sanasi o\'zgardi');mijozReload(mid);}
       else toast((d&&d.xato)||'Xato');
     }catch(e){toast('Xato');}
   };
@@ -740,47 +826,47 @@
 
     if(!mah||!miq||miq<=0||isNaN(narx)||narx<0||!sana){toast('To\'g\'ri to\'ldiring (tekin bo\'lsa narx 0)');return;}
     try{const r=await fetch('/api/partiya_edit',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({partiya_id:pid,mahsulot:mah,miqdor:miq,kunlik_narx:narx,sana,manzil,brov_kim:bkim,brov_miqdor:(bkim?miq:null)})});
-      const d=await r.json(); if(d.ok){toast('✏️ O\'zgartirildi');loadMijoz(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
+      const d=await r.json(); if(d.ok){toast('✏️ O\'zgartirildi');mijozReload(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
   };
   window.saveRet=async function(pid,mid){
     const miq=parseFloat((document.getElementById('r_miq'+pid).value||'').replace(/\s/g,''));
     const sana=document.getElementById('r_sana'+pid).value;
     if(!miq||miq<=0){toast('Nechta qaytdi?');return;}
     try{const r=await fetch('/api/qaytarish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({partiya_id:pid,miqdor:miq,sana})});
-      const d=await r.json(); if(d.ok){toast('↩️ Qaytdi');loadMijoz(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
+      const d=await r.json(); if(d.ok){toast('↩️ Qaytdi');mijozReload(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
   };
   window.delRet=async function(rid,mid){
     try{const r=await fetch('/api/qaytarish_del',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({return_id:rid})});
-      if(!r.ok)throw 0; toast('O\'chirildi'); loadMijoz(mid);}catch(e){toast('Xato');}
+      if(!r.ok)throw 0; toast('O\'chirildi'); mijozReload(mid);}catch(e){toast('Xato');}
   };
   window.delPartiya=async function(pid,mid){
     const ok = tg&&tg.showConfirm ? await new Promise(r=>tg.showConfirm('Bu partiyani butunlay o\'chirasizmi? Hisobdan ham chiqadi.',r)) : confirm('O\'chirasizmi?');
     if(!ok)return;
     try{const r=await fetch('/api/partiya_del',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({partiya_id:pid})});
-      if(!r.ok)throw 0; toast('🗑 Partiya o\'chirildi'); loadMijoz(mid);}catch(e){toast('Xato');}
+      if(!r.ok)throw 0; toast('🗑 Partiya o\'chirildi'); mijozReload(mid);}catch(e){toast('Xato');}
   };
 
   window.saveQosh=async function(tur,mid){
     const v=parseFloat((document.getElementById('qsum').value||'').replace(/\s/g,''));
     if(!v||v<=0){toast('Summani yozing');return;}
     try{const r=await fetch('/api/qoshimcha',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,tur,summa:v,sana:(document.getElementById('qsana')||{}).value})});
-      const d=await r.json(); if(d.ok){toast('➕ Qo\'shildi');loadMijoz(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
+      const d=await r.json(); if(d.ok){toast('➕ Qo\'shildi');mijozReload(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
   };
   window.delQosh=async function(id,mid){
     try{const r=await fetch('/api/qoshimcha_del',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({id})});
-      if(!r.ok)throw 0; toast('O\'chirildi'); loadMijoz(mid);}catch(e){toast('Xato');}
+      if(!r.ok)throw 0; toast('O\'chirildi'); mijozReload(mid);}catch(e){toast('Xato');}
   };
   window.setTur=async function(mid,turi){
     try{const r=await fetch('/api/tolov_turi',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,turi})});
       let d=null; try{d=await r.json();}catch(_){}
-      if(d&&d.ok){toast('✅ Saqlandi');loadMijoz(mid);}else{toast((d&&d.xato)||'Xato');}
+      if(d&&d.ok){toast('✅ Saqlandi');mijozReload(mid);}else{toast((d&&d.xato)||'Xato');}
     }catch(e){toast('Xato');}
   };
   window.setStatus=async function(mid,st){
     try{const r=await fetch('/api/status',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,status:st})});
       let d=null; try{d=await r.json();}catch(_){}
       if(!r.ok || !d || !d.ok){ toast((d&&d.xabar)||('Xato '+r.status)); return; }
-      loadMijoz(mid);
+      mijozReload(mid);
     }catch(e){ toast('Tarmoq xatosi'); }
   };
   window.saveMijoz=async function(mid){
@@ -788,18 +874,18 @@
     const tel=(document.getElementById('m_tel').value||'').trim();
     if(!ism){toast('Ism kiriting');return;}
     try{const r=await fetch('/api/mijoz_edit',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,ism,telefon:tel})});
-      const d=await r.json(); if(d.ok){toast('✏️ Saqlandi');loadMijoz(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
+      const d=await r.json(); if(d.ok){toast('✏️ Saqlandi');mijozReload(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
   };
   window.saveEsl=async function(mid){
     const izoh=(document.getElementById('eizoh').value||'').trim();
     const vada=document.getElementById('evada').value;
     if(!vada){toast('Sanani tanlang');return;}
     try{const r=await fetch('/api/eslatma',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,vada_sana:vada,izoh})});
-      const d=await r.json(); if(d.ok){toast('📞 Eslatma qo\'shildi');loadMijoz(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
+      const d=await r.json(); if(d.ok){toast('📞 Eslatma qo\'shildi');mijozReload(mid,'esl');} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
   };
   window.delEsl=async function(id,mid){
     try{const r=await fetch('/api/eslatma_del',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({id})});
-      if(!r.ok)throw 0; toast('O\'chirildi'); loadMijoz(mid);}catch(e){toast('Xato');}
+      if(!r.ok)throw 0; toast('O\'chirildi'); mijozReload(mid);}catch(e){toast('Xato');}
   };
 
   window.saveTolov=async function(mid,sign){
@@ -808,11 +894,11 @@
     v=Math.abs(v)*(sign||1);
     const sana=document.getElementById('paysana').value;
     try{const r=await fetch('/api/tolov',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,summa:v,sana})});
-      const d=await r.json(); if(d.ok){toast(v<0?'➖ Qarz qo\'shildi':'💵 To\'lov qo\'shildi');loadMijoz(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
+      const d=await r.json(); if(d.ok){toast(v<0?'➖ Qarz qo\'shildi':'💵 To\'lov qo\'shildi');mijozReload(mid,'pay');} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
   };
   window.delTolov=async function(tid,mid){
     try{const r=await fetch('/api/tolov_del',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({tolov_id:tid})});
-      if(!r.ok)throw 0; toast('O\'chirildi'); loadMijoz(mid);}catch(e){toast('Xato');}
+      if(!r.ok)throw 0; toast('O\'chirildi'); mijozReload(mid);}catch(e){toast('Xato');}
   };
 
   window.sendText=async function(mid){
@@ -823,7 +909,7 @@
       const r=await fetch('/api/qoshish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,matn:v})});
       let d=null; try{d=await r.json();}catch(_){}
       if(!r.ok || !d){ xatoBox('adderr','Xato: '+r.status+(d&&(d.xato||d.xabar)?' · '+(d.xato||d.xabar):'')); return; }
-      if(d.ok){ xatoTozala('adderr'); toast(d.xabar||'Qo\'shildi'); el.value=''; loadMijoz(mid); }
+      if(d.ok){ xatoTozala('adderr'); toast(d.xabar||'Qo\'shildi'); el.value=''; mijozReload(mid,'text'); }
       else { xatoBox('adderr', d.xabar||d.xato||'Qabul qilinmadi'); }
     }catch(e){ toast('Tarmoq xatosi'); }
   };
@@ -1138,7 +1224,7 @@
       const r=await fetch('/api/qator',{method:'POST',headers:{...H,'Content-Type':'application/json'},
         body:JSON.stringify({mijoz_id:mid,sana,qatorlar:rows,amal:window._qamal||'chiqish'})});
       let d=null; try{d=await r.json();}catch(_){}
-      if(d&&d.ok){ xatoTozala('qerr'); toast('✅ '+(d.xabar||'Qo\'shildi')); loadMijoz(mid); }
+      if(d&&d.ok){ xatoTozala('qerr'); toast('✅ '+(d.xabar||'Qo\'shildi')); mijozReload(mid,'q'); }
       else { xatoBox('qerr',(d&&d.xabar)||('Xato '+r.status)); }
     }catch(e){ xatoBox('qerr','Tarmoq xatosi'); }
   };
@@ -1311,13 +1397,13 @@
     try{const r=await fetch('/api/qator',{method:'POST',headers:{...H,'Content-Type':'application/json'},
         body:JSON.stringify({mijoz_id:mid,sana,qatorlar:rows,brov_kim:kim,amal:window._bamal||'chiqish'})});
       const d=await r.json();
-      if(d&&d.ok){ xatoTozala('berr'); toast('🔁 '+(d.xabar||'Bajarildi')); loadMijoz(mid); }
+      if(d&&d.ok){ xatoTozala('berr'); toast('🔁 '+(d.xabar||'Bajarildi')); mijozReload(mid,'b'); }
       else xatoBox('berr',(d&&d.xabar)||'Xato');
     }catch(e){ xatoBox('berr','Tarmoq xatosi'); }
   };
   window.brovDelM=async function(id,mid){
     const j=await brovPost('/api/brov_del',{id});
-    if(j&&j.ok){toast('🗑 O\'chirildi');loadMijoz(mid);}else{toast('❌ Xato');}
+    if(j&&j.ok){toast('🗑 O\'chirildi');mijozReload(mid);}else{toast('❌ Xato');}
   };
   window.qaydTgl=function(){
     const el=document.getElementById('qaydmatn'), b=document.getElementById('qtgl');
@@ -1332,7 +1418,7 @@
   };
   window.qaydDel=async function(id,mid){
     const j=await brovPost('/api/qayd_del',{id});
-    if(j&&j.ok){toast('🗑 O\'chirildi');loadMijoz(mid);}else{toast('❌ Xato');}
+    if(j&&j.ok){toast('🗑 O\'chirildi');mijozReload(mid);}else{toast('❌ Xato');}
   };
 
   window.loginEkran=function(xato){
