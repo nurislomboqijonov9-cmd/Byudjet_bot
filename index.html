@@ -679,9 +679,14 @@
 
       <div id="tab_boshqa" class="mpanel" style="display:none">
         <div class="addbox"><div class="t">📊 Excel otchot</div>
-          <div class="hint" style="margin:0 0 8px">Shu mijozning to'liq hisoboti — Excel fayl.</div>
-          <button class="mini-btn" style="width:100%;margin-bottom:8px" onclick="excelYukla(${d.id})">⬇️ Yuklab olish</button>
-          <button class="mini-btn" style="width:100%" onclick="excelYubor(${d.id})">📤 Yuborish</button></div>
+          ${(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)
+            ? `<div class="hint" style="margin:0 0 8px">Fayl shu botdagi chatingizga tushadi — o'sha yerdan ochasiz, yuklaysiz yoki uzatasiz.</div>
+               <button class="mini-btn" style="width:100%" onclick="excelBot(${d.id})">📄 Telegramga yuborish</button>`
+            : `<div class="hint" style="margin:0 0 8px">Shu mijozning to'liq hisoboti — Excel fayl.</div>
+               <button class="mini-btn" style="width:100%;margin-bottom:8px" onclick="excelYukla(${d.id})">⬇️ Yuklab olish</button>
+               <button class="mini-btn" style="width:100%;margin-bottom:8px" onclick="excelYubor(${d.id})">📤 Yuborish</button>
+               <button class="mini-btn" style="width:100%" onclick="excelOch(${d.id})">👁 Ochish</button>`}
+        </div>
         ${vazCard}
         <div class="addbox"><div class="t">📍 Manzil</div>
           <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
@@ -771,6 +776,21 @@
       _excelSaqla(x.blob, x.fname);
       toast('ℹ️ Ulashish qo\'llab-quvvatlanmadi — fayl yuklandi, qo\'lda yuboring');
     }catch(e){ toast('❌ Excel olishda xato'); }
+  };
+  window.excelOch=async function(id){
+    toast('⏳ Ochilmoqda…');
+    try{ const x=await _excelBlob(id); const url=URL.createObjectURL(x.blob); window.open(url,'_blank'); setTimeout(function(){URL.revokeObjectURL(url);},20000); }
+    catch(e){ toast('❌ Ochishda xato'); }
+  };
+  // Telegram ichida: botning o'zi faylni chatga yuboradi (webview yuklab olishni bloklaydi)
+  window.excelBot=async function(id){
+    toast('⏳ Yuborilmoqda…');
+    try{
+      const r=await fetch('/api/mijoz_excel_yubor?id='+id,{method:'POST',headers:H});
+      const j=await r.json().catch(function(){return{};});
+      if(r.ok && j && j.ok) toast('✅ Fayl Telegramga yuborildi — chatingizni oching');
+      else toast('❌ Yuborilmadi — botni /start qilganingizni tekshiring');
+    }catch(e){ toast('❌ Yuborishda xato'); }
   };
 
   // ===== Qoralama saqlash: saqlaganda boshqa bo'limdagi yozuv o'chmasin =====

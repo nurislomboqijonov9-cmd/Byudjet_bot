@@ -176,6 +176,24 @@ def make_web_app(bot_token):
         except Exception:
             return False
 
+    async def tg_document(chat_id, data, filename, caption=""):
+        """Bot orqali fayl (hujjat) yuborish. Yetib borgan bo'lsa True."""
+        try:
+            import aiohttp as _ah
+            form = _ah.FormData()
+            form.add_field("chat_id", str(chat_id))
+            if caption:
+                form.add_field("caption", caption)
+            form.add_field("document", data, filename=filename,
+                           content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            async with _ah.ClientSession() as ss:
+                async with ss.post(f"https://api.telegram.org/bot{bot_token}/sendDocument",
+                                   data=form, timeout=_ah.ClientTimeout(total=60)) as r:
+                    j = await r.json(content_type=None)
+            return bool(isinstance(j, dict) and j.get("ok"))
+        except Exception:
+            return False
+
     def _asos_url(request):
         base = os.getenv("WEBAPP_URL") or ""
         if not base:
@@ -434,6 +452,29 @@ def make_web_app(bot_token):
             body=data,
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fn}"})
+
+    async def api_mijoz_excel_yubor(request):
+        """Excelni bot orqali foydalanuvchining Telegram chatiga yuboradi.
+        (Telegram Mini App ichida yuklab olish ishlamagani uchun.)"""
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            mid = int(request.query.get("id", ""))
+        except Exception:
+            return web.json_response({"xato": "id kerak"}, status=400)
+        d = db.mijoz_detail(mid)
+        if not d:
+            return web.json_response({"xato": "topilmadi"}, status=404)
+        try:
+            data = excel.mijoz_excel(d).getvalue()
+        except Exception:
+            import logging
+            logging.getLogger("miniapp").exception("mijoz excel xatolik")
+            return web.json_response({"xato": "excel yaratilmadi"}, status=500)
+        nom = (d.get("mijoz") or d.get("ism") or "mijoz")
+        ok = await tg_document(uid, data, f"{nom}.xlsx", caption=f"📊 {nom} — hisobot")
+        return web.json_response({"ok": bool(ok)})
 
     async def api_mijoz_qosh(request):
         uid, err = check(request)
@@ -980,6 +1021,7 @@ def make_web_app(bot_token):
     app.router.add_get("/api/mijozlar", api_mijozlar)
     app.router.add_get("/api/mijoz", api_mijoz)
     app.router.add_get("/api/mijoz_excel", api_mijoz_excel)
+    app.router.add_post("/api/mijoz_excel_yubor", api_mijoz_excel_yubor)
     app.router.add_post("/api/mijoz_qosh", api_mijoz_qosh)
     app.router.add_post("/api/mijoz_edit", api_mijoz_edit)
     app.router.add_post("/api/qoshish", api_qoshish)
