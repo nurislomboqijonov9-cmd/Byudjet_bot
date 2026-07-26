@@ -109,6 +109,13 @@
   body.app .mtabs .tabb{border-radius:13px;}
   .mpanel{animation:mfade .13s ease;}
   @keyframes mfade{from{opacity:.35}to{opacity:1}}
+  .tsov{position:fixed;inset:0;background:rgba(8,18,16,.55);display:flex;align-items:center;justify-content:center;z-index:99999;padding:24px;}
+  .tsbox{background:var(--card);color:var(--ink);border-radius:18px;max-width:340px;width:100%;padding:20px 20px 16px;box-shadow:0 24px 70px rgba(0,0,0,.35);}
+  .tsmsg{font-size:15px;line-height:1.5;margin-bottom:16px;}
+  .tsbtns{display:flex;gap:10px;}
+  .tsbtns button{flex:1;padding:12px;border-radius:12px;border:0;font-weight:700;font-size:15px;cursor:pointer;}
+  .tsno{background:transparent;color:var(--ink);border:1px solid var(--line,#D5DEDB) !important;}
+  .tsyes{background:var(--brand);color:#fff;}
   body.tun .tabb{background:#101A18;}
   body.tun .tabb.on{background:var(--brand);color:#08110F;}
   .login{max-width:340px;margin:0 auto;padding:36px 0;}
@@ -697,6 +704,21 @@
   window.mtab=function(t){['qosh','tovar','hisob','boshqa'].forEach(function(k){var p=document.getElementById('tab_'+k),b=document.getElementById('mt_'+k);if(p)p.style.display=(k===t)?'block':'none';if(b)b.classList.toggle('on',k===t);});window._mtab=t;window._mtabId=(window._curMijoz&&window._curMijoz.id)||window._mtabId;try{window.scrollTo(0,0);}catch(e){}};
 
   // ===== Ko'rinish: bo'limlar (tab) yoki bitta uzun ro'yxat (scroll) =====
+  // ===== Universal tasdiq oynasi (Telegram, brauzer va PWA'da ishlaydi) =====
+  window.tasdiq=function(msg){
+    var W = window.Telegram && window.Telegram.WebApp;
+    if(W && W.showConfirm){ return new Promise(function(r){ try{ W.showConfirm(msg, r); }catch(e){ r(false); } }); }
+    return new Promise(function(res){
+      var ov=document.createElement('div'); ov.className='tsov';
+      ov.innerHTML='<div class="tsbox"><div class="tsmsg"></div><div class="tsbtns"><button class="tsno">Bekor</button><button class="tsyes">Ha</button></div></div>';
+      ov.querySelector('.tsmsg').textContent=msg;
+      function done(v){ if(ov.parentNode) ov.parentNode.removeChild(ov); res(v); }
+      ov.querySelector('.tsyes').onclick=function(){ done(true); };
+      ov.querySelector('.tsno').onclick=function(){ done(false); };
+      ov.addEventListener('click', function(e){ if(e.target===ov) done(false); });
+      document.body.appendChild(ov);
+    });
+  };
   window.mviewGet=function(){ try{return localStorage.getItem('mview')||'tab';}catch(e){return 'tab';} };
   window.applyMview=function(v){
     var tabs=document.querySelector('.mtabs');
@@ -840,7 +862,7 @@
       if(!r.ok)throw 0; toast('O\'chirildi'); mijozReload(mid);}catch(e){toast('Xato');}
   };
   window.delPartiya=async function(pid,mid){
-    const ok = tg&&tg.showConfirm ? await new Promise(r=>tg.showConfirm('Bu partiyani butunlay o\'chirasizmi? Hisobdan ham chiqadi.',r)) : confirm('O\'chirasizmi?');
+    const ok = await tasdiq('Bu partiyani butunlay o\'chirasizmi? Hisobdan ham chiqadi.');
     if(!ok)return;
     try{const r=await fetch('/api/partiya_del',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({partiya_id:pid})});
       if(!r.ok)throw 0; toast('🗑 Partiya o\'chirildi'); mijozReload(mid);}catch(e){toast('Xato');}
@@ -946,7 +968,7 @@
   };
 
   window.ochir=async function(id){
-    const ok = tg&&tg.showConfirm ? await new Promise(r=>tg.showConfirm('Yacheykani o\'chirasizmi? Qaytarilmaydi.',r)) : confirm('O\'chirasizmi?');
+    const ok = await tasdiq('Yacheykani o\'chirasizmi? Qaytarilmaydi.');
     if(!ok)return;
     try{const r=await fetch('/api/ochirish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:id})});
       if(!r.ok)throw 0; toast('O\'chirildi'); loadList();}catch(e){toast('O\'chirib bo\'lmadi');}
@@ -968,7 +990,7 @@
   };
   window.smsSend=async function(mid,tel){
     const d=window._curMijoz; const nm=(d&&d.mijoz)||'';
-    const ok = tg&&tg.showConfirm ? await new Promise(r=>tg.showConfirm('«'+nm+'» ('+tel+') ga qarz eslatmasi SMS yuborilsinmi?',r)) : confirm('SMS yuborilsinmi?');
+    const ok = await tasdiq('«'+nm+'» ('+tel+') ga qarz eslatmasi SMS yuborilsinmi?');
     if(!ok)return;
     const box=document.getElementById('smsbox'); if(box) box.style.display='none';
     toast('📤 Yuborilyapti…');
@@ -1056,7 +1078,7 @@
     const tot=parseFloat((document.getElementById('onew_tot').value||'').replace(/\s/g,''))||0;
     if(!nom){toast('Nom?');return;} const j=await ombPost('/api/ombor_add',{name:nom,total:tot,bolim:window._ombBolim||'ijara'});
     if(j&&j.ok){toast('✅ Qo\'shildi');reloadOmbor();}else{toast('❌ Xato');}};
-  window.omborDel=async function(id){const ok=tg&&tg.showConfirm?await new Promise(r=>tg.showConfirm('Bu tovarni o\'chirasizmi?',r)):confirm('O\'chirasizmi?');
+  window.omborDel=async function(id){const ok=await tasdiq('Bu tovarni o\'chirasizmi?');
     if(!ok)return; const j=await ombPost('/api/ombor_del',{id});
     if(j&&j.ok){toast('🗑 O\'chirildi');reloadOmbor();}else{toast('❌ Xato');}};
   window.loadOmborTarix=async function(){
@@ -1305,7 +1327,7 @@
     if(j&&j.ok){toast('↩️ Qaytarildi');loadBrov();}else{toast('❌ '+((j&&j.xato)||'Xato'));}
   };
   window.brovDel=async function(id){
-    const ok=tg&&tg.showConfirm?await new Promise(r=>tg.showConfirm('O\'chirasizmi?',r)):confirm('O\'chirasizmi?');
+    const ok=await tasdiq('O\'chirasizmi?');
     if(!ok)return; const j=await brovPost('/api/brov_del',{id});
     if(j&&j.ok){toast('🗑 O\'chirildi');loadBrov();}else{toast('❌ Xato');}
   };
