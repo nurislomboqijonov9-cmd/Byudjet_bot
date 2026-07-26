@@ -678,6 +678,10 @@
       </div>
 
       <div id="tab_boshqa" class="mpanel" style="display:none">
+        <div class="addbox"><div class="t">📊 Excel otchot</div>
+          <div class="hint" style="margin:0 0 8px">Shu mijozning to'liq hisoboti — Excel fayl.</div>
+          <button class="mini-btn" style="width:100%;margin-bottom:8px" onclick="excelYukla(${d.id})">⬇️ Yuklab olish</button>
+          <button class="mini-btn" style="width:100%" onclick="excelYubor(${d.id})">📤 Yuborish</button></div>
         ${vazCard}
         <div class="addbox"><div class="t">📍 Manzil</div>
           <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
@@ -735,6 +739,39 @@
     }
   };
   window.mviewTgl=function(){ var v=(mviewGet()==='scroll')?'tab':'scroll'; try{localStorage.setItem('mview',v);}catch(e){} applyMview(v); };
+
+  // ===== Excel otchot: yuklab olish / yuborish =====
+  async function _excelBlob(id){
+    const r=await fetch('/api/mijoz_excel?id='+id,{headers:H});
+    if(!r.ok) throw 0;
+    const blob=await r.blob();
+    const nom=((window._curMijoz&&window._curMijoz.mijoz)||'mijoz').replace(/[^\w .\-]/g,'_');
+    return {blob:blob, fname:nom+'.xlsx', nom:nom};
+  }
+  function _excelSaqla(blob, fname){
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},5000);
+  }
+  window.excelYukla=async function(id){
+    toast('⏳ Excel tayyorlanmoqda…');
+    try{ const x=await _excelBlob(id); _excelSaqla(x.blob,x.fname); toast('✅ Excel yuklandi'); }
+    catch(e){ toast('❌ Excel olishda xato'); }
+  };
+  window.excelYubor=async function(id){
+    toast('⏳ Excel tayyorlanmoqda…');
+    try{
+      const x=await _excelBlob(id);
+      const file=new File([x.blob], x.fname, {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        try{ await navigator.share({files:[file], title:x.nom, text:x.nom+' — hisobot'}); return; }
+        catch(e){ if(e && e.name==='AbortError') return; }
+      }
+      _excelSaqla(x.blob, x.fname);
+      toast('ℹ️ Ulashish qo\'llab-quvvatlanmadi — fayl yuklandi, qo\'lda yuboring');
+    }catch(e){ toast('❌ Excel olishda xato'); }
+  };
 
   // ===== Qoralama saqlash: saqlaganda boshqa bo'limdagi yozuv o'chmasin =====
   function _rowsSnap(sel){

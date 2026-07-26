@@ -12,6 +12,7 @@ import db
 import ai
 import logic
 import sms
+import excel
 
 INDEX = Path(__file__).parent / "index.html"
 
@@ -407,6 +408,32 @@ def make_web_app(bot_token):
         if not d:
             return web.json_response({"xato": "topilmadi"}, status=404)
         return web.json_response(d)
+
+    async def api_mijoz_excel(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            mid = int(request.query.get("id", ""))
+        except Exception:
+            return web.json_response({"xato": "id kerak"}, status=400)
+        d = db.mijoz_detail(mid)
+        if not d:
+            return web.Response(status=404)
+        try:
+            bio = excel.mijoz_excel(d)
+            data = bio.getvalue()
+        except Exception:
+            import logging
+            logging.getLogger("miniapp").exception("mijoz excel xatolik")
+            return web.json_response({"xato": "excel yaratilmadi"}, status=500)
+        import urllib.parse
+        nom = (d.get("mijoz") or d.get("ism") or "mijoz")
+        fn = urllib.parse.quote(f"{nom}.xlsx")
+        return web.Response(
+            body=data,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fn}"})
 
     async def api_mijoz_qosh(request):
         uid, err = check(request)
@@ -952,6 +979,7 @@ def make_web_app(bot_token):
     app.router.add_get("/logo.png", icon)
     app.router.add_get("/api/mijozlar", api_mijozlar)
     app.router.add_get("/api/mijoz", api_mijoz)
+    app.router.add_get("/api/mijoz_excel", api_mijoz_excel)
     app.router.add_post("/api/mijoz_qosh", api_mijoz_qosh)
     app.router.add_post("/api/mijoz_edit", api_mijoz_edit)
     app.router.add_post("/api/qoshish", api_qoshish)
