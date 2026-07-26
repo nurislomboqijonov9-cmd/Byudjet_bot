@@ -630,6 +630,15 @@
           <div class="hint">🎤 bosib gapiring, yoki yozib «Qo'shish».</div>
         </div></div>
         ${brovIn}
+        <div class="addbox"><div class="t">➕ Qo'shimcha (yo'lkira / remont)</div>
+          <div class="inrow"><input class="f" id="qsum" inputmode="numeric" placeholder="Summa (so'm)">
+            <input class="f" id="qsana" type="date" value="${bugun}"></div>
+          <div class="inrow" style="margin-top:8px">
+            <button class="mini-btn" onclick="saveQosh('yolkira',${d.id})">🚚 Yo'lkira</button>
+            <button class="mini-btn" onclick="saveQosh('remont',${d.id})">🔧 Remont</button></div>
+          <div class="hint">Summani yozib, turini tanlang. Qarzga qo'shiladi.</div>
+          ${qlist?'<div style="margin-top:10px">'+qlist+'</div>':''}</div>
+        ${qaydCard}
       </div>
 
       <div id="tab_tovar" class="mpanel" style="display:none">
@@ -658,14 +667,6 @@
           <button class="send" style="margin-top:8px;background:var(--neg)" onclick="saveTolov(${d.id},-1)">➖ Qarz qo'shish</button>
           <div class="hint">Summani yozing. <b>➕</b> — to'lov (qarz kamayadi). <b>➖</b> — o'sha summa mijozga qarz bo'lib qo'shiladi.</div>
           ${tlist?'<div style="margin-top:10px">'+tlist+'</div>':''}</div>
-        <div class="addbox"><div class="t">➕ Qo'shimcha</div>
-          <div class="inrow"><input class="f" id="qsum" inputmode="numeric" placeholder="Summa (so'm)">
-            <input class="f" id="qsana" type="date" value="${bugun}"></div>
-          <div class="inrow" style="margin-top:8px">
-            <button class="mini-btn" onclick="saveQosh('yolkira',${d.id})">🚚 Yo'lkira</button>
-            <button class="mini-btn" onclick="saveQosh('remont',${d.id})">🔧 Remont</button></div>
-          <div class="hint">Summani yozib, turini tanlang. Qarzga qo'shiladi.</div>
-          ${qlist?'<div style="margin-top:10px">'+qlist+'</div>':''}</div>
         ${eslCard}
       </div>
 
@@ -674,7 +675,6 @@
         <div class="addbox"><div class="t">📍 Manzil</div>
           <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
           <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
-        ${qaydCard}
         ${d.token?`<div class="addbox"><div class="t">🔗 Mijoz uchun havola</div>
           <div class="hint" style="margin:0 0 8px">Mijoz shu havoladan o'z qarzini ko'radi. Har doim yangilanib turadi — bir marta yuborsangiz yetadi.</div>
           <input class="f" id="mlink" readonly value="${location.origin}/m/${esc(d.token)}" onclick="this.select()">
