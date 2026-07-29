@@ -22,6 +22,7 @@ class Amal(str, Enum):
     tolov = "tolov"
     malumot = "malumot"
     eslatma = "eslatma"
+    savol = "savol"
 
 
 class IjaraAmal(BaseModel):
@@ -65,6 +66,11 @@ AMALLAR:
 - "eslatma": mijoz to'lovni qachondir va'da qilsa. Masalan: "Siroj aka 15-iyulda beraman dedi",
   "Abbos 20 kuni to'layman dedi" -> amal=eslatma, mijoz=ism, sana=va'da qilingan sana (ISO),
   izoh=mijoz aytgan gap. O'sha kuni ertalab bot eslatadi.
+- "savol": foydalanuvchi TAHLILIY / umumiy savol bersa (bitta mijoz emas, balki hisob-kitob, ro'yxat,
+  jami, statistika). Masalan: "bu oy qancha pul kirdi", "eng katta 5 qarzdor kim", "bugun ahvol qanday",
+  "3 oydan beri hech narsa olmagan mijozlar", "omborda nechta lesa qoldi", "o'rtacha necha kun ijarada turadi"
+  -> amal=savol, transkript=savol matni (mijoz/mahsulot to'ldirilmaydi).
+  FARQ: bitta mijozning o'zini so'rasa ("Abbos", "Karim qancha qarzi bor") -> malumot. Umumiy/statistik -> savol.
 
 QOIDALAR:
 - Agar bir nechta mahsulot yoki amal aytilsa, HAR BIRINI alohida amal qilib "amallar" ro'yxatiga qo'sh.
@@ -136,3 +142,78 @@ def from_audio(audio_bytes: bytes, mime_type: str = "audio/ogg") -> list:
 
 def from_text(text: str) -> list:
     return _extract([_now_context(), text])
+
+
+# ==========================================================================
+# SAVOL-JAVOB AGENTI: savol -> SQL SELECT -> (kod bajaradi) -> o'zbekcha javob
+# ==========================================================================
+
+class SqlSavol(BaseModel):
+    sql: str = Field(description="Bitta SQLite SELECT so'rovi (faqat o'qish). Boshqa hech narsa emas.")
+
+
+_AGENT_QOIDA = """Sen ijara (arenda) hisobi bazasi bo'yicha SQL yozuvchisisan.
+Foydalanuvchi savolidan BITTA SQLite SELECT so'rovi yoz. Faqat SELECT — INSERT/UPDATE/DELETE/DROP MUMKIN EMAS.
+
+BAZA SXEMASI:
+{sxema}
+
+QO'SHIMCHA HISOBLANGAN JADVAL (qarz savollari uchun SHUNI ishlat):
+- v_mijoz_qarz(mijoz_id, ism, telefon, bolim, status, qolgan_qarz, jami_qolgan)
+  qolgan_qarz = mijozning HOZIRGI qarzi (so'm). jami_qolgan = qaytarilmagan dona soni.
+  Qarz jadval ustunida saqlanmaydi — QARZ haqidagi har qanday savolda faqat v_mijoz_qarz'dan foydalan.
+
+USTUNLAR MA'NOSI:
+- mijozlar: id, ism, telefon, status ('faol'/'nofaol'/'sotuv'), bolim ('ijara'/'sotuv').
+- partiyalar: mijozga chiqarilgan mollar. mahsulot, miqdor (dona), kunlik_narx, chiqgan_sana, mijoz_id.
+- qaytarishlar: partiya_id -> partiyalar.id, miqdor, qaytgan_sana (qaytarilgan mollar).
+- tolovlar: mijoz to'lovlari. mijoz_id, summa (so'm), sana.
+- qoshimcha: yo'lkira/remont. mijoz_id, tur, summa, sana.
+- ombor_mahsulot: name, total, out_qty. Omborda qolgan = total - out_qty. bolim: ijara/sotuv.
+- eslatmalar: to'lov va'dalari (mijoz_id, vada_sana, izoh, yuborildi).
+
+QOIDALAR:
+- Faqat 1 ta SELECT. Nuqta-vergul (;) va bir nechta so'rov YO'Q.
+- Sanalar 'YYYY-MM-DD' matn. "bu oy" -> strftime('%Y-%m', sana) = strftime('%Y-%m','now','localtime').
+  "bugun" -> date(sana) = date('now','localtime'). "shu yil" -> strftime('%Y', sana)=strftime('%Y','now','localtime').
+- Mijoz ismini qidirganda ism LIKE '%...%' ishlat (aniq mos kelmasligi mumkin).
+- Ko'p qatorli natijada LIMIT 50 qo'y. "eng ko'p/katta N" bo'lsa ORDER BY ... DESC LIMIT N.
+- Mahsulotni qidirganda name LIKE '%...%' (masalan lesa, stoyka).
+- Faqat SELECT so'rovni qaytar, izohsiz.
+"""
+
+
+def savol_sql(savol: str, sxema: str, oldingi_xato: str | None = None) -> str:
+    """Savoldan bitta SELECT so'rovi generatsiya qiladi."""
+    sys = _AGENT_QOIDA.format(sxema=sxema)
+    matn = savol
+    if oldingi_xato:
+        matn = f"{savol}\n\n(Avvalgi SQL xato berdi: {oldingi_xato}\nTo'g'rilab, faqat bitta SELECT qaytar.)"
+    resp = client().models.generate_content(
+        model=MODEL,
+        contents=[_now_context(), matn],
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=SqlSavol,
+            system_instruction=sys,
+        ),
+    )
+    _log_usage(resp)
+    if getattr(resp, "parsed", None) is not None:
+        return resp.parsed.sql
+    import json
+    return SqlSavol(**json.loads(resp.text)).sql
+
+
+def natija_javob(savol: str, jadval_matn: str) -> str:
+    """SQL natijasini (jadval matni) o'zbekcha qisqa javobga aylantiradi."""
+    sys = ("Sen o'zbek tilida javob beruvchi tahlilchisan. Senga savol va SQL natijasi (jadval) beriladi. "
+           "Qisqa, aniq, tabiiy o'zbekcha javob ber. Pul summalarini o'qishli yoz (masalan 1 500 000 so'm). "
+           "Faqat javobning o'zi — SQL yoki ortiqcha izoh yozma. Natija bo'sh bo'lsa \"Ma'lumot topilmadi\" de.")
+    resp = client().models.generate_content(
+        model=MODEL,
+        contents=[f"Savol: {savol}\n\nNatija (jadval):\n{jadval_matn}"],
+        config=types.GenerateContentConfig(system_instruction=sys),
+    )
+    _log_usage(resp)
+    return (resp.text or "").strip()

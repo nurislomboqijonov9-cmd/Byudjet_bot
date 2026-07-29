@@ -246,6 +246,11 @@ async def bajar(update: Update, ctx: ContextTypes.DEFAULT_TYPE, t):
             pass
 
     if not t.tushunildi or not t.amal or not t.mijoz:
+        _amal0 = getattr(t.amal, "value", t.amal) if t.amal else None
+        if _amal0 == "savol" or (not t.mijoz and _amal0 == "savol"):
+            savol = (getattr(t, "transkript", "") or "").strip()
+            if savol and db.is_admin(update.effective_user.id):
+                return await _agent_reply(update, ctx, savol)
         await update.effective_message.reply_text(f"Tushunolmadim 🤔 Qaytaring.\nEshitganim: «{t.transkript}»")
         return
 
@@ -1324,6 +1329,162 @@ async def _set_commands(app):
         log.exception("buyruq menyusini o'rnatishda xatolik")
 
 
+# ==========================================================================
+# SAVOL-JAVOB AGENTI (faqat admin) — savol -> SQL SELECT -> javob
+# Xavfsizlik: faqat SELECT + so'rov bir martalik XOTIRA-NUSXAda bajariladi
+# (real bazaga umuman tegilmaydi).
+# ==========================================================================
+import sqlite3 as _sqlite3
+
+_YOZISH_RE = re.compile(
+    r"\b(insert|update|delete|drop|alter|create|replace|attach|detach|pragma|vacuum|reindex|truncate|grant|revoke)\b",
+    re.IGNORECASE)
+
+
+def _sql_tozala(sql):
+    s = (sql or "").strip()
+    if s.startswith("```"):
+        s = re.sub(r"^```[a-zA-Z]*", "", s).strip()
+        if s.endswith("```"):
+            s = s[:-3].strip()
+    return s.strip().rstrip(";").strip()
+
+
+def _sql_xavfsizmi(sql):
+    s = _sql_tozala(sql)
+    if not s:
+        return False
+    low = s.lower()
+    if not (low.startswith("select") or low.startswith("with")):
+        return False
+    if ";" in s:                       # bitta so'rovgina
+        return False
+    if _YOZISH_RE.search(s):           # yozuv so'zlari yo'q
+        return False
+    return True
+
+
+def _db_sxema():
+    con = _sqlite3.connect(f"file:{db.DB_PATH}?mode=ro", uri=True)
+    parts = []
+    for name, sql in con.execute(
+            "SELECT name, sql FROM sqlite_master WHERE type='table' "
+            "AND name NOT LIKE 'sqlite_%' AND name NOT IN ('api_usage','sozlamalar') ORDER BY name"):
+        if sql:
+            parts.append(sql.strip())
+    con.close()
+    return "\n\n".join(parts)
+
+
+def _agent_baza():
+    """Bir martalik xotira-nusxa + hisoblangan v_mijoz_qarz jadvali."""
+    src = _sqlite3.connect(f"file:{db.DB_PATH}?mode=ro", uri=True)
+    mem = _sqlite3.connect(":memory:")
+    src.backup(mem)
+    src.close()
+    mem.row_factory = _sqlite3.Row
+    try:
+        mem.execute("CREATE TABLE v_mijoz_qarz (mijoz_id INTEGER, ism TEXT, telefon TEXT, "
+                    "bolim TEXT, status TEXT, qolgan_qarz REAL, jami_qolgan REAL)")
+        for b in ("ijara", "sotuv"):
+            try:
+                for m in db.mijozlar(bolim=b):
+                    mem.execute("INSERT INTO v_mijoz_qarz VALUES (?,?,?,?,?,?,?)",
+                                (m.get("id"), m.get("mijoz") or m.get("ism"), m.get("telefon"),
+                                 b, m.get("status"), m.get("qolgan_qarz") or 0, m.get("jami_qolgan") or 0))
+            except Exception:
+                pass
+        mem.commit()
+    except Exception:
+        log.exception("v_mijoz_qarz yaratish")
+    return mem
+
+
+def _jadval_matn(cols, rows):
+    if not rows:
+        return "(bo'sh)"
+    satrlar = [" | ".join(cols)]
+    for r in rows:
+        satrlar.append(" | ".join("" if v is None else str(v) for v in r))
+    return "\n".join(satrlar)
+
+
+def _sql_bajar(sql, limit=50):
+    mem = _agent_baza()
+    try:
+        cur = mem.execute(sql)
+        cols = [d[0] for d in cur.description] if cur.description else []
+        rows = [list(r) for r in cur.fetchmany(limit)]
+        return cols, rows
+    finally:
+        mem.close()
+
+
+def agent_javob(savol, sql_korsat=False):
+    """Savol -> SQL -> bajarish -> o'zbekcha javob. 1 marta retry."""
+    try:
+        sxema = _db_sxema()
+    except Exception:
+        log.exception("sxema"); return "Baza sxemasini o'qishda xatolik."
+    xato = None
+    for _ in range(2):
+        try:
+            sql = ai.savol_sql(savol, sxema, xato)
+        except Exception:
+            log.exception("savol_sql"); return "AI bilan bog'lanishda xatolik."
+        if not _sql_xavfsizmi(sql):
+            xato = "Faqat SELECT ruxsat etiladi (yozuv so'rovlari mumkin emas)."
+            continue
+        sql = _sql_tozala(sql)
+        try:
+            cols, rows = _sql_bajar(sql)
+        except Exception as e:
+            xato = str(e); continue
+        try:
+            javob = ai.natija_javob(savol, _jadval_matn(cols, rows))
+        except Exception:
+            log.exception("natija_javob"); javob = _jadval_matn(cols, rows)
+        javob = javob or "Ma'lumot topilmadi."
+        if sql_korsat:
+            javob += f"\n\n<code>{sql}</code>"
+        return javob
+    return "Savolga javob topolmadim 🤔 Boshqacharoq so'rab ko'ring."
+
+
+async def _agent_reply(update, ctx, savol, sql_korsat=False):
+    kutish = await update.effective_message.reply_text("⏳ O'ylayapman…")
+    try:
+        loop = asyncio.get_event_loop()
+        javob = await loop.run_in_executor(None, agent_javob, savol, sql_korsat)
+    except Exception:
+        log.exception("agent xatolik"); javob = "Xatolik yuz berdi."
+    try:
+        await ctx.bot.delete_message(update.effective_chat.id, kutish.message_id)
+    except Exception:
+        pass
+    await update.effective_message.reply_text(javob, parse_mode="HTML", disable_web_page_preview=True)
+
+
+async def savol_cmd(update, ctx):
+    if not await admin_guard(update):
+        return
+    savol = " ".join(ctx.args).strip() if ctx.args else ""
+    if not savol:
+        await update.message.reply_text("Savol yozing. Masalan:\n/savol bu oy qancha to'lov kirdi")
+        return
+    await _agent_reply(update, ctx, savol, sql_korsat=False)
+
+
+async def sql_cmd(update, ctx):
+    if not await admin_guard(update):
+        return
+    savol = " ".join(ctx.args).strip() if ctx.args else ""
+    if not savol:
+        await update.message.reply_text("/sql <savol> — javob + ishlatilgan SQL")
+        return
+    await _agent_reply(update, ctx, savol, sql_korsat=True)
+
+
 BACKUP_HOUR = int(os.getenv("BACKUP_HOUR", "3"))
 
 
@@ -1393,12 +1554,16 @@ async def backup_loop(app):
 async def backup_cmd(update, ctx):
     if not await admin_guard(update):
         return
-    await update.message.reply_text("⏳ Backup tayyorlanmoqda…")
+    kutish = await update.message.reply_text("⏳ Backup tayyorlanmoqda…")
     try:
         data = _backup_bytes()
         await update.message.reply_document(
             document=InputFile(BytesIO(data), filename=_backup_fayl_nomi()),
             caption=f"🗄 Baza zaxira nusxasi · {db.now_tk().strftime('%Y-%m-%d %H:%M')}")
+        try:
+            await ctx.bot.delete_message(update.effective_chat.id, kutish.message_id)
+        except Exception:
+            pass
     except Exception:
         log.exception("backup_cmd xatolik")
         await update.message.reply_text("Backup yaratishda xatolik.")
@@ -1448,6 +1613,8 @@ async def run():
     app.add_handler(CommandHandler("admin_qosh", admin_qosh_cmd))
     app.add_handler(CommandHandler("ochir", ochir_cmd))
     app.add_handler(CommandHandler("backup", backup_cmd))
+    app.add_handler(CommandHandler("savol", savol_cmd))
+    app.add_handler(CommandHandler("sql", sql_cmd))
     app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:|sms:|smsok:|smsno|loc:)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.LOCATION | filters.VENUE, handle_location))
