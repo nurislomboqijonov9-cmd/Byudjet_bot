@@ -4,7 +4,7 @@ import re
 import asyncio
 import logging
 from io import BytesIO
-from datetime import date
+from datetime import date, timedelta
 from dotenv import load_dotenv
 from aiohttp import web as aioweb
 from telegram import (
@@ -27,7 +27,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("arenda")
 
-APP_VERSION = "100"
+APP_VERSION = "104"
 
 # Pul yig'ish tekshiruvi: har kuni shu soatdan keyin (Toshkent), qayta eslatma orasidagi kunlar
 YIGISH_SOAT = int(os.getenv("YIGISH_SOAT", "9"))
@@ -1013,8 +1013,14 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await guard(update):
         return
     txt = update.message.text or ""
-    if ctx.user_data.get("loc") and await _loc_biriktir(update, ctx, txt.strip()):
-        return
+    if ctx.user_data.get("loc"):
+        t = txt.strip()
+        # Faqat qisqa, raqamsiz matn = mijoz ismi. Aks holda oddiy buyruq deb ishlaymiz.
+        if t and len(t) <= 40 and not any(c.isdigit() for c in t) and len(t.split()) <= 4:
+            if await _loc_biriktir(update, ctx, t):
+                return
+        else:
+            ctx.user_data.pop("loc", None)
     if ctx.user_data.pop("await_edit", False):
         try:
             actions = ai.from_text(txt)
@@ -1067,11 +1073,12 @@ async def handle_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data["loc"] = (loc.latitude, loc.longitude)
     nom = f"\n🏢 {update.message.venue.title}" if update.message.venue else ""
     await update.message.reply_text(
-        f"📍 *Lokatsiya qabul qilindi*{nom}\n"
-        f"`{loc.latitude:.6f}, {loc.longitude:.6f}`\n\n"
-        "👤 Endi *mijoz ismini yozing* — lokatsiya o'shanga biriktiriladi.\n"
-        "_(Keyin vazifa yaratganda o'zi qo'yiladi.)_\n\n"
-        "Yoki koordinatani nusxalab, ilovaga qo'ying.",
+        f"📍 *Lokatsiya qabul qilindi*{nom}\n\n"
+        f"`{loc.latitude:.6f}, {loc.longitude:.6f}`\n"
+        "👆 _bosib nusxa oling_\n\n"
+        "*1-yo'l:* nusxalab, ilovada «🔗 Lokatsiya» maydoniga qo'ying.\n"
+        "*2-yo'l:* shu yerga *mijoz ismini* yozing — lokatsiya o'shanga biriktiriladi "
+        "va vazifa yaratganda o'zi qo'yiladi.",
         parse_mode="Markdown")
 
 
@@ -1317,6 +1324,86 @@ async def _set_commands(app):
         log.exception("buyruq menyusini o'rnatishda xatolik")
 
 
+BACKUP_HOUR = int(os.getenv("BACKUP_HOUR", "3"))
+
+
+def _backup_bytes():
+    """Bazaning izchil (consistent) nusxasini bytes ko'rinishida qaytaradi."""
+    import sqlite3
+    import tempfile
+    src = sqlite3.connect(f"file:{db.DB_PATH}?mode=ro", uri=True)
+    tf = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    tf.close()
+    try:
+        dst = sqlite3.connect(tf.name)
+        with dst:
+            src.backup(dst)
+        dst.close()
+        with open(tf.name, "rb") as f:
+            return f.read()
+    finally:
+        src.close()
+        try:
+            os.unlink(tf.name)
+        except Exception:
+            pass
+
+
+def _backup_fayl_nomi():
+    return f"temirchi_backup_{db.now_tk().strftime('%Y-%m-%d')}.db"
+
+
+async def _backup_yubor(app, chat_ids=None):
+    if chat_ids is None:
+        chat_ids = [x["id"] for x in db.all_xodimlar() if x.get("rol") == "admin"]
+        extra = os.getenv("BACKUP_CHAT_ID")
+        if extra:
+            try:
+                if int(extra) not in chat_ids:
+                    chat_ids.append(int(extra))
+            except Exception:
+                pass
+    if not chat_ids:
+        log.warning("backup: admin topilmadi")
+        return
+    data = _backup_bytes()
+    nomi = _backup_fayl_nomi()
+    cap = f"🗄 Avtomat backup · {db.now_tk().strftime('%Y-%m-%d %H:%M')}"
+    for cid in chat_ids:
+        try:
+            await app.bot.send_document(chat_id=cid, document=InputFile(BytesIO(data), filename=nomi), caption=cap)
+        except Exception:
+            log.exception("backup yuborish xatolik (%s)", cid)
+
+
+async def backup_loop(app):
+    while True:
+        try:
+            now = db.now_tk()
+            target = now.replace(hour=BACKUP_HOUR, minute=0, second=0, microsecond=0)
+            if target <= now:
+                target += timedelta(days=1)
+            await asyncio.sleep(max(30, (target - now).total_seconds()))
+            await _backup_yubor(app)
+        except Exception:
+            log.exception("backup_loop xatolik")
+            await asyncio.sleep(300)
+
+
+async def backup_cmd(update, ctx):
+    if not await admin_guard(update):
+        return
+    await update.message.reply_text("⏳ Backup tayyorlanmoqda…")
+    try:
+        data = _backup_bytes()
+        await update.message.reply_document(
+            document=InputFile(BytesIO(data), filename=_backup_fayl_nomi()),
+            caption=f"🗄 Baza zaxira nusxasi · {db.now_tk().strftime('%Y-%m-%d %H:%M')}")
+    except Exception:
+        log.exception("backup_cmd xatolik")
+        await update.message.reply_text("Backup yaratishda xatolik.")
+
+
 async def reminder_loop(app):
     while True:
         try:
@@ -1360,6 +1447,7 @@ async def run():
     app.add_handler(CommandHandler("xodim_qosh", xodim_qosh_cmd))
     app.add_handler(CommandHandler("admin_qosh", admin_qosh_cmd))
     app.add_handler(CommandHandler("ochir", ochir_cmd))
+    app.add_handler(CommandHandler("backup", backup_cmd))
     app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:|sms:|smsok:|smsno|loc:)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.LOCATION | filters.VENUE, handle_location))
@@ -1385,6 +1473,7 @@ async def run():
 
     await app.updater.start_polling()
     asyncio.create_task(reminder_loop(app))
+    asyncio.create_task(backup_loop(app))
     await _set_commands(app)
     log.info("Ijara boti + Mini App ishga tushdi (port %s).", port)
     await asyncio.Event().wait()
