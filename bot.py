@@ -293,6 +293,11 @@ async def bajar(update: Update, ctx: ContextTypes.DEFAULT_TYPE, t):
     if amal == "chiqish":
         await _finish(update, db.add_mijoz(t.mijoz, tel), t)
         return
+    # Mijoz deb o'ylagan, lekin topilmadi — bu tahliliy savol bo'lishi mumkin: agentga yo'naltiramiz
+    if amal == "malumot" and db.is_admin(update.effective_user.id):
+        savol = (getattr(t, "transkript", "") or "").strip()
+        if savol:
+            return await _agent_reply(update, ctx, savol)
     await update.effective_message.reply_text(f"«{t.mijoz}» topilmadi.")
 
 
