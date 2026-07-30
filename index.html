@@ -675,6 +675,15 @@
           <div class="hint">Summani yozing. <b>➕</b> — to'lov (qarz kamayadi). <b>➖</b> — o'sha summa mijozga qarz bo'lib qo'shiladi.</div>
           ${tlist?'<div style="margin-top:10px">'+tlist+'</div>':''}</div>
         ${eslCard}
+        <div class="addbox"><div class="t">🔒 Yopish / kesim sanasi</div>
+          <div class="hint" style="margin:0 0 8px">Hisobni tanlangan kunda muzlatadi — qarz o'smay to'xtaydi.</div>
+          <select class="f" id="yop_mah" style="margin-bottom:8px"><option value="">Hamma tovar</option>${(d.qolganlar||[]).map(function(x){return '<option value="'+esc(x.mahsulot)+'">'+esc(x.mahsulot)+'</option>';}).join('')}</select>
+          <div class="inrow"><input class="f" id="yop_sana" type="date" value="${bugun}">
+            <button class="mini-btn" onclick="yopPreview(${d.id})">👁 Ko'rsat</button></div>
+          <label style="display:flex;align-items:center;gap:8px;margin:10px 2px;font-size:13.5px;color:var(--sub)"><input type="checkbox" id="yop_qaytar"> Tovar omborga ham qaytsin</label>
+          <div id="yop_pv"></div>
+          <button class="send" onclick="yopTasdiq(${d.id})">🔒 Yopish (tasdiqlash)</button>
+          <button class="mini-btn" style="width:100%;margin-top:8px" onclick="yopBekor(${d.id})">🔓 Yopishni bekor qilish</button></div>
       </div>
 
       <div id="tab_boshqa" class="mpanel" style="display:none">
@@ -791,6 +800,46 @@
       if(r.ok && j && j.ok) toast('✅ Fayl Telegramga yuborildi — chatingizni oching');
       else toast('❌ Yuborilmadi — botni /start qilganingizni tekshiring');
     }catch(e){ toast('❌ Yuborishda xato'); }
+  };
+
+  // ===== Yopish / kesim sanasi =====
+  window.yopPreview=async function(id){
+    const sana=(document.getElementById('yop_sana')||{}).value;
+    const mah=(document.getElementById('yop_mah')||{}).value||'';
+    if(!sana){toast('Sana tanlang');return;}
+    const box=document.getElementById('yop_pv'); box.innerHTML='<div class="hint">⏳ Hisoblanmoqda…</div>';
+    try{
+      const r=await fetch('/api/mijoz_yop_preview?id='+id+'&sana='+encodeURIComponent(sana)+(mah?'&mahsulot='+encodeURIComponent(mah):''),{headers:H});
+      const d=await r.json();
+      if(!r.ok||d.xato){box.innerHTML='<div class="hint">'+esc(d.xato||'Xato')+'</div>';return;}
+      box.innerHTML='<div class="errbox" style="background:rgba(30,122,90,.10);border-color:#9CCFB8;color:#14603F">Hozir: <b>'+som(d.hozir)+'</b> so\'m<br>'+esc(sana)+' da yopilsa: <b>'+som(d.yopilsa)+'</b> so\'m</div>';
+    }catch(e){box.innerHTML='<div class="hint">Xato</div>';}
+  };
+  window.yopTasdiq=async function(id){
+    const sana=(document.getElementById('yop_sana')||{}).value;
+    const mah=(document.getElementById('yop_mah')||{}).value||'';
+    const qaytar=!!(document.getElementById('yop_qaytar')||{}).checked;
+    if(!sana){toast('Sana tanlang');return;}
+    const mtext=mah?('«'+mah+'»'):'Hamma tovar';
+    const ok=await tasdiq(mtext+' hisobi '+sana+' da yopilsinmi?'+(qaytar?' Tovar omborga qaytadi.':''));
+    if(!ok)return;
+    try{
+      const r=await fetch('/api/mijoz_yop',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({id:id,sana:sana,mahsulot:mah||null,qaytar:qaytar})});
+      const d=await r.json();
+      if(d&&d.ok){toast('🔒 Yopildi — qarz muzladi'); mijozReload(id);}
+      else toast('❌ Xato');
+    }catch(e){toast('❌ Xato');}
+  };
+  window.yopBekor=async function(id){
+    const mah=(document.getElementById('yop_mah')||{}).value||'';
+    const ok=await tasdiq((mah?('«'+mah+'»'):'Hamma tovar')+' yopilishini bekor qilamizmi? Hisob bugundan davom etadi.');
+    if(!ok)return;
+    try{
+      const r=await fetch('/api/mijoz_yop_bekor',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({id:id,mahsulot:mah||null})});
+      const d=await r.json();
+      if(d&&d.ok){toast('🔓 Ochildi'); mijozReload(id);}
+      else toast('❌ Xato');
+    }catch(e){toast('❌ Xato');}
   };
 
   // ===== Qoralama saqlash: saqlaganda boshqa bo'limdagi yozuv o'chmasin =====

@@ -476,6 +476,62 @@ def make_web_app(bot_token):
         ok = await tg_document(uid, data, f"{nom}.xlsx", caption=f"📊 {nom} — hisobot")
         return web.json_response({"ok": bool(ok)})
 
+    async def api_mijoz_yop_preview(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            mid = int(request.query.get("id", ""))
+        except Exception:
+            return web.json_response({"xato": "id kerak"}, status=400)
+        sana = (request.query.get("sana") or "").strip()
+        mah = (request.query.get("mahsulot") or "").strip() or None
+        if not sana:
+            return web.json_response({"xato": "sana kerak"}, status=400)
+        hozir = db.mijoz_detail(mid)
+        if not hozir:
+            return web.json_response({"xato": "topilmadi"}, status=404)
+        pv = db.mijoz_qarz_preview(mid, sana, mahsulot=mah)
+        return web.json_response({
+            "hozir": hozir.get("qolgan_qarz", 0),
+            "yopilsa": (pv or {}).get("qolgan_qarz", 0),
+            "sana": sana, "mahsulot": mah,
+        })
+
+    async def api_mijoz_yop(request):
+        uid, err = check(request)
+        if err:
+            return err
+        b = await request.json()
+        try:
+            mid = int(b.get("id"))
+        except Exception:
+            return web.json_response({"xato": "id kerak"}, status=400)
+        sana = (b.get("sana") or "").strip()
+        mah = (b.get("mahsulot") or "").strip() or None
+        qaytar = bool(b.get("qaytar"))
+        if not sana:
+            return web.json_response({"xato": "sana kerak"}, status=400)
+        db.partiya_kesim_set(mid, sana, mahsulot=mah)
+        if qaytar:
+            db.partiya_yop_qaytar(mid, sana, mahsulot=mah)
+        d = db.mijoz_detail(mid)
+        return web.json_response({"ok": True, "qolgan_qarz": d.get("qolgan_qarz", 0) if d else 0})
+
+    async def api_mijoz_yop_bekor(request):
+        uid, err = check(request)
+        if err:
+            return err
+        b = await request.json()
+        try:
+            mid = int(b.get("id"))
+        except Exception:
+            return web.json_response({"xato": "id kerak"}, status=400)
+        mah = (b.get("mahsulot") or "").strip() or None
+        db.partiya_kesim_clear(mid, mahsulot=mah)
+        d = db.mijoz_detail(mid)
+        return web.json_response({"ok": True, "qolgan_qarz": d.get("qolgan_qarz", 0) if d else 0})
+
     async def api_mijoz_qosh(request):
         uid, err = check(request)
         if err:
@@ -1022,6 +1078,9 @@ def make_web_app(bot_token):
     app.router.add_get("/api/mijoz", api_mijoz)
     app.router.add_get("/api/mijoz_excel", api_mijoz_excel)
     app.router.add_post("/api/mijoz_excel_yubor", api_mijoz_excel_yubor)
+    app.router.add_get("/api/mijoz_yop_preview", api_mijoz_yop_preview)
+    app.router.add_post("/api/mijoz_yop", api_mijoz_yop)
+    app.router.add_post("/api/mijoz_yop_bekor", api_mijoz_yop_bekor)
     app.router.add_post("/api/mijoz_qosh", api_mijoz_qosh)
     app.router.add_post("/api/mijoz_edit", api_mijoz_edit)
     app.router.add_post("/api/qoshish", api_qoshish)

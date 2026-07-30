@@ -3707,6 +3707,11 @@ def init_db():
     # Eski yozuvlarning hammasi — ijara ombori
     con.execute("UPDATE ombor_mahsulot SET bolim='ijara' WHERE bolim IS NULL OR bolim=''")
     con.execute("UPDATE ombor_tarix   SET bolim='ijara' WHERE bolim IS NULL OR bolim=''")
+    # Yopish (kesim) sanasi — partiya bo'yicha hisobni muzlatish uchun
+    try:
+        con.execute("ALTER TABLE partiyalar ADD COLUMN kesim_sana TEXT")
+    except Exception:
+        pass
     con.commit()
     con.close()
 
@@ -3916,3 +3921,133 @@ def ombor_recalc(today=None, bolim=None):
     con.close()
     return {"ok": True, "ozgargan": ozgargan,
             "nomos": sorted(((f"{k[1]} ({k[0]})", v) for k, v in nomos.items()), key=lambda x: -x[1])}
+
+
+# ==========================================================================
+# YOPISH / KESIM SANASI — partiya hisobini tanlangan kunda muzlatish.
+# (Fayl oxirida — yuqoridagi partiya_hisob'ni bekor qiladi.)
+# ==========================================================================
+
+def partiya_hisob(p, today=None, kesim=False):
+    today = today or today_tk()
+    issue = _pdate(p["chiqgan_sana"])
+    daily = p["kunlik_narx"]
+    # Yopish sanasi: normal hisobda ham amal qiladi — hisob shu kunda muzlaydi
+    cut = None
+    if not kesim:
+        ks = (p.get("kesim_sana") if isinstance(p, dict) else None)
+        if ks:
+            try:
+                cut = _pdate(ks)
+            except Exception:
+                cut = None
+    end = min(today, cut) if cut else today
+    narx = 0.0
+    qaytgan = 0.0
+    rets = returns_for(p["id"])
+    if kesim:
+        kes = str(today)[:10]
+        rets = [r for r in rets if str(r["qaytgan_sana"])[:10] <= kes]
+    for r in rets:
+        rd = _pdate(r["qaytgan_sana"])
+        if cut and rd > cut:
+            rd = cut  # yopishdan keyingi qaytarish -> yopish kunigacha hisoblanadi
+        narx += r["miqdor"] * daily * _billable_days(issue, rd)
+        qaytgan += r["miqdor"]
+    qolgan = p["miqdor"] - qaytgan
+    kunlar = 0
+    if qolgan > 0:
+        kunlar = _billable_days(issue, end)
+        narx += qolgan * daily * kunlar
+    return {
+        "id": p["id"], "partiya_raqam": p["partiya_raqam"], "mahsulot": p["mahsulot"],
+        "miqdor": p["miqdor"], "qolgan": qolgan, "kunlik_narx": daily,
+        "chiqgan_sana": str(p["chiqgan_sana"])[:10], "kunlar": kunlar, "narx": narx,
+        "birlik": (p.get("birlik") if isinstance(p, dict) else None) or tovar_birlik(p["mahsulot"]),
+        "qaytgan": qaytgan,
+        "kesim_sana": (p.get("kesim_sana") if isinstance(p, dict) else None),
+        "qaytarishlar": [{"id": r["id"], "miqdor": r["miqdor"], "qaytgan_sana": str(r["qaytgan_sana"])[:10]} for r in rets],
+    }
+
+
+def _kesim_where(mijoz_id, mahsulot=None, partiya_id=None):
+    q = " WHERE mijoz_id=?"
+    args = [mijoz_id]
+    if partiya_id:
+        q += " AND id=?"; args.append(partiya_id)
+    elif mahsulot:
+        q += " AND lower(mahsulot)=lower(?)"; args.append(mahsulot)
+    return q, args
+
+
+def partiya_kesim_set(mijoz_id, sana, mahsulot=None, partiya_id=None):
+    """Yopish (kesim) sanasini qo'yadi. mahsulot/partiya_id berilmasa — hamma partiya."""
+    s = str(sana)[:10]
+    where, args = _kesim_where(mijoz_id, mahsulot, partiya_id)
+    con = _con()
+    cur = con.execute("UPDATE partiyalar SET kesim_sana=?" + where, [s] + args)
+    n = cur.rowcount
+    con.commit(); con.close()
+    return n
+
+
+def partiya_kesim_clear(mijoz_id, mahsulot=None, partiya_id=None):
+    """Yopishni bekor qiladi (kesim_sana=NULL) — hisob bugundan davom etadi."""
+    where, args = _kesim_where(mijoz_id, mahsulot, partiya_id)
+    con = _con()
+    cur = con.execute("UPDATE partiyalar SET kesim_sana=NULL" + where, args)
+    n = cur.rowcount
+    con.commit(); con.close()
+    return n
+
+
+def partiya_yop_qaytar(mijoz_id, sana, mahsulot=None, partiya_id=None):
+    """Tanlangan partiyalardagi QOLGAN mollarni o'sha sanada to'liq qaytgan deb yozadi
+    va omborga qaytaradi. (Yopish + omborga qaytarish varianti uchun.)"""
+    s = str(sana)[:10]
+    bolim = mijoz_bolim(mijoz_id)
+    where, args = _kesim_where(mijoz_id, mahsulot, partiya_id)
+    con = _con()
+    rows = [dict(r) for r in con.execute("SELECT * FROM partiyalar" + where, args).fetchall()]
+    con.close()
+    n = 0
+    for p in rows:
+        qolgan = partiya_hisob(p)["qolgan"]
+        if qolgan and qolgan > 0:
+            add_return(p["id"], qolgan, s)
+            try:
+                ombor_apply_by_name(p["mahsulot"], "ret", qolgan, bolim=bolim)
+            except Exception:
+                pass
+            n += 1
+    return n
+
+
+def mijoz_qarz_preview(mijoz_id, sana, mahsulot=None, partiya_id=None):
+    """Tanlangan sanagacha (o'tmish YOKI kelajak) qarz qancha bo'lishini SAQLAMASDAN hisoblaydi.
+    Ko'rsat (preview) uchun: in-scope partiyalar o'sha kunga proyeksiya qilinadi, qolgani bugungi holatda."""
+    s = str(sana)[:10]
+    if not get_mijoz(mijoz_id):
+        return None
+    try:
+        sd = _pdate(s)
+    except Exception:
+        sd = None
+    narx = 0.0
+    jami_qolgan = 0.0
+    for p in partiyalar_of(mijoz_id):
+        pp = dict(p)
+        pp.pop("kesim_sana", None)  # preview'da saqlangan yopishni e'tiborga olmaymiz, aniq proyeksiya
+        inscope = True
+        if partiya_id and pp.get("id") != partiya_id:
+            inscope = False
+        elif mahsulot and (pp.get("mahsulot") or "").lower() != str(mahsulot).lower():
+            inscope = False
+        h = partiya_hisob(pp, today=sd) if (inscope and sd) else partiya_hisob(pp)
+        narx += h["narx"]
+        jami_qolgan += h["qolgan"]
+    tolangan = sum(t["summa"] for t in tolovlar_of(mijoz_id))
+    qo = qoshimcha_of(mijoz_id)
+    yolkira = sum(x["summa"] for x in qo if x["tur"] == "yolkira")
+    remont = sum(x["summa"] for x in qo if x["tur"] == "remont")
+    return {"qolgan_qarz": round(narx + yolkira + remont - tolangan), "jami_qolgan": jami_qolgan}
