@@ -123,6 +123,12 @@ def make_web_app(bot_token):
             return None, web.json_response({"xato": "Ruxsat yo'q"}, status=403)
         return uid, None
 
+    def _audit(uid, amal, tafsilot="", mijoz_id=None):
+        try:
+            db.audit_qosh(uid, db.audit_ism(uid), amal, str(tafsilot)[:200], mijoz_id, "ilova")
+        except Exception:
+            pass
+
     async def index(request):
         # Ilova (PWA) eski faylni keshda ushlab qolmasin
         return web.FileResponse(INDEX, headers={
@@ -513,6 +519,7 @@ def make_web_app(bot_token):
         if not sana:
             return web.json_response({"xato": "sana kerak"}, status=400)
         db.partiya_kesim_set(mid, sana, mahsulot=mah)
+        _audit(uid, "yopish", f"{sana} kesim" + (" +ombor" if qaytar else ""), mid)
         if qaytar:
             db.partiya_yop_qaytar(mid, sana, mahsulot=mah)
         d = db.mijoz_detail(mid)
@@ -529,8 +536,19 @@ def make_web_app(bot_token):
             return web.json_response({"xato": "id kerak"}, status=400)
         mah = (b.get("mahsulot") or "").strip() or None
         db.partiya_kesim_clear(mid, mahsulot=mah)
+        _audit(uid, "yopish bekor", "kesim ochildi", mid)
         d = db.mijoz_detail(mid)
         return web.json_response({"ok": True, "qolgan_qarz": d.get("qolgan_qarz", 0) if d else 0})
+
+    async def api_mijoz_jurnal(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            mid = int(request.query.get("id", ""))
+        except Exception:
+            return web.json_response({"xato": "id kerak"}, status=400)
+        return web.json_response({"jurnal": db.audit_mijoz(mid, 20)})
 
     async def api_mijoz_qosh(request):
         uid, err = check(request)
@@ -541,6 +559,7 @@ def make_web_app(bot_token):
         if not ism:
             return web.json_response({"xato": "ism kerak"}, status=400)
         mid = db.add_mijoz(ism, body.get("telefon"), bolim=(body.get("bolim") or "ijara"))
+        _audit(uid, "mijoz qo'shish", ism, mid)
         return web.json_response({"ok": True, "id": mid})
 
     async def api_mijoz_edit(request):
@@ -554,6 +573,7 @@ def make_web_app(bot_token):
             if not ism:
                 return web.json_response({"ok": False, "xabar": "Ism kerak"})
             db.update_mijoz(mid, ism, body.get("telefon"))
+            _audit(uid, "mijoz tahrir", ism, mid)
             return web.json_response({"ok": True})
         except Exception as e:
             return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
@@ -609,6 +629,7 @@ def make_web_app(bot_token):
             else:
                 res = logic.qator_chiqish(mid, qat, b.get("sana"), b.get("brov_kim"), b.get("manzil"))
             if res.get("ok"):
+                _audit(uid, ("qaytarish" if (b.get("amal") or "chiqish") == "qaytarish" else "chiqish"), res.get("xabar", ""), mid)
                 return web.json_response({"ok": True, "xabar": res["xabar"]})
             return web.json_response({"ok": False, "xabar": res.get("xato", "Xato")})
         except Exception as e:
@@ -686,6 +707,7 @@ def make_web_app(bot_token):
             izoh = "qarz qo'shildi" if summa < 0 else None
             sana = (body.get("sana") or db.today_tk().isoformat())[:10]
             db.add_tolov(mid, summa, sana, izoh)
+            _audit(uid, ("qarz qo'shish" if summa < 0 else "to'lov"), f"{summa:,.0f} so'm", mid)
             d = db.mijoz_detail(mid)
             return web.json_response({"ok": True, "qolgan_qarz": d["qolgan_qarz"]})
         except Exception as e:
@@ -698,6 +720,7 @@ def make_web_app(bot_token):
         try:
             body = await request.json()
             db.delete_tolov(int(body.get("tolov_id")))
+            _audit(uid, "o'chirish", "to'lov o'chirildi")
             return web.json_response({"ok": True})
         except Exception:
             return web.json_response({"ok": False}, status=400)
@@ -775,6 +798,7 @@ def make_web_app(bot_token):
             if miqdor > qolgan:
                 miqdor = qolgan
             db.add_return(pid, miqdor, sana)
+            _audit(uid, "qaytarish", f"{p.get('mahsulot','')} · {miqdor}", p.get("mijoz_id"))
             return web.json_response({"ok": True})
         except Exception as e:
             return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
@@ -786,6 +810,7 @@ def make_web_app(bot_token):
         try:
             b = await request.json()
             db.delete_return(int(b.get("return_id")))
+            _audit(uid, "o'chirish", "qaytarish o'chirildi")
             return web.json_response({"ok": True})
         except Exception:
             return web.json_response({"ok": False}, status=400)
@@ -797,6 +822,7 @@ def make_web_app(bot_token):
         try:
             b = await request.json()
             db.delete_partiya(int(b.get("partiya_id")))
+            _audit(uid, "o'chirish", "partiya o'chirildi")
             return web.json_response({"ok": True})
         except Exception:
             return web.json_response({"ok": False}, status=400)
@@ -814,6 +840,7 @@ def make_web_app(bot_token):
                 return web.json_response({"ok": False, "xabar": "Noto'g'ri"})
             sana = (b.get("sana") or db.today_tk().isoformat())[:10]
             db.add_qoshimcha(mid, tur, summa, sana, None)
+            _audit(uid, tur, f"{summa:,.0f} so'm", mid)
             d = db.mijoz_detail(mid)
             return web.json_response({"ok": True, "qolgan_qarz": d["qolgan_qarz"]})
         except Exception as e:
@@ -826,6 +853,7 @@ def make_web_app(bot_token):
         try:
             b = await request.json()
             db.delete_qoshimcha(int(b.get("id")))
+            _audit(uid, "o'chirish", "qo'shimcha o'chirildi")
             return web.json_response({"ok": True})
         except Exception:
             return web.json_response({"ok": False}, status=400)
@@ -1081,6 +1109,7 @@ def make_web_app(bot_token):
     app.router.add_get("/api/mijoz_yop_preview", api_mijoz_yop_preview)
     app.router.add_post("/api/mijoz_yop", api_mijoz_yop)
     app.router.add_post("/api/mijoz_yop_bekor", api_mijoz_yop_bekor)
+    app.router.add_get("/api/mijoz_jurnal", api_mijoz_jurnal)
     app.router.add_post("/api/mijoz_qosh", api_mijoz_qosh)
     app.router.add_post("/api/mijoz_edit", api_mijoz_edit)
     app.router.add_post("/api/qoshish", api_qoshish)

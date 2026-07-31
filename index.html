@@ -696,6 +696,10 @@
                <button class="mini-btn" style="width:100%;margin-bottom:8px" onclick="excelYubor(${d.id})">📤 Yuborish</button>
                <button class="mini-btn" style="width:100%" onclick="excelOch(${d.id})">👁 Ochish</button>`}
         </div>
+        <div class="addbox"><div class="t">🕘 Oxirgi o'zgarishlar</div>
+          <div class="hint" style="margin:0 0 8px">Shu mijozda kim nima o'zgartirgani.</div>
+          <button class="mini-btn" style="width:100%" onclick="mijozJurnal(${d.id})">Ko'rsatish</button>
+          <div id="mjur" style="margin-top:8px"></div></div>
         ${vazCard}
         <div class="addbox"><div class="t">📍 Manzil</div>
           <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
@@ -790,6 +794,20 @@
     toast('⏳ Ochilmoqda…');
     try{ const x=await _excelBlob(id); const url=URL.createObjectURL(x.blob); window.open(url,'_blank'); setTimeout(function(){URL.revokeObjectURL(url);},20000); }
     catch(e){ toast('❌ Ochishda xato'); }
+  };
+  window.mijozJurnal=async function(id){
+    const box=document.getElementById('mjur'); if(!box)return;
+    box.innerHTML='<div class="hint">⏳ Yuklanmoqda…</div>';
+    try{
+      const r=await fetch('/api/mijoz_jurnal?id='+id,{headers:H});
+      const d=await r.json(); const j=(d&&d.jurnal)||[];
+      if(!j.length){box.innerHTML='<div class="hint">Hozircha yozuv yo\'q</div>';return;}
+      box.innerHTML=j.map(function(x){
+        var vaqt=(x.vaqt||'').slice(0,16).replace('T',' ');
+        var manba=x.manba==='ilova'?'📱':'💬';
+        return '<div style="padding:7px 0;border-bottom:1px solid var(--line,#e6ece9);font-size:13px">'+manba+' '+esc(vaqt)+' · <b>'+esc(String(x.ism||x.uid))+'</b><br><span style="color:var(--sub)">'+esc(x.amal||'')+': '+esc(x.tafsilot||'')+'</span></div>';
+      }).join('');
+    }catch(e){box.innerHTML='<div class="hint">Xato</div>';}
   };
   // Telegram ichida: botning o'zi faylni chatga yuboradi (webview yuklab olishni bloklaydi)
   window.excelBot=async function(id){

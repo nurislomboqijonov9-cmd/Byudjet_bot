@@ -3712,6 +3712,13 @@ def init_db():
         con.execute("ALTER TABLE partiyalar ADD COLUMN kesim_sana TEXT")
     except Exception:
         pass
+    # Kirish so'rovlari (yangi odam /start bossa — ega tasdiqlaydi)
+    con.execute("""CREATE TABLE IF NOT EXISTS ruxsat_sorov(
+        uid INTEGER PRIMARY KEY, username TEXT, ism TEXT, vaqt TEXT)""")
+    # Audit jurnal — kim / nima / qachon o'zgartirdi
+    con.execute("""CREATE TABLE IF NOT EXISTS audit(
+        id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER, ism TEXT,
+        amal TEXT, tafsilot TEXT, mijoz_id INTEGER, manba TEXT, vaqt TEXT)""")
     con.commit()
     con.close()
 
@@ -4051,3 +4058,91 @@ def mijoz_qarz_preview(mijoz_id, sana, mahsulot=None, partiya_id=None):
     yolkira = sum(x["summa"] for x in qo if x["tur"] == "yolkira")
     remont = sum(x["summa"] for x in qo if x["tur"] == "remont")
     return {"qolgan_qarz": round(narx + yolkira + remont - tolangan), "jami_qolgan": jami_qolgan}
+
+
+# ==========================================================================
+# KIRISH SO'ROVLARI — yangi odam /start bossa, ega tugma bilan ruxsat beradi
+# ==========================================================================
+
+def ruxsat_sorov_qosh(uid, username=None, ism=None):
+    """So'rov qo'shadi. True qaytarsa — birinchi marta (egaga xabar yuborish kerak)."""
+    con = _con()
+    try:
+        con.execute("CREATE TABLE IF NOT EXISTS ruxsat_sorov(uid INTEGER PRIMARY KEY, username TEXT, ism TEXT, vaqt TEXT)")
+    except Exception:
+        pass
+    bor = con.execute("SELECT 1 FROM ruxsat_sorov WHERE uid=?", (uid,)).fetchone()
+    if not bor:
+        con.execute("INSERT INTO ruxsat_sorov(uid,username,ism,vaqt) VALUES(?,?,?,?)",
+                    (uid, username, ism, now_tk().isoformat()))
+        con.commit()
+    con.close()
+    return not bor
+
+
+def ruxsat_sorov_ochir(uid):
+    con = _con()
+    con.execute("DELETE FROM ruxsat_sorov WHERE uid=?", (uid,))
+    con.commit(); con.close()
+
+
+def ruxsat_sorov_get(uid):
+    con = _con()
+    r = con.execute("SELECT * FROM ruxsat_sorov WHERE uid=?", (uid,)).fetchone()
+    con.close()
+    return dict(r) if r else None
+
+
+def ruxsat_sorovlar():
+    con = _con()
+    try:
+        rows = con.execute("SELECT * FROM ruxsat_sorov ORDER BY vaqt DESC").fetchall()
+    except Exception:
+        rows = []
+    con.close()
+    return [dict(r) for r in rows]
+
+
+# ==========================================================================
+# AUDIT JURNAL — har bir o'zgarish: kim, nima, qachon, qaysi mijoz
+# ==========================================================================
+
+def audit_qosh(uid, ism, amal, tafsilot="", mijoz_id=None, manba="bot"):
+    try:
+        con = _con()
+        con.execute("CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT, uid INTEGER, ism TEXT, amal TEXT, tafsilot TEXT, mijoz_id INTEGER, manba TEXT, vaqt TEXT)")
+        con.execute("INSERT INTO audit(uid,ism,amal,tafsilot,mijoz_id,manba,vaqt) VALUES(?,?,?,?,?,?,?)",
+                    (uid, ism, amal, tafsilot, mijoz_id, manba, now_tk().isoformat()))
+        con.commit(); con.close()
+    except Exception:
+        pass
+
+
+def audit_ism(uid):
+    try:
+        x = get_xodim(uid)
+        if x and x.get("ism"):
+            return x["ism"]
+    except Exception:
+        pass
+    return str(uid)
+
+
+def audit_royxat(limit=30):
+    con = _con()
+    try:
+        rows = con.execute("SELECT * FROM audit ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    except Exception:
+        rows = []
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def audit_mijoz(mijoz_id, limit=20):
+    con = _con()
+    try:
+        rows = con.execute("SELECT * FROM audit WHERE mijoz_id=? ORDER BY id DESC LIMIT ?", (mijoz_id, limit)).fetchall()
+    except Exception:
+        rows = []
+    con.close()
+    return [dict(r) for r in rows]
