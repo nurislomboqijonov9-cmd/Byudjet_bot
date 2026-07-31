@@ -112,7 +112,8 @@
         <div class="adr">${esc(V.manzil||'Manzil ko\'rsatilmagan')}</div>
         ${V.telefon?`<div class="tel">📞 ${esc(V.telefon)}</div>`:''}
       </div>
-      <a class="tugma nav" href="${navHavola()}" target="_blank" rel="noopener">🧭 Yo'lga tushish</a>
+      <button class="tugma nav" onclick="yolgaTush()">🧭 Yo'lga tushish (Yandex)</button>
+      <a href="${navHavola()}" target="_blank" rel="noopener" style="display:block;text-align:center;font-size:12px;color:#6b7a86;margin:-4px 0 10px;text-decoration:underline">Navigator ochilmasa — brauzerda ochish</a>
       ${V.telefon?`<a class="tugma ikkinchi" href="tel:${esc((V.telefon||'').split(' ')[0])}">📞 Mijozga qo'ng'iroq</a>`:''}
 
       <div class="karta"><div class="t">📦 ${V.tur==='olib_kelish'?'Olib kelinadi':'Yetkaziladi'}</div>
@@ -195,6 +196,23 @@
   window.yolda=async function(){
     try{await fetch('/api/v_holat',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({token,holat:'yolda'})}); toast('🚚 Yo\'lga chiqdingiz'); yukla();}catch(e){toast('Xato');}
+  };
+
+  window.yolgaTush=async function(){
+    // 1) avtomat "Yo'lga chiqdim" (yangi bo'lsa)
+    if(V.holat==='yangi'){
+      try{
+        await fetch('/api/v_holat',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({token,holat:'yolda'})});
+        V.holat='yolda'; chiz();
+      }catch(e){}
+    }
+    // 2) Yandex Navigator ilovasini marshrut bilan ochamiz
+    if(V.lat && V.lon){
+      window.location.href='yandexnavi://build_route_on_map?lat_to='+V.lat+'&lon_to='+V.lon;
+    } else {
+      window.open(navHavola(),'_blank');
+    }
   };
 
   window.tasdiqla=async function(){
