@@ -377,7 +377,7 @@
 
   const som=n=>{n=Math.round(Number(n)||0);return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');};
   const son=n=>{n=Number(n)||0;return Number.isInteger(n)?n:parseFloat(n.toFixed(2)).toString();};
-  const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const ini=s=>(s||'?').trim().charAt(0).toUpperCase();
   const dmy=s=>{if(!s)return'';const p=(''+s).slice(0,10).split('-');return p.length===3?p[2]+'.'+p[1]+'.'+p[0].slice(2):s;};
   const TUR={naqd:{t:'Naqd',c:'#2E7D5B',bg:'rgba(46,125,91,.13)',i:'💵'},perech:{t:'Perechisleniye',c:'#7A4FC0',bg:'rgba(122,79,192,.14)',i:'🏦'}};
@@ -1274,7 +1274,7 @@
       window._hayd=(d.haydovchilar||[]);
       const sel=document.getElementById('v_haydovchi');
       if(sel) sel.innerHTML=(window._hayd.length?'<option value="">Haydovchi tanlang</option>':'<option value="">Haydovchi qo\'shilmagan</option>')+
-        window._hayd.map(h=>`<option value="${h.id}">${esc(h.ism||h.id)}</option>`).join('');
+        window._hayd.map(h=>`<option value="${h.id}">${esc(h.ism||('ID '+h.id))}</option>`).join('');
       const hh=document.getElementById('haydhint');
       if(hh) hh.innerHTML = window._hayd.length ? '' :
         "⚠️ Haydovchi qo'shilmagan. Botда: <b>/haydovchi_qosh &lt;id&gt; &lt;ism&gt;</b> — keyin haydovchi botga <b>/start</b> bossin.";
