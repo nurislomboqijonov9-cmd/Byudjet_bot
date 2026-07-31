@@ -99,11 +99,12 @@ async def _ruxsat_sorovi(ctx, user):
     if not yangi:
         return
     uname = f"@{user.username}" if user.username else "—"
-    kb = InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅ Xodim", callback_data=f"ruxx:{user.id}"),
-        InlineKeyboardButton("👑 Admin", callback_data=f"ruxa:{user.id}"),
-        InlineKeyboardButton("❌ Rad", callback_data=f"ruxn:{user.id}"),
-    ]])
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Xodim", callback_data=f"ruxx:{user.id}"),
+         InlineKeyboardButton("👑 Admin", callback_data=f"ruxa:{user.id}")],
+        [InlineKeyboardButton("🚚 Haydovchi", callback_data=f"ruxh:{user.id}"),
+         InlineKeyboardButton("❌ Rad", callback_data=f"ruxn:{user.id}")],
+    ])
     try:
         await ctx.bot.send_message(
             db.OWNER_ID,
@@ -996,11 +997,12 @@ async def sorovlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     for s in ss[:20]:
         uname = f"@{s['username']}" if s.get("username") else "—"
-        kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ Xodim", callback_data=f"ruxx:{s['uid']}"),
-            InlineKeyboardButton("👑 Admin", callback_data=f"ruxa:{s['uid']}"),
-            InlineKeyboardButton("❌ Rad", callback_data=f"ruxn:{s['uid']}"),
-        ]])
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Xodim", callback_data=f"ruxx:{s['uid']}"),
+             InlineKeyboardButton("👑 Admin", callback_data=f"ruxa:{s['uid']}")],
+            [InlineKeyboardButton("🚚 Haydovchi", callback_data=f"ruxh:{s['uid']}"),
+             InlineKeyboardButton("❌ Rad", callback_data=f"ruxn:{s['uid']}")],
+        ])
         await update.message.reply_text(
             f"👤 {s.get('ism') or '—'}\nUsername: {uname}\n🆔 `{s['uid']}`",
             parse_mode="Markdown", reply_markup=kb)
@@ -1204,7 +1206,7 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
     data = q.data
-    if data.startswith(("ruxx:", "ruxa:", "ruxn:")):
+    if data.startswith(("ruxx:", "ruxa:", "ruxh:", "ruxn:")):
         if not db.is_admin(q.from_user.id):
             return
         tuid = int(data.split(":")[1])
@@ -1213,6 +1215,14 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if data.startswith("ruxn:"):
             db.ruxsat_sorov_ochir(tuid)
             await q.edit_message_text(f"❌ Rad etildi: {ism} (`{tuid}`)", parse_mode="Markdown")
+        elif data.startswith("ruxh:"):
+            db.haydovchi_qosh(tuid, ism)
+            db.ruxsat_sorov_ochir(tuid)
+            await q.edit_message_text(f"✅ Ruxsat berildi (🚚 Haydovchi): {ism} (`{tuid}`)", parse_mode="Markdown")
+            try:
+                await ctx.bot.send_message(tuid, "✅ Sizga haydovchi sifatida ruxsat berildi! /start bosing.")
+            except Exception:
+                pass
         else:
             rol = "admin" if data.startswith("ruxa:") else "xodim"
             db.add_xodim(tuid, ism, rol, q.from_user.id)

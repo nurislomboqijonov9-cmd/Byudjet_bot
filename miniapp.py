@@ -200,6 +200,25 @@ def make_web_app(bot_token):
         except Exception:
             return False
 
+    async def tg_rasm(chat_id, filepath, caption=""):
+        """Bot orqali rasm yuborish (sendPhoto)."""
+        try:
+            import aiohttp as _ah
+            with open(filepath, "rb") as f:
+                data = f.read()
+            form = _ah.FormData()
+            form.add_field("chat_id", str(chat_id))
+            if caption:
+                form.add_field("caption", caption)
+            form.add_field("photo", data, filename="rasm.jpg", content_type="image/jpeg")
+            async with _ah.ClientSession() as ss:
+                async with ss.post(f"https://api.telegram.org/bot{bot_token}/sendPhoto",
+                                   data=form, timeout=_ah.ClientTimeout(total=60)) as r:
+                    j = await r.json(content_type=None)
+            return bool(isinstance(j, dict) and j.get("ok"))
+        except Exception:
+            return False
+
     def _asos_url(request):
         base = os.getenv("WEBAPP_URL") or ""
         if not base:
@@ -271,11 +290,18 @@ def make_web_app(bot_token):
             if v["tur"] == "olib_kelish":
                 res = logic.qator_qaytarish(mid, qatorlar, sana)
             else:
-                res = logic.qator_chiqish(mid, qatorlar, sana, manzil=v.get("manzil"))
+                res = logic.qator_chiqish(mid, qatorlar, sana, manzil=v.get("manzil"), tekshirmasdan=True)
             xabar = res.get("xabar") or "Tasdiqlandi"
             if yangi:
                 xabar += " · yangi mijoz ochildi"
-            # Xodimlarga xabar
+            # Audit jurnal — haydovchi yetkazdi
+            try:
+                db.audit_qosh(v.get("haydovchi_id") or 0, (v.get("haydovchi") or "Haydovchi"),
+                              ("qaytarish" if v["tur"] == "olib_kelish" else "chiqish"),
+                              f"haydovchi: {xabar}", mid, "haydovchi")
+            except Exception:
+                pass
+            # Xodimlarga xabar + RASM va IMZO
             try:
                 m = db.get_mijoz(mid)
                 bild = (f"✅ *YETKAZILDI*\n\n👤 {m['ism'] if m else '—'}\n"
@@ -286,6 +312,10 @@ def make_web_app(bot_token):
                         + f"\n{xabar}")
                 for x in db.xodim_ids():
                     await tg_xabar(x, bild)
+                    if rasm:
+                        await tg_rasm(x, RASM_DIR / rasm, "📷 Yetkazilgan mijoz")
+                    if imzo:
+                        await tg_rasm(x, RASM_DIR / imzo, "✍️ Mijoz imzosi")
             except Exception:
                 pass
             return web.json_response({"ok": True, "xabar": xabar})

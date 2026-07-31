@@ -308,7 +308,7 @@ def apply(mijoz_id, t):
     return {"ok": False, "xato": "Tushunolmadim"}
 
 
-def qator_chiqish(mijoz_id, qatorlar, sana=None, brov_kim=None, manzil=None):
+def qator_chiqish(mijoz_id, qatorlar, sana=None, brov_kim=None, manzil=None, tekshirmasdan=False):
     """Jadval orqali bir necha tovarni bitta yetkazma qilib qo'shadi."""
     m = db.get_mijoz(mijoz_id)
     if not m:
@@ -316,7 +316,7 @@ def qator_chiqish(mijoz_id, qatorlar, sana=None, brov_kim=None, manzil=None):
     _bolim = (m.get("bolim") or "ijara")
     sana = str(sana or db.today_tk().isoformat())[:10]
     brov_kim = (brov_kim or "").strip() or None
-    tekshir = db.get_sozlama("tovar_tekshir") == "1"
+    tekshir = (db.get_sozlama("tovar_tekshir") == "1") and not tekshirmasdan
     natija, xatolar, tuzatilgan = [], [], []
 
     for q in (qatorlar or []):
