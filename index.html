@@ -510,7 +510,7 @@
     // Qaytarishlar (bir kunda qaytganlar bitta yozuvda)
     const retCard=(d.qaytarishlar_guruh||[]).length?`<div class="addbox"><div class="t">↩️ Qaytgan mahsulotlar</div>${
       (d.qaytarishlar_guruh||[]).map(g=>`<div class="retg"><div class="retg-d">📅 ${dmy(g.sana)}</div>${
-        g.items.map(it=>`<div class="retg-i"><span>${esc(it.mahsulot)} — <b>${son(it.miqdor)}</b> ${esc(it.birlik||'')}${it.brov_kim?` <span style="color:#B26A31">🔁 ${esc(it.brov_kim)}</span>`:''}</span>
+        g.items.map(it=>`<div class="retg-i"><span>${esc(it.mahsulot)} — <b>${son(it.miqdor)}</b> ${esc(it.birlik||'')}${it.manzil?` <span style="color:#2E7A5A">📍 ${esc(it.manzil)}</span>`:''}${it.brov_kim?` <span style="color:#B26A31">🔁 ${esc(it.brov_kim)}</span>`:''}</span>
           <button class="x" onclick="delRet(${it.return_id},${d.id})">×</button></div>`).join('')}</div>`).join('')}</div>`:'';
     const qaydCard=`<div class="addbox"><div class="t">📝 Qayd (o'zimiz uchun)
         <button class="qbtn" id="qtgl" onclick="qaydTgl()">⤢ Kattalashtirish</button></div>
@@ -1315,14 +1315,15 @@
     div.className='qrow'; div.id='qrow'+i;
     div.innerHTML=`<div class="pickwrap">
         <input class="f" id="qm${i}" placeholder="Mahsulot — bosing yoki yozing" autocomplete="off"
-          oninput="pickShow(${i})" onfocus="pickShow(${i},1)">
+          oninput="pickShow(${i});rowManzil(${i})" onfocus="pickShow(${i},1)">
         <button class="pickb" onclick="pickShow(${i},1,1)">▾</button>
         <div class="picklist" id="pl${i}"></div></div>
       <div class="inrow" style="margin-top:6px">
         <input class="f" id="qq${i}" inputmode="decimal" placeholder="Soni">
         <button class="unitb" id="qu${i}" onclick="unitTgl(${i})">ta</button>
         ${window._qamal==='qaytarish'?'':`<input class="f" id="qp${i}" inputmode="numeric" placeholder="Narx/kun">`}
-        <button class="delrow" onclick="rowDel(${i})">🗑</button></div>`;
+        <button class="delrow" onclick="rowDel(${i})">🗑</button></div>
+      ${window._qamal==='qaytarish'?`<select class="f" id="qmz${i}" style="margin-top:6px;display:none"></select>`:''}`;
     box.appendChild(div);
     if(nom) pickSet(i,nom);
     return i;
@@ -1345,11 +1346,28 @@
     lst.innerHTML=arr.map(n=>`<div onclick="pickSet(${i},'${n.replace(/'/g,"\\'")}')">${esc(n)}</div>`).join('');
     lst.style.display='block';
   };
+  function _manzilsFor(prod){
+    const d=window._curMijoz||{}; const p=(prod||'').trim().toLowerCase();
+    const q=(d.qolganlar||[]).find(x=>((x.mahsulot||'').trim().toLowerCase())===p);
+    return ((q&&q.manzillar)||[]).filter(Boolean);
+  }
+  window.rowManzil=function(i){
+    const sel=document.getElementById('qmz'+i); if(!sel)return;
+    const prod=((document.getElementById('qm'+i)||{}).value||'');
+    const addrs=_manzilsFor(prod);
+    if(addrs.length>=2){
+      const cur=sel.value;
+      sel.innerHTML='<option value="">📍 Manzil — hammasi</option>'+addrs.map(m=>'<option value="'+esc(m)+'">'+esc(m)+'</option>').join('');
+      if(cur) sel.value=cur;
+      sel.style.display='block';
+    } else { sel.style.display='none'; sel.innerHTML=''; }
+  };
   window.pickSet=function(i,nom){
     const inp=document.getElementById('qm'+i), lst=document.getElementById('pl'+i), u=document.getElementById('qu'+i);
     if(inp) inp.value=nom;
     if(lst) lst.style.display='none';
     const b=(window._tbir||{})[nom]; if(u&&b) u.textContent=b;
+    if(window.rowManzil) rowManzil(i);
     const qq=document.getElementById('qq'+i); if(qq) qq.focus();
   };
   window.unitTgl=function(i){const u=document.getElementById('qu'+i); if(u) u.textContent=(u.textContent.trim()==='ta')?'kom':'ta';};
@@ -1361,7 +1379,8 @@
       const q=(document.getElementById('qq'+i).value||'').trim();
       const pe=document.getElementById('qp'+i); const p=pe?(pe.value||'').trim():'';
       const u=(document.getElementById('qu'+i).textContent||'ta').trim();
-      if(m||q) rows.push({mahsulot:m,miqdor:q,kunlik_narx:p||0,birlik:u});
+      const mz=(window._qamal==='qaytarish')?((document.getElementById('qmz'+i)||{}).value||''):'';
+      if(m||q){ const row={mahsulot:m,miqdor:q,kunlik_narx:p||0,birlik:u}; if(mz) row.manzil=mz; rows.push(row); }
     });
     if(!rows.length){toast('Tovar qo\'shing');return;}
     const sana=(document.getElementById('qsana2')||{}).value;

@@ -189,6 +189,13 @@ def apply(mijoz_id, t):
         target = list(target)
         target.sort(key=lambda x: x[0]["partiya_raqam"])  # eng eski chiqishdan
 
+        # Manzil tanlangan bo'lsa — faqat o'sha manzildagi partiyalardan qaytadi
+        _mz = (getattr(t, "manzil", None) or "").strip().lower()
+        if _mz:
+            _mos = [(p, h) for p, h in target if (p.get("manzil") or "").strip().lower() == _mz]
+            if _mos:
+                target = _mos
+
         # Brovdan tartibi:
         #  - kimdanligi aytilgan bo'lsa → avval o'sha odamning tovaridan
         #  - aytilmagan bo'lsa → avval O'ZIMIZNIKIDAN (brovdan olingani tegilmaydi)
@@ -406,6 +413,7 @@ def qator_qaytarish(mijoz_id, qatorlar, sana=None, brov_kim=None):
         birlik = "kom" if birlik.startswith("kom") else "ta"
         _q = _Qaytish(mah, miq, sana, birlik)
         _q.brov_kim = (brov_kim or "").strip() or None
+        _q.manzil = q.get("manzil")
         res = apply(mijoz_id, _q)
         if res.get("ok"):
             natija.append({"mahsulot": mah, "miqdor": miq, "birlik": birlik})
