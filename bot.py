@@ -222,8 +222,17 @@ class _T:
 
 
 def _disamb_kb(matches, allow_new=False, ism=None):
-    rows = [[InlineKeyboardButton(f"{m['ism']} · {m['telefon'] or 'raqamsiz'}", callback_data=f"pick:{m['id']}")]
-            for m in matches]
+    rows = []
+    for m in matches:
+        qtxt = ""
+        try:
+            q = (db.mijoz_detail(m["id"]) or {}).get("qolgan_qarz", 0)
+            if q:
+                qtxt = f" · {som(q)} qarz"
+        except Exception:
+            qtxt = ""
+        rows.append([InlineKeyboardButton(
+            f"{m['ism']} · {m['telefon'] or 'raqamsiz'}{qtxt}", callback_data=f"pick:{m['id']}")])
     if allow_new and ism:
         rows.append([InlineKeyboardButton(f"➕ Yangi mijoz: {ism}", callback_data="picknew")])
     return InlineKeyboardMarkup(rows)
@@ -1039,17 +1048,18 @@ def _amal_str(a):
 
 def _tasdiq_matni(actions):
     lines = ["🎙 *Tushundim — tasdiqlaysizmi?*\n"]
-    for a in actions:
+    for i, a in enumerate(actions, 1):
         am = _amal_str(a)
         mij = a.mijoz or "?"
         if am == "chiqish":
-            lines.append(f"📤 {mij}: {son(a.miqdor or 0)} ta {a.mahsulot or '?'} · kuniga {som(a.kunlik_narx or 0)} so'm")
+            lines.append(f"{i}) 📤 {mij}: {son(a.miqdor or 0)} ta {a.mahsulot or '?'} · kuniga {som(a.kunlik_narx or 0)} so'm")
         elif am == "qaytarish":
-            lines.append(f"📥 {mij}: {son(a.miqdor or 0)} ta {a.mahsulot or ''} qaytdi")
+            lines.append(f"{i}) 📥 {mij}: {son(a.miqdor or 0)} ta {a.mahsulot or ''} qaytdi")
         elif am == "tolov":
-            lines.append(f"💵 {mij}: to'lov {som(a.summa or 0)} so'm")
+            lines.append(f"{i}) 💵 {mij}: to'lov {som(a.summa or 0)} so'm")
         else:
-            lines.append(f"• {mij}: {am}")
+            lines.append(f"{i}) • {mij}: {am}")
+    lines.append(f"\n_Jami: {len(actions)} ta_")
     return "\n".join(lines)
 
 
@@ -1088,8 +1098,8 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not actions:
         await update.message.reply_text("Tushunolmadim 🤔 Qaytaring.")
         return
-    # Mol chiqishi bo'lsa — avval tasdiqlatamiz
-    if any(_amal_str(a) == "chiqish" for a in actions):
+    # Mol chiqishi yoki bir nechta amal bo'lsa — avval tasdiqlatamiz
+    if any(_amal_str(a) == "chiqish" for a in actions) or len(actions) > 1:
         await _show_tasdiq(update, ctx, actions)
     else:
         for a in actions:
