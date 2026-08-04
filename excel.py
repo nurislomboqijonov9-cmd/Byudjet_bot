@@ -123,6 +123,7 @@ def mijoz_excel(d):
 
     # Qaytarishlar
     rets = [(p, rr) for p in d.get("partiyalar", []) for rr in p.get("qaytarishlar", [])]
+    rets.sort(key=lambda x: (x[1].get("qaytgan_sana") or ""))
     if rets:
         title("QAYTARISHLAR", r); r += 1
         for h, col in [("Partiya", 1), ("Mahsulot", 2), ("Soni", 3), ("Sana", 4), ("Brovdan (kim)", 5)]:
