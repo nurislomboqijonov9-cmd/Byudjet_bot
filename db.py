@@ -4146,3 +4146,11 @@ def audit_mijoz(mijoz_id, limit=20):
         rows = []
     con.close()
     return [dict(r) for r in rows]
+
+
+def qaytarish_yangila(return_id, miqdor):
+    """Qaytarilgan mahsulot sonini o'zgartiradi (tahrir)."""
+    con = _con()
+    con.execute("UPDATE qaytarishlar SET miqdor=? WHERE id=?", (float(miqdor or 0), return_id))
+    con.commit()
+    con.close()

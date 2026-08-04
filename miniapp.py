@@ -833,6 +833,22 @@ def make_web_app(bot_token):
         except Exception as e:
             return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
 
+    async def api_qaytarish_edit(request):
+        uid, err = check(request)
+        if err:
+            return err
+        b = await request.json()
+        try:
+            rid = int(b.get("return_id"))
+            miq = float(str(b.get("miqdor") or 0).replace(" ", ""))
+        except Exception:
+            return web.json_response({"ok": False, "xabar": "Son noto'g'ri"}, status=400)
+        if miq <= 0:
+            return web.json_response({"ok": False, "xabar": "Son 0 dan katta bo'lsin"})
+        db.qaytarish_yangila(rid, miq)
+        _audit(uid, "o'zgartirish", f"qaytarish #{rid} son -> {miq}")
+        return web.json_response({"ok": True})
+
     async def api_qaytarish_del(request):
         uid, err = check(request)
         if err:
@@ -1154,6 +1170,7 @@ def make_web_app(bot_token):
     app.router.add_post("/api/yetkazma_sana", api_yetkazma_sana)
     app.router.add_post("/api/partiya_toplam", api_partiya_toplam)
     app.router.add_post("/api/qaytarish", api_qaytarish)
+    app.router.add_post("/api/qaytarish_edit", api_qaytarish_edit)
     app.router.add_post("/api/qaytarish_del", api_qaytarish_del)
     app.router.add_post("/api/partiya_del", api_partiya_del)
     app.router.add_post("/api/qoshimcha", api_qoshimcha)

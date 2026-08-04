@@ -370,7 +370,7 @@
         else if(document.exitFullscreen && document.fullscreenElement) document.exitFullscreen();
       }
     }catch(e){}
-    const b=document.getElementById('fsb'); if(b) b.textContent=on?'⤡':'⛶';
+    ['fsb','fsb2'].forEach(id=>{const b=document.getElementById(id); if(b) b.textContent=on?'⤡':'⛶';});
   };
   const app = document.getElementById('app');
   let rec=null, recChunks=[], recMid=null;
@@ -511,7 +511,8 @@
     const retCard=(d.qaytarishlar_guruh||[]).length?`<div class="addbox"><div class="t">↩️ Qaytgan mahsulotlar</div>${
       (d.qaytarishlar_guruh||[]).map(g=>`<div class="retg"><div class="retg-d">📅 ${dmy(g.sana)}</div>${
         g.items.map(it=>`<div class="retg-i"><span>${esc(it.mahsulot)} — <b>${son(it.miqdor)}</b> ${esc(it.birlik||'')}${it.manzil?` <span style="color:#2E7A5A">📍 ${esc(it.manzil)}</span>`:''}${it.brov_kim?` <span style="color:#B26A31">🔁 ${esc(it.brov_kim)}</span>`:''}</span>
-          <button class="x" onclick="delRet(${it.return_id},${d.id})">×</button></div>`).join('')}</div>`).join('')}</div>`:'';
+          <span style="display:flex;gap:2px"><button class="x" onclick="tgl('re${it.return_id}')">✏️</button><button class="x" onclick="delRet(${it.return_id},${d.id})">×</button></span></div>
+          <div id="re${it.return_id}" style="display:none;padding:2px 0 8px"><div class="inrow"><input class="f" id="rm${it.return_id}" inputmode="decimal" value="${son(it.miqdor)}" style="max-width:130px"><button class="mini-btn" onclick="saveRet2(${it.return_id},${d.id})">Saqlash</button></div></div>`).join('')}</div>`).join('')}</div>`:'';
     const qaydCard=`<div class="addbox"><div class="t">📝 Qayd (o'zimiz uchun)
         <button class="qbtn" id="qtgl" onclick="qaydTgl()">⤢ Kattalashtirish</button></div>
       <textarea class="f ta qsmall" id="qaydmatn" oninput="autoGrow(this)" placeholder="Mijoz nima dedi, kelishuvlar, eslab qolish kerak bo'lgan narsalar…">${esc(d.qayd||'')}</textarea>
@@ -601,7 +602,8 @@
         <button class="mini-btn" style="color:#2D6CB2;border-color:#2D6CB2" onclick="setStatus(${d.id},'sotuv')">🔵 Sotuv</button></div></div>`;
     app.innerHTML=`<header><div style="flex:1"><button class="back" onclick="loadList()">‹ Orqaga</button>
         <div class="eyebrow">Mijoz${d.telefon?' · 📞 '+esc(phones(d.telefon)):''}</div><h1>${esc(d.mijoz)}</h1></div>
-        <button class="edit-status" onclick="tgl('medit')">✏️ Tahrir</button></header>
+        <button class="edit-status" onclick="tgl('medit')">✏️ Tahrir</button>
+        <button class="fsbtn" id="fsb2" onclick="wideTgl()" style="margin-left:6px">⛶</button></header>
       <div id="medit" class="addbox" style="display:none">
         <input class="f" id="m_ism" value="${esc(d.mijoz)}" placeholder="Ism" style="margin-bottom:8px">
         <input class="f" id="m_tel" value="${esc(d.telefon||'')}" placeholder="Telefon (bir nechta bo'lsa probel yoki vergul bilan)">
@@ -984,6 +986,12 @@
   window.delRet=async function(rid,mid){
     try{const r=await fetch('/api/qaytarish_del',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({return_id:rid})});
       if(!r.ok)throw 0; toast('O\'chirildi'); mijozReload(mid);}catch(e){toast('Xato');}
+  };
+  window.saveRet2=async function(rid,mid){
+    const miq=parseFloat(((document.getElementById('rm'+rid)||{}).value||'').replace(/\s/g,''));
+    if(!miq||miq<=0){toast('To\'g\'ri son yozing');return;}
+    try{const r=await fetch('/api/qaytarish_edit',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({return_id:rid,miqdor:miq})});
+      const d=await r.json(); if(d.ok){toast('✏️ O\'zgartirildi');mijozReload(mid);} else toast(d.xabar||'Xato');}catch(e){toast('Xato');}
   };
   window.delPartiya=async function(pid,mid){
     const ok = await tasdiq('Bu partiyani butunlay o\'chirasizmi? Hisobdan ham chiqadi.');
