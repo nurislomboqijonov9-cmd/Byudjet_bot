@@ -46,10 +46,13 @@ PROMPT = """Sen ijara (arenda) hisobi yordamchisisan. Korxona lesa va temir mahs
 KUNLIK ijaraga beradi. Foydalanuvchi o'zbek tilida (ovoz yoki matn) gapiradi.
 
 AMALLAR:
-- "chiqish": mijozga mahsulot ijaraga chiqdi.
+- "chiqish": mijozga mahsulot ijaraga chiqdi. KALIT SO'ZLAR: "ketdi", "chiqdi", "berdim", "olib ketdi".
   Masalan: "Abbosga 100 ta lesa chiqdi kuniga 2000 so'm" ->
   amal=chiqish, mijoz=Abbos, mahsulot=lesa, miqdor=100, kunlik_narx=2000
-- "qaytarish": mijoz mahsulotni qaytardi.
+  Format namunalari (mijoz ismi "ga" bilan boshida; sana KUN.OY yoki KUN.OY.YIL; narx "kuniga X" yoki "X so'mdan"):
+  "Nurislomga ketdi 20.07.26 200 ta lesa oyoq kuniga 2000 so'm" -> chiqish, mijoz=Nurislom, sana=2026-07-20, mahsulot="lesa oyoq", miqdor=200, kunlik_narx=2000
+  "18.07 700 ta lesa qaychi ketdi kuniga 1800 so'mdan" -> chiqish, sana=2026-07-18, mahsulot="lesa qaychi", miqdor=700, kunlik_narx=1800 (mijoz oldin aytilgan bo'lsa — o'sha mijoz)
+- "qaytarish": mijoz mahsulotni qaytardi. KALIT SO'ZLAR: "qaytdi", "keldi", "olib keldi", "qaytardi".
   Masalan: "Abbos 1-partiyadan 30 ta qaytardi" -> amal=qaytarish, mijoz=Abbos, partiya=1, miqdor=30
   "Karim 2-partiyadan hammasini qaytardi" -> amal=qaytarish, mijoz=Karim, partiya=2, hammasi=true
   "Nig'matulladan 500 ta lesa qaytdi" -> amal=qaytarish, mijoz=Nig'matulla, mahsulot=lesa, miqdor=500 (partiya=null;
@@ -74,8 +77,15 @@ AMALLAR:
 
 QOIDALAR:
 - Agar bir nechta mahsulot yoki amal aytilsa, HAR BIRINI alohida amal qilib "amallar" ro'yxatiga qo'sh.
+  MUHIM: mahsulotlar nechta bo'lsa (5 ta, 10 ta yoki ko'p) — HAMMASINI, aytilgan TARTIBDA yoz.
+  Bittasini ham tashlab ketma, ikkitasini bittaga qo'shib yuborma, tartibini almashtirma.
+  Har mahsulot o'z soni va o'z narxi bilan alohida amal bo'lsin.
   Masalan: "Abbosga 50 ta lesa 3 mingdan va 50 ta tayrot 900 dan" -> 2 ta chiqish amali (ikkisida ham mijoz=Abbos).
   Bitta amal bo'lsa ham "amallar" ichida bitta element bo'ladi.
+- KALIT SO'Z xabarning BOSHIDA ham, OXIRIDA ham kelishi mumkin: "ketdi"/"chiqdi" -> chiqish; "qaytdi"/"keldi" -> qaytarish.
+  Agar boshida "ketdi" aytilib keyin bir nechta mahsulot sanalsa — HAMMASI chiqish. "qaytdi"/"keldi" bo'lsa — hammasi qaytarish.
+- Sana yilsiz aytilsa ("20.07", "18.07") — joriy yilni qo'y (masalan 20.07 -> 2026-07-20).
+- Agar mijoz ismi faqat BIR MARTA (boshida, "Nurislomga" kabi) aytilsa — keyingi BARCHA mahsulotlar ham SHU mijozga tegishli (har amalda mijoz to'ldiriladi).
 - Agar xabarda ⬆️ (yuqoriga strelka) bo'lsa — bu CHIQISH belgisi (amal=chiqish).
   ⬇️ (pastga strelka) bo'lsa — QAYTARISH belgisi (amal=qaytarish).
 - Sonlarni raqam qil: "100 ta"=100, "2 ming"=2000, "yarim million"=500000.
@@ -135,9 +145,30 @@ def _now_context():
     return f"Hozirgi sana (Toshkent): {now.strftime('%Y-%m-%d')}, hafta kuni: {kunlar[now.weekday()]}."
 
 
+def _transcribe(audio_bytes, mime_type):
+    resp = client().models.generate_content(
+        model=MODEL,
+        contents=[types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                  "Bu ovozli xabarni AYNAN va TO'LIQ o'zbekcha matnga o'gir. "
+                  "Aytilgan har bir mahsulot, son va narxni tushirib qoldirma. Faqat matnni qaytar."])
+    return (resp.text or "").strip()
+
+
 def from_audio(audio_bytes: bytes, mime_type: str = "audio/ogg") -> list:
     part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
-    return _extract([_now_context(), part, "Yuqoridagi ovozli xabarni tahlil qil."])
+    # 1-qadam: aniq transkript (ko'p tovarda adashmaslik uchun)
+    matn = ""
+    try:
+        matn = _transcribe(audio_bytes, mime_type)
+    except Exception:
+        matn = ""
+    # 2-qadam: transkript + ovozdan tuzilgan ma'lumot
+    if matn:
+        return _extract([_now_context(), f"Ovoz matni: «{matn}»", part,
+                         "Yuqoridagi ovoz va uning matnini tahlil qil. Aytilgan HAR BIR mahsulotni "
+                         "alohida amal qilib, aytilgan tartibda ro'yxatga qo'sh — bittasini ham tushirib qoldirma."])
+    return _extract([_now_context(), part,
+                     "Yuqoridagi ovozli xabarni tahlil qil. Aytilgan har bir mahsulotni alohida, tartibda yoz."])
 
 
 def from_text(text: str) -> list:
