@@ -421,12 +421,13 @@
       <div class="search"><input id="qidir" placeholder="🔍 Ism, telefon yoki manzil..." oninput="renderCards(this.value)"></div>
       <div id="cards"></div>`;
     renderCards('');
+    if(window._listY){const y=window._listY;window._listY=0;setTimeout(()=>{try{window.scrollTo(0,y);}catch(e){}},30);}
   }
 
   window.renderCards=function(q){
     q=(q||'').toLowerCase().trim();
     const list=(window._ml||[]).filter(m=>!q || (m.mijoz||'').toLowerCase().includes(q) || (m.telefon||'').includes(q) || (m.adres||'').toLowerCase().includes(q));
-    let cards=list.map(m=>`<div class="card mcard st-${esc(m.status||'')}${m.tolov_turi==='perech'?' perech':''}"><div class="mijoz" onclick="loadMijoz(${m.id})">
+    let cards=list.map(m=>`<div class="card mcard st-${esc(m.status||'')}${m.tolov_turi==='perech'?' perech':''}"><div class="mijoz" onclick="window._listY=window.scrollY;loadMijoz(${m.id})">
         <div class="av"><span>${ini(m.mijoz)}</span></div>
         <div><div class="nm">${m.status&&STAT[m.status]?`<span class="stdot" style="background:${STAT[m.status].c}"></span>`:''}${esc(m.mijoz)}</div>
           <div class="mt">${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan${m.tolov_turi==='perech'?' · <b style="color:#7A4FC0">🏦 perech</b>':(m.tolov_turi==='naqd'?' · 💵':'')}</div>
@@ -1821,7 +1822,16 @@
     }catch(e){ toast('Havolani qo\'lda nusxalang'); }
   };
   window.chiqish=function(){ tokenSet(''); loginEkran(); };
-  window.APPV='104';   // yuklangan versiya (nosozlikni aniqlash uchun)
+  window.APPV='105';   // yuklangan versiya (nosozlikni aniqlash uchun)
+
+  // ↑ Tepaga qaytaruvchi tugma (ro'yxatda pastga tushganda ko'rinadi)
+  (function(){
+    var btn=document.createElement('button'); btn.id='toTop'; btn.textContent='↑';
+    btn.style.cssText='position:fixed;right:14px;bottom:80px;width:46px;height:46px;border-radius:50%;border:none;background:var(--brand,#1E7A5A);color:#fff;font-size:23px;line-height:1;box-shadow:0 5px 16px rgba(0,0,0,.28);display:none;z-index:120;cursor:pointer';
+    btn.onclick=function(){ try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);} };
+    document.body.appendChild(btn);
+    window.addEventListener('scroll',function(){ btn.style.display=(window.scrollY>320)?'block':'none'; },{passive:true});
+  })();
 
   // Telegram ichida bo'lsa — to'g'ridan-to'g'ri, aks holda token / login
   if ((tg && tg.initData) || tokenGet()) { loadList(); } else { loginEkran(); }
