@@ -847,13 +847,25 @@ def make_web_app(bot_token):
         b = await request.json()
         try:
             rid = int(b.get("return_id"))
-            miq = float(str(b.get("miqdor") or 0).replace(" ", ""))
         except Exception:
-            return web.json_response({"ok": False, "xabar": "Son noto'g'ri"}, status=400)
-        if miq <= 0:
-            return web.json_response({"ok": False, "xabar": "Son 0 dan katta bo'lsin"})
-        db.qaytarish_yangila(rid, miq)
-        _audit(uid, "o'zgartirish", f"qaytarish #{rid} son -> {miq}")
+            return web.json_response({"ok": False, "xabar": "return_id kerak"}, status=400)
+        miq = None
+        if b.get("miqdor") not in (None, ""):
+            try:
+                miq = float(str(b.get("miqdor")).replace(" ", ""))
+            except Exception:
+                return web.json_response({"ok": False, "xabar": "Son noto'g'ri"}, status=400)
+            if miq <= 0:
+                return web.json_response({"ok": False, "xabar": "Son 0 dan katta bo'lsin"})
+        pid = None
+        if b.get("partiya_id") not in (None, ""):
+            try:
+                pid = int(b.get("partiya_id"))
+            except Exception:
+                pid = None
+        sana = b.get("sana") or None
+        db.qaytarish_yangila(rid, miqdor=miq, partiya_id=pid, sana=sana)
+        _audit(uid, "o'zgartirish", f"qaytarish #{rid} tahrir")
         return web.json_response({"ok": True})
 
     async def api_qaytarish_del(request):

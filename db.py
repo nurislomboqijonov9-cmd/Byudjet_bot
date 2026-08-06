@@ -844,7 +844,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
                 rgr[key] = g
             g["items"].append({
                 "mahsulot": h["mahsulot"], "miqdor": r["miqdor"],
-                "partiya_raqam": h["partiya_raqam"], "return_id": r["id"], "manzil": h.get("manzil"),
+                "partiya_raqam": h["partiya_raqam"], "partiya_id": h["id"], "return_id": r["id"], "manzil": h.get("manzil"),
                 "brov_kim": h.get("brov_kim"), "birlik": h.get("birlik"),
             })
     qaytarishlar_guruh = sorted(rgr.values(), key=lambda x: x["sana"], reverse=True)
@@ -2488,7 +2488,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
                 rgr[key] = g
             g["items"].append({
                 "mahsulot": h["mahsulot"], "miqdor": r["miqdor"],
-                "partiya_raqam": h["partiya_raqam"], "return_id": r["id"], "manzil": h.get("manzil"),
+                "partiya_raqam": h["partiya_raqam"], "partiya_id": h["id"], "return_id": r["id"], "manzil": h.get("manzil"),
                 "brov_kim": h.get("brov_kim"), "birlik": h.get("birlik"),
             })
     qaytarishlar_guruh = sorted(rgr.values(), key=lambda x: x["sana"], reverse=True)
@@ -4148,9 +4148,18 @@ def audit_mijoz(mijoz_id, limit=20):
     return [dict(r) for r in rows]
 
 
-def qaytarish_yangila(return_id, miqdor):
-    """Qaytarilgan mahsulot sonini o'zgartiradi (tahrir)."""
+def qaytarish_yangila(return_id, miqdor=None, partiya_id=None, sana=None):
+    """Qaytarilgan mahsulotni tahrirlaydi: son, qaysi partiyadan (mahsulot), sana."""
     con = _con()
-    con.execute("UPDATE qaytarishlar SET miqdor=? WHERE id=?", (float(miqdor or 0), return_id))
-    con.commit()
+    sets, vals = [], []
+    if miqdor is not None:
+        sets.append("miqdor=?"); vals.append(float(miqdor or 0))
+    if partiya_id is not None:
+        sets.append("partiya_id=?"); vals.append(int(partiya_id))
+    if sana:
+        sets.append("qaytgan_sana=?"); vals.append(str(sana)[:10])
+    if sets:
+        vals.append(return_id)
+        con.execute(f"UPDATE qaytarishlar SET {', '.join(sets)} WHERE id=?", vals)
+        con.commit()
     con.close()
