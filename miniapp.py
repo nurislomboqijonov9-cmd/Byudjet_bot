@@ -474,8 +474,10 @@ def make_web_app(bot_token):
         d = db.mijoz_detail(mid)
         if not d:
             return web.Response(status=404)
+        dan = request.query.get("dan") or None
+        gacha = request.query.get("gacha") or None
         try:
-            bio = excel.mijoz_excel(d)
+            bio = excel.mijoz_excel(d, dan, gacha)
             data = bio.getvalue()
         except Exception:
             import logging
@@ -483,6 +485,8 @@ def make_web_app(bot_token):
             return web.json_response({"xato": "excel yaratilmadi"}, status=500)
         import urllib.parse
         nom = (d.get("mijoz") or d.get("ism") or "mijoz")
+        if dan or gacha:
+            nom = f"{nom} ({(dan or '')[:10]}_{(gacha or '')[:10]})"
         fn = urllib.parse.quote(f"{nom}.xlsx")
         return web.Response(
             body=data,
@@ -502,14 +506,17 @@ def make_web_app(bot_token):
         d = db.mijoz_detail(mid)
         if not d:
             return web.json_response({"xato": "topilmadi"}, status=404)
+        dan = request.query.get("dan") or None
+        gacha = request.query.get("gacha") or None
         try:
-            data = excel.mijoz_excel(d).getvalue()
+            data = excel.mijoz_excel(d, dan, gacha).getvalue()
         except Exception:
             import logging
             logging.getLogger("miniapp").exception("mijoz excel xatolik")
             return web.json_response({"xato": "excel yaratilmadi"}, status=500)
         nom = (d.get("mijoz") or d.get("ism") or "mijoz")
-        ok = await tg_document(uid, data, f"{nom}.xlsx", caption=f"📊 {nom} — hisobot")
+        davr = f" ({excel._dmy(dan)}–{excel._dmy(gacha)})" if (dan or gacha) else ""
+        ok = await tg_document(uid, data, f"{nom}.xlsx", caption=f"📊 {nom} — hisobot{davr}")
         return web.json_response({"ok": bool(ok)})
 
     async def api_mijoz_yop_preview(request):

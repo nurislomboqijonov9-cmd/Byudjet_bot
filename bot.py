@@ -47,7 +47,7 @@ def _malumot_text(d):
     lines = [f"👤 *{d['mijoz']}*"]
     if d.get("kesim_sana"):
         k = d["kesim_sana"].split("-")
-        lines.append(f"📆 _{k[2]}.{k[1]}.{k[0]} holatiga_")
+        lines.append(f"📆 *Hisobot: boshidan {k[2]}.{k[1]}.{k[0]} gacha*")
     if d.get("telefon"):
         lines.append(f"📞 {d['telefon']}")
     if d.get("adres"):
@@ -240,7 +240,7 @@ def _disamb_kb(matches, allow_new=False, ism=None):
 
 async def _send_excel(message, detail):
     try:
-        bio = excel.mijoz_excel(detail)
+        bio = excel.mijoz_excel(detail, gacha=detail.get("kesim_sana"))
         nom = "".join(c for c in detail["mijoz"] if c.isalnum() or c in " _-").strip() or "mijoz"
         if detail.get("kesim_sana"):
             nom += "_" + detail["kesim_sana"]

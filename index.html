@@ -691,6 +691,10 @@
 
       <div id="tab_boshqa" class="mpanel" style="display:none">
         <div class="addbox"><div class="t">📊 Excel otchot</div>
+          <div class="inrow" style="margin:0 0 6px;gap:6px">
+            <input class="f" id="ex_dan" type="date" style="flex:1" title="dan">
+            <input class="f" id="ex_gacha" type="date" style="flex:1" title="gacha"></div>
+          <div class="hint" style="margin:0 0 8px;font-size:11px">📅 Sana tanlasangiz — shu davr; tanlamasangiz — butun hisob.</div>
           ${(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)
             ? `<div class="hint" style="margin:0 0 8px">Fayl shu botdagi chatingizga tushadi — o'sha yerdan ochasiz, yuklaysiz yoki uzatasiz.</div>
                <button class="mini-btn" style="width:100%" onclick="excelBot(${d.id})">📄 Telegramga yuborish</button>`
@@ -762,8 +766,13 @@
   window.mviewTgl=function(){ var v=(mviewGet()==='scroll')?'tab':'scroll'; try{localStorage.setItem('mview',v);}catch(e){} applyMview(v); };
 
   // ===== Excel otchot: yuklab olish / yuborish =====
+  function _exDavr(){
+    const a=((document.getElementById('ex_dan')||{}).value||'').trim();
+    const b=((document.getElementById('ex_gacha')||{}).value||'').trim();
+    let q=''; if(a)q+='&dan='+encodeURIComponent(a); if(b)q+='&gacha='+encodeURIComponent(b); return q;
+  }
   async function _excelBlob(id){
-    const r=await fetch('/api/mijoz_excel?id='+id,{headers:H});
+    const r=await fetch('/api/mijoz_excel?id='+id+_exDavr(),{headers:H});
     if(!r.ok) throw 0;
     const blob=await r.blob();
     const nom=((window._curMijoz&&window._curMijoz.mijoz)||'mijoz').replace(/[^\w .\-]/g,'_');
@@ -816,7 +825,7 @@
   window.excelBot=async function(id){
     toast('⏳ Yuborilmoqda…');
     try{
-      const r=await fetch('/api/mijoz_excel_yubor?id='+id,{method:'POST',headers:H});
+      const r=await fetch('/api/mijoz_excel_yubor?id='+id+_exDavr(),{method:'POST',headers:H});
       const j=await r.json().catch(function(){return{};});
       if(r.ok && j && j.ok) toast('✅ Fayl Telegramga yuborildi — chatingizni oching');
       else toast('❌ Yuborilmadi — botni /start qilganingizni tekshiring');
