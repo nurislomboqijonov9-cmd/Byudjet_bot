@@ -135,6 +135,22 @@ def make_web_app(bot_token):
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache", "Expires": "0"})
 
+    async def tv_sahifa(request):
+        yol = Path(__file__).parent / "tv.html"
+        if not yol.exists():
+            return web.Response(status=404, text="tv.html yo'q")
+        return web.FileResponse(yol, headers={"Cache-Control": "no-cache"})
+
+    async def api_dashboard(request):
+        # Ixtiyoriy himoya: TV_KEY o'rnatilgan bo'lsa, ?k= mos kelsin
+        kalit = os.environ.get("TV_KEY")
+        if kalit and request.query.get("k") != kalit:
+            return web.json_response({"xato": "ruxsat yo'q"}, status=403)
+        try:
+            return web.json_response(db.dashboard_stats())
+        except Exception as e:
+            return web.json_response({"xato": str(e)}, status=500)
+
     # ---- Mijoz uchun ochiq sahifa (login talab qilinmaydi) ----
     async def mijoz_sahifa(request):
         yol = Path(__file__).parent / "mijoz.html"
@@ -253,6 +269,73 @@ def make_web_app(bot_token):
             return web.Response(status=404)
         return web.FileResponse(yol, headers={
             "Cache-Control": "no-cache, no-store, must-revalidate", "X-Robots-Tag": "noindex"})
+
+    # ==================== GPS kuzatuv ====================
+    async def kuzat_sahifa(request):
+        yol = Path(__file__).parent / "kuzat.html"
+        if not yol.exists():
+            return web.Response(status=404)
+        return web.FileResponse(yol, headers={"Cache-Control": "no-cache"})
+
+    async def harita_sahifa(request):
+        yol = Path(__file__).parent / "harita.html"
+        if not yol.exists():
+            return web.Response(status=404)
+        return web.FileResponse(yol, headers={"Cache-Control": "no-cache"})
+
+    async def api_gps(request):
+        """Haydovchi ilovasidan GPS nuqtalar (offline bufer -> bir yo'la)."""
+        try:
+            b = await request.json()
+        except Exception:
+            return web.json_response({"ok": False}, status=400)
+        h = db.haydovchi_by_kuzat_token(b.get("token") or "")
+        if not h:
+            return web.json_response({"ok": False, "xato": "token"}, status=404)
+        n = db.gps_qosh(h["id"], b.get("points") or [])
+        return web.json_response({"ok": True, "saqlandi": n})
+
+    async def api_gps_off(request):
+        """GPS/lokatsiya o'chirildi — egaga ogohlantirish."""
+        try:
+            b = await request.json()
+        except Exception:
+            return web.json_response({"ok": False}, status=400)
+        h = db.haydovchi_by_kuzat_token(b.get("token") or "")
+        if not h:
+            return web.json_response({"ok": False}, status=404)
+        owner = os.getenv("OWNER_ID", "").strip()
+        if owner:
+            vaqt = db.now_tk().strftime("%H:%M")
+            sabab = b.get("sabab") or "GPS o'chirildi"
+            await tg_xabar(owner, f"⚠️ *{h.get('ism') or 'Haydovchi'}* — {sabab} ({vaqt})")
+        return web.json_response({"ok": True})
+
+    async def api_gps_view(request):
+        """Ega uchun: haydovchining kunlik yo'li + to'xtashlari."""
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            hid = int(request.query.get("hid"))
+        except Exception:
+            return web.json_response({"xato": "hid kerak"}, status=400)
+        sana = request.query.get("sana") or db.today_tk().isoformat()
+        return web.json_response(db.gps_kunlik_xulosa(hid, str(sana)[:10]))
+
+    async def api_haydovchi_kuzat(request):
+        """Ega uchun: haydovchining kuzatuv havolasini oladi/yaratadi."""
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            hid = int(request.query.get("hid"))
+        except Exception:
+            return web.json_response({"xato": "hid kerak"}, status=400)
+        tok = db.haydovchi_kuzat_token(hid)
+        base = str(request.url.origin())
+        return web.json_response({"token": tok, "havola": f"{base}/kuzat/{tok}"})
+
 
     async def api_vazifa_ochiq(request):
         d = db.vazifa_by_token(request.match_info.get("token", ""))
@@ -1151,9 +1234,17 @@ def make_web_app(bot_token):
 
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)
+    app.router.add_get("/tv", tv_sahifa)
+    app.router.add_get("/api/dashboard", api_dashboard)
     app.router.add_post("/api/login", api_login)
     app.router.add_get("/m/{token}", mijoz_sahifa)
     app.router.add_get("/v/{token}", haydovchi_sahifa)
+    app.router.add_get("/kuzat/{token}", kuzat_sahifa)
+    app.router.add_get("/harita", harita_sahifa)
+    app.router.add_post("/api/gps", api_gps)
+    app.router.add_post("/api/gps_off", api_gps_off)
+    app.router.add_get("/api/gps_view", api_gps_view)
+    app.router.add_get("/api/haydovchi_kuzat", api_haydovchi_kuzat)
     app.router.add_get("/api/v/{token}", api_vazifa_ochiq)
     app.router.add_post("/api/v_holat", api_v_holat)
     app.router.add_post("/api/v_bajar", api_v_bajar)

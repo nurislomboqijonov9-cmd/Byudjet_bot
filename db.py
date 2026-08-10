@@ -177,6 +177,13 @@ def init_db():
     con.execute("""CREATE TABLE IF NOT EXISTS haydovchilar (
         id INTEGER PRIMARY KEY, ism TEXT, telefon TEXT,
         faol INTEGER NOT NULL DEFAULT 1, yaratilgan TEXT NOT NULL)""")
+    try:
+        con.execute("ALTER TABLE haydovchilar ADD COLUMN kuzat_token TEXT")
+    except Exception:
+        pass
+    con.execute("""CREATE TABLE IF NOT EXISTS gps_nuqta (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, hid INTEGER, lat REAL, lon REAL,
+        vaqt TEXT, acc REAL)""")
 
     # ---------- Yetkazma vazifalari (haydovchi uchun) ----------
     con.execute("""CREATE TABLE IF NOT EXISTS vazifalar (
@@ -1821,6 +1828,13 @@ def init_db():
     con.execute("""CREATE TABLE IF NOT EXISTS haydovchilar (
         id INTEGER PRIMARY KEY, ism TEXT, telefon TEXT,
         faol INTEGER NOT NULL DEFAULT 1, yaratilgan TEXT NOT NULL)""")
+    try:
+        con.execute("ALTER TABLE haydovchilar ADD COLUMN kuzat_token TEXT")
+    except Exception:
+        pass
+    con.execute("""CREATE TABLE IF NOT EXISTS gps_nuqta (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, hid INTEGER, lat REAL, lon REAL,
+        vaqt TEXT, acc REAL)""")
 
     # ---------- Yetkazma vazifalari (haydovchi uchun) ----------
     con.execute("""CREATE TABLE IF NOT EXISTS vazifalar (
@@ -4163,3 +4177,137 @@ def qaytarish_yangila(return_id, miqdor=None, partiya_id=None, sana=None):
         con.execute(f"UPDATE qaytarishlar SET {', '.join(sets)} WHERE id=?", vals)
         con.commit()
     con.close()
+
+
+# ==================== GPS kuzatuv ====================
+import secrets as _secrets
+import math as _math
+
+
+def haydovchi_kuzat_token(hid):
+    """Haydovchining doimiy kuzatuv tokenini oladi (bo'lmasa yaratadi)."""
+    con = _con()
+    r = con.execute("SELECT kuzat_token FROM haydovchilar WHERE id=?", (hid,)).fetchone()
+    tok = r["kuzat_token"] if r and r["kuzat_token"] else None
+    if not tok:
+        tok = _secrets.token_urlsafe(10)
+        con.execute("UPDATE haydovchilar SET kuzat_token=? WHERE id=?", (tok, hid))
+        con.commit()
+    con.close()
+    return tok
+
+
+def haydovchi_by_kuzat_token(token):
+    con = _con()
+    r = con.execute("SELECT * FROM haydovchilar WHERE kuzat_token=?", (token,)).fetchone()
+    con.close()
+    return dict(r) if r else None
+
+
+def gps_qosh(hid, points):
+    """points: [{lat, lon, vaqt(iso), acc}] — ko'p nuqtani birga saqlaydi."""
+    if not points:
+        return 0
+    con = _con()
+    con.executemany(
+        "INSERT INTO gps_nuqta(hid,lat,lon,vaqt,acc) VALUES(?,?,?,?,?)",
+        [(hid, float(p.get("lat")), float(p.get("lon")), str(p.get("vaqt") or "")[:19], float(p.get("acc") or 0))
+         for p in points if p.get("lat") is not None and p.get("lon") is not None])
+    con.commit()
+    con.close()
+    return len(points)
+
+
+def gps_kunlik(hid, sana):
+    """Bir kunlik nuqtalar (vaqt bo'yicha)."""
+    con = _con()
+    rows = con.execute(
+        "SELECT lat,lon,vaqt,acc FROM gps_nuqta WHERE hid=? AND substr(vaqt,1,10)=? ORDER BY vaqt",
+        (hid, str(sana)[:10])).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def _gps_dist_m(a, b):
+    """Ikki nuqta orasidagi masofa (metr) — haversine."""
+    R = 6371000.0
+    la1, lo1, la2, lo2 = map(_math.radians, [a["lat"], a["lon"], b["lat"], b["lon"]])
+    dla, dlo = la2 - la1, lo2 - lo1
+    h = _math.sin(dla / 2) ** 2 + _math.cos(la1) * _math.cos(la2) * _math.sin(dlo / 2) ** 2
+    return 2 * R * _math.asin(min(1, _math.sqrt(h)))
+
+
+def _gps_min(t1, t2):
+    from datetime import datetime
+    try:
+        d1 = datetime.fromisoformat(str(t1)[:19]); d2 = datetime.fromisoformat(str(t2)[:19])
+        return (d2 - d1).total_seconds() / 60.0
+    except Exception:
+        return 0.0
+
+
+def gps_stops(points, min_daq=5, radius_m=60):
+    """To'xtashlar: bir joyda (radius ichida) min_daq daqiqadan ko'p turgan."""
+    stops = []
+    n = len(points); i = 0
+    while i < n:
+        j = i + 1
+        while j < n and _gps_dist_m(points[i], points[j]) <= radius_m:
+            j += 1
+        dur = _gps_min(points[i]["vaqt"], points[j - 1]["vaqt"]) if j - 1 > i else 0
+        if dur >= min_daq:
+            seg = points[i:j]
+            stops.append({
+                "lat": sum(p["lat"] for p in seg) / len(seg),
+                "lon": sum(p["lon"] for p in seg) / len(seg),
+                "boshlanish": points[i]["vaqt"], "tugash": points[j - 1]["vaqt"],
+                "daqiqa": round(dur)})
+            i = j
+        else:
+            i += 1
+    return stops
+
+
+def gps_kunlik_xulosa(hid, sana):
+    """Kunlik: nuqtalar + to'xtashlar + umumiy masofa."""
+    pts = gps_kunlik(hid, sana)
+    stops = gps_stops(pts)
+    dist = 0.0
+    for k in range(1, len(pts)):
+        dist += _gps_dist_m(pts[k - 1], pts[k])
+    return {"nuqtalar": pts, "toxtashlar": stops, "km": round(dist / 1000, 1), "soni": len(pts)}
+
+
+# ================= TV DASHBOARD statistikasi =================
+def dashboard_stats(today=None):
+    """TV ekran uchun umumiy ko'rsatkichlar (ijara bo'limi)."""
+    today = today or today_tk()
+    d10 = str(today)[:10]
+    oy = str(today)[:7]
+    con = _con()
+    bugun = con.execute(
+        "SELECT COALESCE(SUM(summa),0) FROM tolovlar WHERE substr(sana,1,10)=?", (d10,)).fetchone()[0]
+    oylik = con.execute(
+        "SELECT COALESCE(SUM(summa),0) FROM tolovlar WHERE substr(sana,1,7)=?", (oy,)).fetchone()[0]
+    oxirgi = con.execute(
+        "SELECT t.summa AS s, t.sana AS sn, m.ism AS ism FROM tolovlar t "
+        "LEFT JOIN mijozlar m ON m.id=t.mijoz_id WHERE substr(t.sana,1,10)=? "
+        "ORDER BY t.id DESC LIMIT 8", (d10,)).fetchall()
+    con.close()
+    qd = qarzdorlar(today=today)
+    omb = ombor_list()
+    return {
+        "sana": d10,
+        "bugun_tushum": int(bugun or 0),
+        "oylik_tushum": int(oylik or 0),
+        "jami_qarz": int(sum(x["qarz"] for x in qd)),
+        "qarzdor_soni": len(qd),
+        "over_soni": sum(1 for x in qd if x.get("over")),
+        "top_qarzdor": [{"ism": x["ism"], "qarz": int(x["qarz"]), "over": bool(x.get("over"))} for x in qd[:7]],
+        "jihoz_ijarada": int(sum((x.get("out") or 0) for x in omb)),
+        "jihoz_jami": int(sum((x.get("total") or 0) for x in omb)),
+        "ombor": [{"name": x["name"], "out": int(x.get("out") or 0),
+                   "omborda": int(x.get("omborda") or 0), "total": int(x.get("total") or 0)} for x in omb],
+        "oxirgi_tolov": [{"ism": (r["ism"] or "—"), "summa": int(r["s"] or 0),
+                          "vaqt": str(r["sn"])[11:16]} for r in oxirgi],
+    }
