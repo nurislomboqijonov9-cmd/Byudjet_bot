@@ -141,6 +141,12 @@ def make_web_app(bot_token):
             return web.Response(status=404, text="tv.html yo'q")
         return web.FileResponse(yol, headers={"Cache-Control": "no-cache"})
 
+    async def tv_logo(request):
+        yol = Path(__file__).parent / "logo.png"
+        if not yol.exists():
+            return web.Response(status=404)
+        return web.FileResponse(yol, headers={"Cache-Control": "public, max-age=86400"})
+
     async def api_dashboard(request):
         # Ixtiyoriy himoya: TV_KEY o'rnatilgan bo'lsa, ?k= mos kelsin
         kalit = os.environ.get("TV_KEY")
@@ -1235,6 +1241,7 @@ def make_web_app(bot_token):
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)
     app.router.add_get("/tv", tv_sahifa)
+    app.router.add_get("/logo.png", tv_logo)
     app.router.add_get("/api/dashboard", api_dashboard)
     app.router.add_post("/api/login", api_login)
     app.router.add_get("/m/{token}", mijoz_sahifa)
