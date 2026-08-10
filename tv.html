@@ -2,38 +2,50 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TEMIRCHI — Boshqaruv ekrani</title>
 <style>
-:root{--nav:#0b1a2e;--nav2:#112844;--gold:#c8a24a;--gr:#39d98a;--rd:#e05a5a;--mut:#8aa7c0;--card:#0f2038;--line:#1e3busiz}
+:root{--nav:#0b1a2e;--nav2:#112844;--gold:#c8a24a;--gr:#39d98a;--rd:#e05a5a;--mut:#8aa7c0;--card:#0f2038}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(1200px 700px at 70% -10%,#14335a 0%,#0b1a2e 55%);color:#eaf2ff;height:100vh;overflow:hidden;padding:2.2vh 2vw}
-.head{display:flex;align-items:center;gap:16px;margin-bottom:2vh}
-.logo{width:60px;height:60px;border-radius:14px;background:#16294A;display:flex;align-items:center;justify-content:center;font-size:30px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
-.brand{font-size:30px;font-weight:900;letter-spacing:.04em}
-.brand b{color:var(--gr)}
+.head{display:flex;align-items:center;gap:16px;margin-bottom:1.6vh}
+.logo{width:58px;height:58px;border-radius:14px;background:#16294A;display:flex;align-items:center;justify-content:center;font-size:29px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.brand{font-size:28px;font-weight:900;letter-spacing:.04em}.brand b{color:var(--gr)}
 .sub{color:var(--mut);font-size:15px;margin-top:2px}
 .clock{margin-left:auto;text-align:right}
-.clock .t{font-size:40px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
-.clock .d{color:var(--mut);font-size:16px;margin-top:4px}
+.clock .t{font-size:38px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.clock .d{color:var(--mut);font-size:15px;margin-top:3px}
+.dots{display:flex;gap:8px;margin:0 18px}
+.dots i{width:10px;height:10px;border-radius:50%;background:#25456e;transition:.3s}
+.dots i.on{background:var(--gold);width:26px;border-radius:6px}
+.stage{position:relative;height:calc(100vh - 15vh)}
+.screen{position:absolute;inset:0;opacity:0;transform:translateY(10px);transition:opacity .5s,transform .5s}
+.screen.show{opacity:1;transform:none}
+.stitle{font-size:22px;font-weight:800;margin-bottom:1.6vh;display:flex;align-items:center;gap:10px}
+.stitle .cnt{margin-left:auto;font-size:16px;color:var(--mut);font-weight:600}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1.4vw;margin-bottom:2vh}
 .kpi{background:linear-gradient(160deg,var(--nav2),var(--card));border:1px solid #1b355a;border-radius:18px;padding:2vh 1.6vw;position:relative;overflow:hidden}
-.kpi .l{color:var(--mut);font-size:15px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
-.kpi .v{font-size:3.1vw;font-weight:900;margin-top:8px;line-height:1;font-variant-numeric:tabular-nums}
-.kpi .u{font-size:1.1vw;color:var(--mut);font-weight:600}
-.kpi.green .v{color:var(--gr)} .kpi.gold .v{color:var(--gold)} .kpi.red .v{color:var(--rd)}
-.kpi .ic{position:absolute;right:14px;top:12px;font-size:26px;opacity:.5}
-.grid{display:grid;grid-template-columns:1.2fr 1fr;gap:1.4vw;height:calc(100vh - 30vh)}
-.panel{background:linear-gradient(160deg,var(--nav2),var(--card));border:1px solid #1b355a;border-radius:18px;padding:1.8vh 1.4vw;display:flex;flex-direction:column;min-height:0}
-.ptitle{font-size:19px;font-weight:800;margin-bottom:1.4vh;display:flex;align-items:center;gap:9px}
-.ptitle .cnt{margin-left:auto;font-size:14px;color:var(--mut);font-weight:600}
-.rows{overflow:hidden;display:flex;flex-direction:column;gap:.9vh}
-.row{display:flex;align-items:center;gap:12px;padding:1.15vh 14px;background:#0c1c33;border-radius:12px;border:1px solid #16294a}
-.row .nm{font-size:18px;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.row .amt{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
-.row .amt.red{color:var(--rd)} .row .amt.green{color:var(--gr)}
-.tag{font-size:12px;font-weight:800;padding:2px 9px;border-radius:20px;background:#3a1e1e;color:var(--rd)}
-.row .tm{font-size:14px;color:var(--mut);width:52px;text-align:right}
+.kpi .l{color:var(--mut);font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.kpi .v{font-size:3vw;font-weight:900;margin-top:8px;line-height:1;font-variant-numeric:tabular-nums}
+.kpi .u{font-size:1.05vw;color:var(--mut);font-weight:600}
+.kpi.green .v{color:var(--gr)}.kpi.gold .v{color:var(--gold)}.kpi.red .v{color:var(--rd)}
+.kpi .ic{position:absolute;right:14px;top:12px;font-size:25px;opacity:.5}
+.grid2{display:grid;grid-template-columns:1.2fr 1fr;gap:1.4vw;height:calc(100vh - 32vh)}
+.panel{background:linear-gradient(160deg,var(--nav2),var(--card));border:1px solid #1b355a;border-radius:18px;padding:1.6vh 1.3vw;display:flex;flex-direction:column;min-height:0}
+.rows{display:flex;flex-direction:column;gap:.85vh;overflow:hidden}
+.row{display:flex;align-items:center;gap:11px;padding:1.05vh 13px;background:#0c1c33;border-radius:11px;border:1px solid #16294a}
+.row .rk{color:var(--mut);font-weight:800;width:26px;font-size:15px}
+.row .nm{font-size:17px;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .amt{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}
+.row .amt.red{color:var(--rd)}.row .amt.green{color:var(--gr)}
+.tag{font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px;background:#3a1e1e;color:var(--rd)}
+.row .tm{font-size:13px;color:var(--mut);width:48px;text-align:right}
 .bar{height:14px;background:#0c1c33;border-radius:10px;overflow:hidden;margin-top:auto;border:1px solid #16294a}
-.bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),#e0c072)}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),#e0c072)}
 .omb{display:flex;justify-content:space-between;font-size:15px;color:var(--mut);margin-top:9px}
+.cols{column-count:3;column-gap:1.2vw;height:100%}
+.qc{break-inside:avoid;display:flex;align-items:center;gap:9px;padding:.85vh 12px;background:#0c1c33;border-radius:10px;border:1px solid #16294a;margin-bottom:.7vh}
+.qc .rk{color:var(--gold);font-weight:800;width:28px;font-size:14px}
+.qc .nm{flex:1;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qc .amt{font-size:15px;font-weight:800;color:var(--rd);font-variant-numeric:tabular-nums}
+.qc.over{border-color:#5a2a2a}
 .empty{color:var(--mut);text-align:center;padding:3vh;font-size:16px}
 .foot{position:fixed;bottom:1vh;left:2vw;color:#3f5a78;font-size:12px}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--gr);display:inline-block;margin-right:5px;animation:p 2s infinite}
@@ -42,75 +54,77 @@ body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radia
 <body>
 <div class="head">
   <div class="logo">🏗️</div>
-  <div>
-    <div class="brand">TEMIR<b>CHI</b></div>
-    <div class="sub">Ijara bo'limi — boshqaruv ekrani</div>
-  </div>
+  <div><div class="brand">TEMIR<b>CHI</b></div><div class="sub" id="scr_nom">Umumiy holat</div></div>
+  <div class="dots" id="dots"></div>
   <div class="clock"><div class="t" id="clock">--:--</div><div class="d" id="date">—</div></div>
 </div>
-
-<div class="kpis">
-  <div class="kpi green"><div class="ic">💵</div><div class="l">Bugungi tushum</div><div class="v" id="k_bugun">—</div><div class="u">so'm</div></div>
-  <div class="kpi gold"><div class="ic">📅</div><div class="l">Bu oy tushum</div><div class="v" id="k_oy">—</div><div class="u">so'm</div></div>
-  <div class="kpi red"><div class="ic">📕</div><div class="l">Jami qarz</div><div class="v" id="k_qarz">—</div><div class="u">so'm</div></div>
-  <div class="kpi"><div class="ic">👥</div><div class="l">Qarzdorlar</div><div class="v" id="k_qsoni">—</div><div class="u" id="k_over">—</div></div>
-</div>
-
-<div class="grid">
-  <div class="panel">
-    <div class="ptitle">📕 Eng katta qarzdorlar <span class="cnt" id="q_cnt"></span></div>
-    <div class="rows" id="qarzdorlar"><div class="empty">Yuklanmoqda…</div></div>
-  </div>
-  <div class="panel">
-    <div class="ptitle">💵 Bugungi to'lovlar</div>
-    <div class="rows" id="tolovlar" style="flex:1"><div class="empty">—</div></div>
-    <div class="ptitle" style="margin-top:1.6vh">📦 Jihozlar (ijarada)</div>
-    <div class="bar"><i id="jbar" style="width:0%"></i></div>
-    <div class="omb"><span id="j_ijara">—</span><span id="j_jami">—</span></div>
-  </div>
-</div>
-<div class="foot"><span class="dot"></span>Jonli — har 30 soniyada yangilanadi</div>
-
+<div class="stage" id="stage"></div>
+<div class="foot"><span class="dot"></span>Jonli — avtomat aylanadi</div>
 <script>
 const K=new URLSearchParams(location.search).get('k')||'';
 const $=id=>document.getElementById(id);
+let DATA=null, views=[], cur=0;
+const HAR_SONIYA=14;
 function son(n){ n=Math.round(n||0); return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g," "); }
-function qisqa(n){ n=n||0; if(n>=1e9)return (n/1e9).toFixed(1)+" mlrd"; if(n>=1e6)return (n/1e6).toFixed(1)+" mln"; if(n>=1e3)return son(n); return son(n); }
+function qisqa(n){ n=n||0; if(n>=1e9)return (n/1e9).toFixed(1)+" mlrd"; if(n>=1e6)return (n/1e6).toFixed(1)+" mln"; return son(n); }
+function esc(s){ return (s==null?'':(''+s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function soat(){ const d=new Date(); const t=new Date(d.getTime()+(d.getTimezoneOffset()+300)*60000);
-  const p=n=>String(n).padStart(2,'0');
-  $('clock').textContent=p(t.getHours())+":"+p(t.getMinutes());
+  const p=n=>String(n).padStart(2,'0'); $('clock').textContent=p(t.getHours())+":"+p(t.getMinutes());
   const oy=["yanvar","fevral","mart","aprel","may","iyun","iyul","avgust","sentyabr","oktyabr","noyabr","dekabr"];
-  $('date').textContent=t.getDate()+"-"+oy[t.getMonth()]+", "+t.getFullYear();
+  $('date').textContent=t.getDate()+"-"+oy[t.getMonth()]+", "+t.getFullYear(); }
+function ekranUmumiy(d){
+  const q=(d.top_qarzdor||[]), t=(d.oxirgi_tolov||[]);
+  const ij=d.jihoz_ijarada||0, jm=d.jihoz_jami||0, pct=jm>0?Math.min(100,ij/jm*100):0;
+  return {nom:"Umumiy holat", html:
+   '<div class="kpis">'
+   +'<div class="kpi green"><div class="ic">💵</div><div class="l">Bugungi tushum</div><div class="v">'+qisqa(d.bugun_tushum)+'</div><div class="u">so\'m</div></div>'
+   +'<div class="kpi gold"><div class="ic">📅</div><div class="l">Bu oy tushum</div><div class="v">'+qisqa(d.oylik_tushum)+'</div><div class="u">so\'m</div></div>'
+   +'<div class="kpi red"><div class="ic">📕</div><div class="l">Jami qarz</div><div class="v">'+qisqa(d.jami_qarz)+'</div><div class="u">so\'m</div></div>'
+   +'<div class="kpi"><div class="ic">👥</div><div class="l">Qarzdorlar</div><div class="v">'+(d.qarzdor_soni||0)+'</div><div class="u">'+(d.over_soni||0)+' ta chegaradan oshgan</div></div>'
+   +'</div><div class="grid2">'
+   +'<div class="panel"><div class="stitle" style="font-size:19px">📕 Eng katta qarzdorlar</div><div class="rows">'
+   +(q.length? q.map((x,i)=>'<div class="row"><span class="rk">'+(i+1)+'</span><div class="nm">'+esc(x.ism)+'</div>'+(x.over?'<span class="tag">oshgan</span>':'')+'<div class="amt red">'+son(x.qarz)+'</div></div>').join('') : '<div class="empty">Qarzdor yo\'q 👍</div>')
+   +'</div></div>'
+   +'<div class="panel"><div class="stitle" style="font-size:19px">💵 Bugungi to\'lovlar</div><div class="rows" style="flex:1">'
+   +(t.length? t.map(x=>'<div class="row"><div class="nm">'+esc(x.ism)+'</div><div class="amt green">+'+son(x.summa)+'</div><div class="tm">'+esc(x.vaqt)+'</div></div>').join('') : '<div class="empty">Bugun to\'lov yo\'q</div>')
+   +'</div><div class="stitle" style="font-size:17px;margin-top:1.4vh">📦 Jihozlar (ijarada)</div>'
+   +'<div class="bar"><i style="width:'+pct+'%"></i></div>'
+   +'<div class="omb"><span>Ijarada: '+son(ij)+'</span><span>Jami: '+son(jm)+'</span></div></div></div>'};
 }
+function ekranlarQarzdor(d){
+  const all=d.barcha_qarzdor||[]; const res=[]; const PER=30;
+  if(!all.length) return [];
+  for(let i=0;i<all.length;i+=PER){
+    const bet=all.slice(i,i+PER), bosh=i, sahifa=Math.floor(i/PER)+1, jami=Math.ceil(all.length/PER);
+    res.push({nom:"Hamma qarzdorlar"+(jami>1?(' ('+sahifa+'/'+jami+')'):""), html:
+      '<div class="stitle">📕 Hamma qarzdorlar <span class="cnt">jami '+all.length+' ta · umumiy '+son(d.jami_qarz)+' so\'m</span></div>'
+      +'<div class="cols">'+bet.map((x,j)=>'<div class="qc '+(x.over?'over':'')+'"><span class="rk">'+(bosh+j+1)+'</span><div class="nm">'+esc(x.ism)+'</div><div class="amt">'+son(x.qarz)+'</div></div>').join('')+'</div>'});
+  }
+  return res;
+}
+function qurViews(){
+  views=[]; if(!DATA) return;
+  views.push(ekranUmumiy(DATA));
+  ekranlarQarzdor(DATA).forEach(v=>views.push(v));
+  $('dots').innerHTML=views.map((_,i)=>'<i class="'+(i===cur?'on':'')+'"></i>').join('');
+}
+function koarsat(i){
+  cur=((i%views.length)+views.length)%views.length;
+  const v=views[cur];
+  $('stage').innerHTML='<div class="screen show">'+v.html+'</div>';
+  $('scr_nom').textContent=v.nom;
+  [...$('dots').children].forEach((el,idx)=>el.classList.toggle('on',idx===cur));
+}
+function keyingi(){ if(views.length) koarsat(cur+1); }
 async function yukla(){
   try{
     const r=await fetch('/api/dashboard'+(K?('?k='+encodeURIComponent(K)):''));
-    const d=await r.json();
-    if(d.xato){ return; }
-    $('k_bugun').textContent=qisqa(d.bugun_tushum);
-    $('k_oy').textContent=qisqa(d.oylik_tushum);
-    $('k_qarz').textContent=qisqa(d.jami_qarz);
-    $('k_qsoni').textContent=d.qarzdor_soni;
-    $('k_over').textContent=(d.over_soni||0)+" ta chegaradan oshgan";
-    // qarzdorlar
-    const q=d.top_qarzdor||[];
-    $('q_cnt').textContent=q.length?('jami '+d.qarzdor_soni+' ta'):'';
-    $('qarzdorlar').innerHTML = q.length ? q.map(x=>
-      '<div class="row"><div class="nm">'+esc(x.ism)+'</div>'+(x.over?'<span class="tag">oshgan</span>':'')+
-      '<div class="amt red">'+son(x.qarz)+'</div></div>').join('') : '<div class="empty">Qarzdor yo\'q 👍</div>';
-    // to'lovlar
-    const t=d.oxirgi_tolov||[];
-    $('tolovlar').innerHTML = t.length ? t.map(x=>
-      '<div class="row"><div class="nm">'+esc(x.ism)+'</div><div class="amt green">+'+son(x.summa)+'</div><div class="tm">'+esc(x.vaqt)+'</div></div>').join('')
-      : '<div class="empty">Bugun to\'lov yo\'q</div>';
-    // jihoz
-    const ij=d.jihoz_ijarada||0, jm=d.jihoz_jami||0;
-    $('jbar').style.width=(jm>0?Math.min(100,ij/jm*100):0)+'%';
-    $('j_ijara').textContent='Ijarada: '+son(ij);
-    $('j_jami').textContent='Jami: '+son(jm);
+    const d=await r.json(); if(d.xato) return;
+    DATA=d; const eski=views.length; qurViews();
+    if(!eski) koarsat(0); else if(cur>=views.length) koarsat(0);
   }catch(e){}
 }
-function esc(s){ return (s==null?'':(''+s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 soat(); setInterval(soat,1000);
 yukla(); setInterval(yukla,30000);
+setInterval(keyingi,HAR_SONIYA*1000);
 </script></body></html>

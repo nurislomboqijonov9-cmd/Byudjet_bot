@@ -4295,6 +4295,7 @@ def dashboard_stats(today=None):
         "ORDER BY t.id DESC LIMIT 8", (d10,)).fetchall()
     con.close()
     qd = qarzdorlar(today=today)
+    qd_katta = sorted(qd, key=lambda x: -(x.get("qarz") or 0))   # eng katta qarz birinchi
     omb = ombor_list()
     return {
         "sana": d10,
@@ -4303,7 +4304,7 @@ def dashboard_stats(today=None):
         "jami_qarz": int(sum(x["qarz"] for x in qd)),
         "qarzdor_soni": len(qd),
         "over_soni": sum(1 for x in qd if x.get("over")),
-        "top_qarzdor": [{"ism": x["ism"], "qarz": int(x["qarz"]), "over": bool(x.get("over"))} for x in qd[:7]],
+        "top_qarzdor": [{"ism": x["ism"], "qarz": int(x["qarz"]), "over": bool(x.get("over"))} for x in qd_katta[:7]],
         "jihoz_ijarada": int(sum((x.get("out") or 0) for x in omb)),
         "jihoz_jami": int(sum((x.get("total") or 0) for x in omb)),
         "ombor": [{"name": x["name"], "out": int(x.get("out") or 0),
