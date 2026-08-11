@@ -1,6 +1,8 @@
 <!doctype html><html lang="uz"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TEMIRCHI — Boshqaruv ekrani</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root{--bg:#151b26;--bg2:#1a2230;--card:#1c2534;--card2:#202b3d;--line:#28344a;--gold:#c9a86a;--gr:#5fb894;--rd:#c97b7b;--tx:#dbe3ee;--mut:#7e8da0}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -51,6 +53,17 @@ body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linea
 .foot{position:fixed;bottom:1vh;left:2.2vw;color:#4a5568;font-size:12px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--gr);display:inline-block;margin-right:6px;animation:p 3s infinite}
 @keyframes p{50%{opacity:.45}}
+#dmap{position:fixed;left:2.2vw;right:2.2vw;top:14.5vh;bottom:4vh;border-radius:16px;overflow:hidden;display:none;z-index:5;border:1px solid var(--line);background:#0e1622}
+.hd{display:flex;align-items:center;gap:10px;padding:.9vh 12px;background:var(--bg2);border-radius:11px;border:1px solid var(--line);margin-bottom:.7vh}
+.hd .st{width:11px;height:11px;border-radius:50%;flex:none}
+.hd .st.on{background:var(--gr);box-shadow:0 0 8px var(--gr)} .hd .st.off{background:var(--rd)}
+.hd .nm{flex:1;font-size:17px;font-weight:700}
+.hd .km{font-size:16px;font-weight:800;color:var(--gold)}
+.hd .tg{font-size:12px;color:var(--mut);width:120px;text-align:right}
+.mk{background:var(--gr);width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.5)}
+.mk.off{background:var(--rd)}
+.leaflet-tooltip.tip{background:#1c2534;color:#dbe3ee;border:1px solid #39465e;border-radius:8px;font-weight:700;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+.leaflet-tooltip.tip:before{display:none}
 </style></head>
 <body>
 <div class="head">
@@ -60,11 +73,14 @@ body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linea
   <div class="clock"><div class="t" id="clock">--:--</div><div class="d" id="date">—</div></div>
 </div>
 <div class="stage" id="stage"></div>
+<div id="dmap"></div>
 <div class="foot"><span class="dot"></span>Jonli — avtomat aylanadi</div>
 <script>
 const K=new URLSearchParams(location.search).get('k')||'';
+const GPS_URL="https://web-production-a8c5f.up.railway.app";  // GPS server manzili
 const $=id=>document.getElementById(id);
-let DATA=null, views=[], cur=0;
+let DATA=null, DRIVERS=null, views=[], cur=0;
+let dmap=null, dlayer=null;
 const HAR_SONIYA=14;
 function son(n){ n=Math.round(n||0); return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g," "); }
 function qisqa(n){ n=n||0; if(n>=1e9)return (n/1e9).toFixed(1)+" mlrd"; if(n>=1e6)return (n/1e6).toFixed(1)+" mln"; return son(n); }
@@ -103,29 +119,82 @@ function ekranlarQarzdor(d){
   }
   return res;
 }
+function ekranHaydRoyxat(drs){
+  const on=drs.filter(d=>d.online).length;
+  return {nom:"Haydovchilar — ro'yxat", kind:"text", html:
+    '<div class="stitle">🚚 Haydovchilar <span class="cnt">'+on+' faol · '+(drs.length-on)+' aloqa yo\'q</span></div>'
+    +'<div class="cols" style="column-count:2">'
+    +drs.map(d=>{
+      const st=d.online?'on':'off';
+      const holat=d.online?'🟢 yo\'lda':(d.last_daq!=null?('🔴 '+d.last_daq+' daq'):'—');
+      return '<div class="hd"><span class="st '+st+'"></span><div class="nm">'+esc(d.ism)+'</div>'
+        +'<div class="km">'+son(d.km||0)+' km</div><div class="tg">'+holat+(d.vaqt?(' · '+esc(d.vaqt)):'')+'</div></div>';
+    }).join('')+'</div>'};
+}
+function initDmap(){
+  if(dmap||typeof L==='undefined') return;
+  dmap=L.map('dmap',{zoomControl:false,attributionControl:false}).setView([41.311,69.24],11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(dmap);
+  dlayer=L.layerGroup().addTo(dmap);
+}
+function yangilaMarkerlar(){
+  if(!dmap||!DRIVERS) return;
+  dlayer.clearLayers(); const pts=[];
+  DRIVERS.forEach(d=>{
+    if(d.lat==null||d.lon==null) return;
+    const ic=L.divIcon({className:'',html:'<div class="mk '+(d.online?'':'off')+'"></div>',iconSize:[16,16],iconAnchor:[8,8]});
+    const m=L.marker([d.lat,d.lon],{icon:ic}).addTo(dlayer);
+    m.bindTooltip(esc(d.ism)+(d.online?' 🟢':' 🔴'),{permanent:true,direction:'top',offset:[0,-8],className:'tip'});
+    pts.push([d.lat,d.lon]);
+  });
+  if(pts.length){ try{ dmap.fitBounds(pts,{padding:[60,60],maxZoom:14}); }catch(e){} }
+}
+
 function qurViews(){
-  views=[]; if(!DATA) return;
-  views.push(ekranUmumiy(DATA));
-  ekranlarQarzdor(DATA).forEach(v=>views.push(v));
+  views=[]; if(DATA){ views.push(ekranUmumiy(DATA)); ekranlarQarzdor(DATA).forEach(v=>views.push(v)); }
+  if(DRIVERS && DRIVERS.length){
+    views.push(ekranHaydRoyxat(DRIVERS));
+    views.push({nom:"Haydovchilar — jonli xarita", kind:"dmap", html:""});
+  }
   $('dots').innerHTML=views.map((_,i)=>'<i class="'+(i===cur?'on':'')+'"></i>').join('');
 }
 function koarsat(i){
   cur=((i%views.length)+views.length)%views.length;
   const v=views[cur];
-  $('stage').innerHTML='<div class="screen show">'+v.html+'</div>';
   $('scr_nom').textContent=v.nom;
+  if(v.kind==="dmap"){
+    $('stage').innerHTML="";
+    $('dmap').style.display="block";
+    initDmap();
+    setTimeout(()=>{ if(dmap){ dmap.invalidateSize(); yangilaMarkerlar(); } },60);
+  }else{
+    $('dmap').style.display="none";
+    $('stage').innerHTML='<div class="screen show">'+v.html+'</div>';
+  }
   [...$('dots').children].forEach((el,idx)=>el.classList.toggle('on',idx===cur));
 }
 function keyingi(){ if(views.length) koarsat(cur+1); }
 async function yukla(){
   try{
     const r=await fetch('/api/dashboard'+(K?('?k='+encodeURIComponent(K)):''));
-    const d=await r.json(); if(d.xato) return;
-    DATA=d; const eski=views.length; qurViews();
-    if(!eski) koarsat(0); else if(cur>=views.length) koarsat(0);
+    const d=await r.json(); if(!d.xato) DATA=d;
   }catch(e){}
 }
+async function haydYukla(){
+  try{
+    const r=await fetch(GPS_URL+'/api/tv'+(K?('?k='+encodeURIComponent(K)):''));
+    const d=await r.json(); if(d && d.haydovchilar) DRIVERS=d.haydovchilar;
+    if(dmap) yangilaMarkerlar();
+  }catch(e){}
+}
+async function hammasi(){
+  const eski=views.length;
+  await Promise.all([yukla(), haydYukla()]);
+  qurViews();
+  if(!eski && views.length) koarsat(0);
+  else if(cur>=views.length) koarsat(0);
+}
 soat(); setInterval(soat,1000);
-yukla(); setInterval(yukla,30000);
+hammasi(); setInterval(hammasi,30000);
 setInterval(keyingi,HAR_SONIYA*1000);
 </script></body></html>
