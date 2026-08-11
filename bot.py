@@ -699,6 +699,68 @@ async def nom_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "Endi `/ombor_hisobla` bilan omborni qayta sanang.", parse_mode="Markdown")
 
 
+async def ostatka_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update, ctx):
+        return
+    try:
+        db.ombor_recalc()   # avval to'g'rilaymiz (o'chirilganlar omborga qaytadi)
+    except Exception:
+        pass
+    lst = db.ombor_list()
+    j_omb = j_ij = 0
+    satlar = []
+    for x in lst:
+        if (x["total"] or 0) == 0 and (x["out"] or 0) == 0:
+            continue
+        satlar.append(f"• {x['name']}: omborda *{som(x['omborda'])}* · ijarada {som(x['out'])} · jami {som(x['total'])}")
+        j_omb += x["omborda"]; j_ij += x["out"]
+    if not satlar:
+        await update.message.reply_text("📦 Ombor bo'sh.")
+        return
+    bosh = "📦 *OMBOR — ostatka*\n_(avtomat to'g'rilandi)_\n\n"
+    yakun = f"\n━━━━━━━━\nJami omborda: *{som(j_omb)}* · ijarada: *{som(j_ij)}*\n\n_Tuzatish:_ `/ostatka_tuzat <nom> <jami>`"
+    # uzun bo'lsa bo'lib yuboramiz (Telegram 4096 limit)
+    matn = bosh; birinchi = True
+    for s in satlar:
+        if len(matn) + len(s) > 3500:
+            await update.message.reply_text(matn, parse_mode="Markdown")
+            matn = ""
+        matn += s + "\n"
+    await update.message.reply_text(matn + yakun, parse_mode="Markdown")
+
+
+async def ostatka_tuzat_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update, ctx):
+        return
+    args = ctx.args or []
+    if len(args) < 2 or not args[-1].lstrip("-").isdigit():
+        await update.message.reply_text(
+            "✏️ *Ombor sonini qo'lda tuzatish*\n\n"
+            "`/ostatka_tuzat <nom> <jami>`\n\n"
+            "Masalan: `/ostatka_tuzat Lyulka 120`\n"
+            "_(jami = umumiy nechta bor. Ijarada soni avtomat hisoblanadi.)_",
+            parse_mode="Markdown")
+        return
+    jami = int(args[-1])
+    nom = " ".join(args[:-1]).strip()
+    pid = db.ombor_by_name(nom)
+    if not pid:
+        await update.message.reply_text(f"❌ «{nom}» ombordan topilmadi. `/ostatka` bilan nomlarni ko'ring.", parse_mode="Markdown")
+        return
+    db.ombor_set_total(pid, jami)
+    try:
+        db.ombor_recalc()
+    except Exception:
+        pass
+    for x in db.ombor_list():
+        if x["id"] == pid:
+            await update.message.reply_text(
+                f"✅ *{x['name']}* yangilandi:\nJami: *{som(x['total'])}* · ijarada: {som(x['out'])} · omborda: *{som(x['omborda'])}*",
+                parse_mode="Markdown")
+            return
+    await update.message.reply_text("✅ Yangilandi.")
+
+
 async def ombor_hisobla_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await admin_guard(update, ctx):
         return
@@ -1725,6 +1787,8 @@ async def run():
     app.add_handler(CommandHandler("nomlar", nomlar_cmd))
     app.add_handler(CommandHandler("nom", nom_cmd))
     app.add_handler(CommandHandler("ombor_hisobla", ombor_hisobla_cmd))
+    app.add_handler(CommandHandler("ostatka", ostatka_cmd))
+    app.add_handler(CommandHandler("ostatka_tuzat", ostatka_tuzat_cmd))
     app.add_handler(CommandHandler("parol", parol_cmd))
     app.add_handler(CommandHandler("haydovchilar", haydovchilar_cmd))
     app.add_handler(CommandHandler("haydovchi_qosh", haydovchi_qosh_cmd))

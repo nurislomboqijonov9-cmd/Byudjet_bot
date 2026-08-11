@@ -375,6 +375,10 @@ def delete_mijoz(mijoz_id):
     con.execute("DELETE FROM mijozlar WHERE id = ?", (mijoz_id,))
     con.commit()
     con.close()
+    try:
+        ombor_recalc()
+    except Exception:
+        pass
 
 
 # ---------- Xodimlar / ruxsat ----------
@@ -2026,6 +2030,10 @@ def delete_mijoz(mijoz_id):
     con.execute("DELETE FROM mijozlar WHERE id = ?", (mijoz_id,))
     con.commit()
     con.close()
+    try:
+        ombor_recalc()
+    except Exception:
+        pass
 
 
 # ---------- Xodimlar / ruxsat ----------
@@ -4305,6 +4313,8 @@ def dashboard_stats(today=None):
         "qarzdor_soni": len(qd),
         "over_soni": sum(1 for x in qd if x.get("over")),
         "top_qarzdor": [{"ism": x["ism"], "qarz": int(x["qarz"]), "over": bool(x.get("over"))} for x in qd_katta[:7]],
+        "barcha_qarzdor": [{"ism": x["ism"], "tel": x.get("telefon"), "qarz": int(x["qarz"]),
+                            "over": bool(x.get("over"))} for x in qd_katta],
         "jihoz_ijarada": int(sum((x.get("out") or 0) for x in omb)),
         "jihoz_jami": int(sum((x.get("total") or 0) for x in omb)),
         "ombor": [{"name": x["name"], "out": int(x.get("out") or 0),
