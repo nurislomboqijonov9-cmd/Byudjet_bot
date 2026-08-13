@@ -498,6 +498,10 @@ def delete_zakaz(zakaz_id):
     con.execute("DELETE FROM zakazlar WHERE id=?", (zakaz_id,))
     con.commit()
     con.close()
+    try:
+        ombor_recalc()   # zakazdagi mahsulotlar ostatkaga qaytadi
+    except Exception:
+        pass
 
 
 def next_raqam(mijoz_id):
@@ -580,6 +584,10 @@ def delete_partiya(partiya_id):
     con.execute("DELETE FROM partiyalar WHERE id = ?", (partiya_id,))
     con.commit()
     con.close()
+    try:
+        ombor_recalc()   # o'chirilgan mahsulot ostatkaga qaytadi
+    except Exception:
+        pass
 
 
 # ---------- Qaytarishlar ----------
@@ -2153,6 +2161,10 @@ def delete_zakaz(zakaz_id):
     con.execute("DELETE FROM zakazlar WHERE id=?", (zakaz_id,))
     con.commit()
     con.close()
+    try:
+        ombor_recalc()   # zakazdagi mahsulotlar ostatkaga qaytadi
+    except Exception:
+        pass
 
 
 def next_raqam(mijoz_id):
@@ -2235,6 +2247,10 @@ def delete_partiya(partiya_id):
     con.execute("DELETE FROM partiyalar WHERE id = ?", (partiya_id,))
     con.commit()
     con.close()
+    try:
+        ombor_recalc()   # o'chirilgan mahsulot ostatkaga qaytadi
+    except Exception:
+        pass
 
 
 # ---------- Qaytarishlar ----------
