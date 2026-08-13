@@ -395,28 +395,34 @@
 
   window.BOLIM='ijara';
   try{ const b=localStorage.getItem('bolim'); if(b==='sotuv'||b==='ijara') window.BOLIM=b; }catch(e){}
+  window.ARXIV=false;
   window.bolimTgl=function(b){
-    window.BOLIM=b;
+    window.BOLIM=b; window.ARXIV=false;
     try{ localStorage.setItem('bolim',b); }catch(e){}
+    loadList();
+  };
+  window.arxivTgl=function(){
+    window.ARXIV=!window.ARXIV;
     loadList();
   };
   async function loadList(){
     window._lastMijoz=null;
     app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
-    let d; try{const r=await fetch('/api/mijozlar?bolim='+(window.BOLIM||'ijara'),{headers:H});if(authXato(r))return;if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
+    let d; try{const r=await fetch('/api/mijozlar?bolim='+(window.BOLIM||'ijara')+'&arxiv='+(window.ARXIV?'1':'0'),{headers:H});if(authXato(r))return;if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+m.qolgan_qarz,0);
     setTimeout(()=>{const b=document.getElementById('fsb');if(b)b.textContent=document.body.classList.contains('wide')?'⤡':'⛶';tunSync();tickClock();},0);
-    app.innerHTML=`<header><div><div class="eyebrow">${BOLIM==='sotuv'?'Sotuv hisobi':'Ijara hisobi'}</div><h1>Mijozlar</h1></div>
+    app.innerHTML=`<header><div><div class="eyebrow">${BOLIM==='sotuv'?'Sotuv hisobi':'Ijara hisobi'}${window.ARXIV?' · 📂 Arxiv':''}</div><h1>Mijozlar</h1></div>
         <button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>
         <button class="fsbtn" id="fsb" onclick="wideTgl()">⛶</button>
         <button class="tunbtn" id="tunb" onclick="tunTgl()">🌙</button>
         ${(tg&&tg.initData)?'':'<button class="tunbtn" onclick="chiqish()">🚪</button>'}
         <button class="plus" style="margin-left:8px" onclick="showNew()">➕</button></header>
       <div class="inrow" style="margin:0 0 12px">
-        <button class="tabb ${BOLIM==='ijara'?'on':''}" onclick="bolimTgl('ijara')">🏗 Ijara</button>
-        <button class="tabb ${BOLIM==='sotuv'?'on':''}" onclick="bolimTgl('sotuv')">🏷 Sotuv</button></div>
-      <div class="hero"><div class="arc"></div><div class="lbl">Umumiy qarz</div>
-        <div class="amt num">${som(jami)} <small>so'm</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
+        <button class="tabb ${(BOLIM==='ijara'&&!window.ARXIV)?'on':''}" onclick="bolimTgl('ijara')">🏗 Ijara</button>
+        <button class="tabb ${(BOLIM==='sotuv'&&!window.ARXIV)?'on':''}" onclick="bolimTgl('sotuv')">🏷 Sotuv</button>
+        <button class="tabb ${window.ARXIV?'on':''}" onclick="arxivTgl()">📂 Arxiv</button></div>
+      <div class="hero"><div class="arc"></div><div class="lbl">${window.ARXIV?'Arxiv — yopilgan mijozlar':'Umumiy qarz'}</div>
+        <div class="amt num">${window.ARXIV?_ml.length:som(jami)} <small>${window.ARXIV?'ta':'so\'m'}</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
       <div id="newform"></div>
       <div class="search"><input id="qidir" placeholder="🔍 Ism, telefon yoki manzil..." oninput="renderCards(this.value)"></div>
       <div id="cards"></div>`;
@@ -546,6 +552,10 @@
         <div class="inrow"><input class="f" id="v_sana" type="date" value="${bugun}">
           <select class="f" id="v_haydovchi"><option value="">Haydovchi tanlang</option></select></div>
         <div class="hint" id="haydhint" style="margin:6px 0"></div>
+        <div class="inrow" style="gap:6px;margin:2px 0 4px">
+          <button class="mini-btn" style="flex:1" onclick="haritaOch()">🗺 Kartada ko'rish</button>
+          <button class="mini-btn" style="flex:1" onclick="kuzatHavola()">🔗 Kuzatuv havolasi</button></div>
+        <div class="hint" id="kuzathint" style="margin:2px 0;word-break:break-all"></div>
         <div id="vrows"></div>
         <button class="mini-btn" style="width:100%;margin-top:8px;border-style:dashed" onclick="vazRowAdd()">➕ Yana tovar</button>
         <input class="f" id="v_izoh" placeholder="Izoh (ixtiyoriy)" style="margin-top:8px">
@@ -1296,8 +1306,25 @@
     const b=window.tovarBest(v);
     if(b&&!b.exact&&b.list.length===1){el.value=b.name;window.tovarHint(el);}
   };
-  async function loadHaydovchilar(){
-    try{const r=await fetch('/api/haydovchilar',{headers:H});const d=await r.json();
+  window.haritaOch=function(){
+    const sel=document.getElementById('v_haydovchi'); const hid=sel&&sel.value;
+    if(!hid){ toast('Avval haydovchini tanlang'); return; }
+    const nom=sel.options[sel.selectedIndex].text||'';
+    const sana=(document.getElementById('v_sana')||{}).value||new Date().toISOString().slice(0,10);
+    const u='/harita?hid='+encodeURIComponent(hid)+'&sana='+sana+'&nom='+encodeURIComponent(nom)+'&tok='+encodeURIComponent(tokenGet());
+    window.open(u,'_blank');
+  };
+  window.kuzatHavola=async function(){
+    const sel=document.getElementById('v_haydovchi'); const hid=sel&&sel.value;
+    if(!hid){ toast('Avval haydovchini tanlang'); return; }
+    try{ const r=await fetch('/api/haydovchi_kuzat?hid='+encodeURIComponent(hid),{headers:H});
+      const d=await r.json();
+      const el=document.getElementById('kuzathint');
+      if(d.havola){ el.innerHTML='🔗 Haydovchiga yuboring (bir marta): <b>'+d.havola+'</b>';
+        try{ await navigator.clipboard.writeText(d.havola); toast('✅ Havola nusxalandi'); }catch(e){ toast('Havola tayyor'); } }
+    }catch(e){ toast('Xato'); }
+  };
+  async function loadHaydovchilar(){    try{const r=await fetch('/api/haydovchilar',{headers:H});const d=await r.json();
       window._hayd=(d.haydovchilar||[]);
       const sel=document.getElementById('v_haydovchi');
       if(sel) sel.innerHTML=(window._hayd.length?'<option value="">Haydovchi tanlang</option>':'<option value="">Haydovchi qo\'shilmagan</option>')+

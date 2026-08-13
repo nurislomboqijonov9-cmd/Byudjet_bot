@@ -498,10 +498,6 @@ def delete_zakaz(zakaz_id):
     con.execute("DELETE FROM zakazlar WHERE id=?", (zakaz_id,))
     con.commit()
     con.close()
-    try:
-        ombor_recalc()   # zakazdagi mahsulotlar ostatkaga qaytadi
-    except Exception:
-        pass
 
 
 def next_raqam(mijoz_id):
@@ -584,8 +580,9 @@ def delete_partiya(partiya_id):
     con.execute("DELETE FROM partiyalar WHERE id = ?", (partiya_id,))
     con.commit()
     con.close()
+    # Mahsulot o'chdi -> ombordagi 'ijarada' sonini qayta hisoblaymiz (omborga qaytadi)
     try:
-        ombor_recalc()   # o'chirilgan mahsulot ostatkaga qaytadi
+        ombor_recalc()
     except Exception:
         pass
 
@@ -937,7 +934,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
     }
 
 
-def mijozlar(today=None, bolim=None):
+def mijozlar(today=None, bolim=None, arxiv=None):
     """bolim: 'ijara' | 'sotuv' | None (hammasi)"""
     today = today or today_tk()
     con = _con()
@@ -954,13 +951,19 @@ def mijozlar(today=None, bolim=None):
     res = []
     for mid in ids:
         d = mijoz_detail(mid, today)
+        _arxiv = (d["qolgan_qarz"] == 0 and d["jami_qolgan"] == 0)
         res.append({
             "id": mid, "mijoz": d["mijoz"], "telefon": d["telefon"], "status": d["status"],
             "adres": d.get("adres"), "tolov_turi": d.get("tolov_turi"),
             "jami": d["jami"], "tolangan": d["tolangan"], "qolgan_qarz": d["qolgan_qarz"],
             "jami_qolgan": d["jami_qolgan"],
             "partiya_soni": len(d["partiyalar"]),
+            "arxiv": _arxiv,
         })
+    if arxiv is True:
+        res = [x for x in res if x["arxiv"]]
+    elif arxiv is False:
+        res = [x for x in res if not x["arxiv"]]
     res.sort(key=lambda x: -x["qolgan_qarz"])
     return res
 
@@ -1054,13 +1057,20 @@ def set_yig_sana(mijoz_id, sana):
     con.close()
 
 
-def qarzdorlar(limit_kun=None, today=None):
+def qarzdorlar(limit_kun=None, today=None, bolim=None):
     """Qarzi bor mijozlar. Har biriga: qarz, kunlik ijara, qarz necha kunlik ijaraga teng,
     va chegaradan oshgani (over) belgisi. Chegaradan oshganlar birinchi, qarz kattaligi bo'yicha."""
     limit_kun = get_limit_kun() if limit_kun is None else limit_kun
     today = today or today_tk()
     con = _con()
-    rows = con.execute("SELECT id, yig_sana FROM mijozlar ORDER BY id").fetchall()
+    if bolim:
+        _b = "sotuv" if str(bolim).lower().startswith("sot") else "ijara"
+        if _b == "ijara":
+            rows = con.execute("SELECT id, yig_sana FROM mijozlar WHERE bolim IS NULL OR bolim='' OR bolim='ijara' ORDER BY id").fetchall()
+        else:
+            rows = con.execute("SELECT id, yig_sana FROM mijozlar WHERE bolim='sotuv' ORDER BY id").fetchall()
+    else:
+        rows = con.execute("SELECT id, yig_sana FROM mijozlar ORDER BY id").fetchall()
     con.close()
     out = []
     for row in rows:
@@ -2161,10 +2171,6 @@ def delete_zakaz(zakaz_id):
     con.execute("DELETE FROM zakazlar WHERE id=?", (zakaz_id,))
     con.commit()
     con.close()
-    try:
-        ombor_recalc()   # zakazdagi mahsulotlar ostatkaga qaytadi
-    except Exception:
-        pass
 
 
 def next_raqam(mijoz_id):
@@ -2247,8 +2253,9 @@ def delete_partiya(partiya_id):
     con.execute("DELETE FROM partiyalar WHERE id = ?", (partiya_id,))
     con.commit()
     con.close()
+    # Mahsulot o'chdi -> ombordagi 'ijarada' sonini qayta hisoblaymiz (omborga qaytadi)
     try:
-        ombor_recalc()   # o'chirilgan mahsulot ostatkaga qaytadi
+        ombor_recalc()
     except Exception:
         pass
 
@@ -2600,7 +2607,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
     }
 
 
-def mijozlar(today=None, bolim=None):
+def mijozlar(today=None, bolim=None, arxiv=None):
     """bolim: 'ijara' | 'sotuv' | None (hammasi)"""
     today = today or today_tk()
     con = _con()
@@ -2617,13 +2624,19 @@ def mijozlar(today=None, bolim=None):
     res = []
     for mid in ids:
         d = mijoz_detail(mid, today)
+        _arxiv = (d["qolgan_qarz"] == 0 and d["jami_qolgan"] == 0)
         res.append({
             "id": mid, "mijoz": d["mijoz"], "telefon": d["telefon"], "status": d["status"],
             "adres": d.get("adres"), "tolov_turi": d.get("tolov_turi"),
             "jami": d["jami"], "tolangan": d["tolangan"], "qolgan_qarz": d["qolgan_qarz"],
             "jami_qolgan": d["jami_qolgan"],
             "partiya_soni": len(d["partiyalar"]),
+            "arxiv": _arxiv,
         })
+    if arxiv is True:
+        res = [x for x in res if x["arxiv"]]
+    elif arxiv is False:
+        res = [x for x in res if not x["arxiv"]]
     res.sort(key=lambda x: -x["qolgan_qarz"])
     return res
 
@@ -2717,13 +2730,20 @@ def set_yig_sana(mijoz_id, sana):
     con.close()
 
 
-def qarzdorlar(limit_kun=None, today=None):
+def qarzdorlar(limit_kun=None, today=None, bolim=None):
     """Qarzi bor mijozlar. Har biriga: qarz, kunlik ijara, qarz necha kunlik ijaraga teng,
     va chegaradan oshgani (over) belgisi. Chegaradan oshganlar birinchi, qarz kattaligi bo'yicha."""
     limit_kun = get_limit_kun() if limit_kun is None else limit_kun
     today = today or today_tk()
     con = _con()
-    rows = con.execute("SELECT id, yig_sana FROM mijozlar ORDER BY id").fetchall()
+    if bolim:
+        _b = "sotuv" if str(bolim).lower().startswith("sot") else "ijara"
+        if _b == "ijara":
+            rows = con.execute("SELECT id, yig_sana FROM mijozlar WHERE bolim IS NULL OR bolim='' OR bolim='ijara' ORDER BY id").fetchall()
+        else:
+            rows = con.execute("SELECT id, yig_sana FROM mijozlar WHERE bolim='sotuv' ORDER BY id").fetchall()
+    else:
+        rows = con.execute("SELECT id, yig_sana FROM mijozlar ORDER BY id").fetchall()
     con.close()
     out = []
     for row in rows:
@@ -4318,8 +4338,11 @@ def dashboard_stats(today=None):
         "LEFT JOIN mijozlar m ON m.id=t.mijoz_id WHERE substr(t.sana,1,10)=? "
         "ORDER BY t.id DESC LIMIT 8", (d10,)).fetchall()
     con.close()
-    qd = qarzdorlar(today=today)
-    qd_katta = sorted(qd, key=lambda x: -(x.get("qarz") or 0))   # eng katta qarz birinchi
+    qd = qarzdorlar(today=today, bolim="ijara")          # faqat IJARA qarzlari
+    qd_katta = sorted(qd, key=lambda x: -(x.get("qarz") or 0))
+    # Sotuv bo'limi qarzi — alohida
+    qd_sotuv = qarzdorlar(today=today, bolim="sotuv")
+    sotuv_qarz = int(sum(x["qarz"] for x in qd_sotuv))
     omb = ombor_list()
     return {
         "sana": d10,
@@ -4327,6 +4350,8 @@ def dashboard_stats(today=None):
         "oylik_tushum": int(oylik or 0),
         "jami_qarz": int(sum(x["qarz"] for x in qd)),
         "qarzdor_soni": len(qd),
+        "sotuv_qarz": sotuv_qarz,
+        "sotuv_soni": len(qd_sotuv),
         "over_soni": sum(1 for x in qd if x.get("over")),
         "top_qarzdor": [{"ism": x["ism"], "qarz": int(x["qarz"]), "over": bool(x.get("over"))} for x in qd_katta[:7]],
         "barcha_qarzdor": [{"ism": x["ism"], "tel": x.get("telefon"), "qarz": int(x["qarz"]),
