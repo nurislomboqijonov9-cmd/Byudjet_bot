@@ -97,8 +97,9 @@ body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linea
 <script>
 const K=new URLSearchParams(location.search).get('k')||'';
 const GPS_URL="https://web-production-a8c5f.up.railway.app";  // GPS server manzili
+const DAVOMAT_URL="https://web-production-07267.up.railway.app";  // Davomat server manzili
 const $=id=>document.getElementById(id);
-let DATA=null, DRIVERS=null, views=[], cur=0;
+let DATA=null, DRIVERS=null, DAVOMAT=null, views=[], cur=0;
 let dmap=null, dlayer=null;
 const HAR_SONIYA=14;
 function son(n){ n=Math.round(n||0); return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g," "); }
@@ -115,7 +116,7 @@ function ekranUmumiy(d){
    '<div class="kpis">'
    +'<div class="kpi green"><div class="ic">💵</div><div class="l">Bugungi tushum</div><div class="v">'+qisqa(d.bugun_tushum)+'</div><div class="u">so\'m</div></div>'
    +'<div class="kpi gold"><div class="ic">📅</div><div class="l">Bu oy tushum</div><div class="v">'+qisqa(d.oylik_tushum)+'</div><div class="u">so\'m</div></div>'
-   +'<div class="kpi red"><div class="ic">📕</div><div class="l">Jami qarz</div><div class="v">'+qisqa(d.jami_qarz)+'</div><div class="u">so\'m</div></div>'
+   +'<div class="kpi red"><div class="ic">📕</div><div class="l">Jami qarz (ijara)</div><div class="v">'+qisqa(d.jami_qarz)+'</div><div class="u">so\'m'+((d.sotuv_qarz||0)>0?(' · sotuv: '+qisqa(d.sotuv_qarz)):'')+'</div></div>'
    +'<div class="kpi"><div class="ic">👥</div><div class="l">Qarzdorlar</div><div class="v">'+(d.qarzdor_soni||0)+'</div><div class="u">'+(d.over_soni||0)+' ta chegaradan oshgan</div></div>'
    +'</div><div class="grid2">'
    +'<div class="panel"><div class="stitle" style="font-size:19px">📕 Eng katta qarzdorlar</div><div class="rows">'
@@ -169,8 +170,22 @@ function yangilaMarkerlar(){
   if(pts.length){ try{ dmap.fitBounds(pts,{padding:[60,60],maxZoom:14}); }catch(e){} }
 }
 
+function ekranDavomat(d){
+  const ppl=(d.odamlar||[]);
+  return {nom:"Davomat — keldi/ketdi", kind:"text", html:
+    '<div class="stitle">🕐 Davomat <span class="cnt">'+(d.keldi||0)+' keldi · '+(d.ketdi||0)+' ketdi · '+(d.ichkarida||0)+' ichkarida</span></div>'
+    +(ppl.length?('<div class="cols" style="column-count:2">'
+      +ppl.map(o=>{
+        const kir=o.kirish||'—', chiq=o.chiqish||'—';
+        const ish=o.ish?('<span class="tg">'+esc(o.ish)+'</span>'):'';
+        return '<div class="hd"><span class="st '+(o.chiqish?'off':'on')+'"></span><div class="nm">'+esc(o.ism)+'</div>'
+          +'<div class="km" style="color:var(--gr)">🟢 '+kir+'</div><div class="km" style="color:var(--rd);margin-left:8px">🔴 '+chiq+'</div>'+ish+'</div>';
+      }).join('')+'</div>')
+      :'<div class="empty">Bugun hali hech kim qayd etilmadi</div>')};
+}
 function qurViews(){
   views=[]; if(DATA){ views.push(ekranUmumiy(DATA)); ekranlarQarzdor(DATA).forEach(v=>views.push(v)); }
+  if(DAVOMAT) views.push(ekranDavomat(DAVOMAT));
   if(DRIVERS && DRIVERS.length){
     views.push(ekranHaydRoyxat(DRIVERS));
     views.push({nom:"Haydovchilar — jonli xarita", kind:"dmap", html:""});
@@ -269,9 +284,15 @@ async function haydYukla(){
     if(dmap) yangilaMarkerlar();
   }catch(e){}
 }
+async function davomatYukla(){
+  try{
+    const r=await fetch(DAVOMAT_URL+'/api/tv'+(K?('?k='+encodeURIComponent(K)):''));
+    const d=await r.json(); if(d && d.odamlar) DAVOMAT=d;
+  }catch(e){}
+}
 async function hammasi(){
   const eski=views.length;
-  await Promise.all([yukla(), haydYukla()]);
+  await Promise.all([yukla(), haydYukla(), davomatYukla()]);
   qurViews();
   if(!eski && views.length) koarsat(0);
   else if(cur>=views.length) koarsat(0);
