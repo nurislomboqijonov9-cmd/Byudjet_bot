@@ -546,8 +546,8 @@
       ppKun=`<div style="margin-top:6px;font-size:13.5px;color:var(--soft)">📅 Predoplata: <b>${bel}</b>${pp.tugash?(' · '+pp.tugash):''}</div>`;
     }
     const ppHtml=`<div class="card statrow" style="flex-wrap:wrap">
-        <span class="stbadge" style="color:${d.predoplata?'#B0913F':'var(--soft)'};background:${d.predoplata?'#faf5e6':'transparent'}">📅 Predoplata: ${d.predoplata?'YONIQ':'o\\'chiq'}</span>
-        <button class="edit-status" onclick="setPredoplata(${d.id},${d.predoplata?0:1})">${d.predoplata?'✖️ O\\'chirish':'✅ Yoqish'}</button>
+        <span class="stbadge" style="color:${d.predoplata?'#B0913F':'var(--soft)'};background:${d.predoplata?'#faf5e6':'transparent'}">📅 Predoplata: ${d.predoplata?'YONIQ':'ochiq'}</span>
+        <button class="edit-status" onclick="setPredoplata(${d.id},${d.predoplata?0:1})">${d.predoplata?'✖️ Ochirish':'✅ Yoqish'}</button>
         ${ppKun}</div>`;
     let vazCard='';
     try{ vazCard=`      <div class="addbox"><div class="t">🚚 Haydovchiga vazifa</div>
