@@ -128,6 +128,8 @@ def init_db():
         con.execute("ALTER TABLE mijozlar ADD COLUMN qayd TEXT")
     if "tolov_turi" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN tolov_turi TEXT")
+    if "predoplata" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN predoplata INTEGER DEFAULT 0")
     if "bolim" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN bolim TEXT")
         con.execute("UPDATE mijozlar SET bolim='ijara' WHERE bolim IS NULL OR bolim=''")
@@ -1801,6 +1803,8 @@ def init_db():
         con.execute("ALTER TABLE mijozlar ADD COLUMN qayd TEXT")
     if "tolov_turi" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN tolov_turi TEXT")
+    if "predoplata" not in mcols2:
+        con.execute("ALTER TABLE mijozlar ADD COLUMN predoplata INTEGER DEFAULT 0")
     if "bolim" not in mcols2:
         con.execute("ALTER TABLE mijozlar ADD COLUMN bolim TEXT")
         con.execute("UPDATE mijozlar SET bolim='ijara' WHERE bolim IS NULL OR bolim=''")
@@ -4363,3 +4367,74 @@ def dashboard_stats(today=None):
         "oxirgi_tolov": [{"ism": (r["ism"] or "—"), "summa": int(r["s"] or 0),
                           "vaqt": str(r["sn"])[11:16]} for r in oxirgi],
     }
+
+
+# ================= PREDOPLATA (oldindan to'lov) =================
+from datetime import timedelta as _timedelta
+
+
+def predoplata_holati(mijoz_id, today=None):
+    """Mijozning oldindan to'lov (kredit) holati.
+    qoldiq = ortiqcha to'langan pul (kredit). kunlik = aktiv ijara kunlik summasi.
+    qolgan_kun = qoldiq / kunlik. tugash = sana."""
+    today = today or today_tk()
+    d = mijoz_detail(mijoz_id, today)
+    if not d:
+        return None
+    qq = d.get("qolgan_qarz", 0) or 0
+    net = -qq                                 # net>0 = kredit (haqi), net<0 = qarz
+    qoldiq = net if net > 0 else 0.0
+    kunlik = 0.0
+    for p in partiyalar_of(mijoz_id):
+        h = partiya_hisob(p, today)
+        if h["qolgan"] > 0:
+            kunlik += h["qolgan"] * h["kunlik_narx"]
+    qolgan_kun = None
+    tugash = None
+    if kunlik > 0:
+        qolgan_kun = net / kunlik              # kredit tugasa 0 yoki manfiy (tugadi)
+        tugash = (today + _timedelta(days=int(max(0, qolgan_kun)))).isoformat()
+    return {"mijoz": d["mijoz"], "telefon": d.get("telefon"),
+            "qoldiq": qoldiq, "kunlik": kunlik,
+            "qolgan_kun": qolgan_kun, "tugash": tugash}
+
+
+def predoplata_royxati(today=None):
+    """Oldindan to'lov (krediti bor) mijozlar — qolgan kun bo'yicha (kam qolgan birinchi)."""
+    today = today or today_tk()
+    res = []
+    belgililar = predoplata_idlar()
+    for m in mijozlar(today=today):
+        if m["id"] not in belgililar:            # faqat 'predoplata' belgili mijozlar
+            continue
+        h = predoplata_holati(m["id"], today)
+        if h and h["qolgan_kun"] is not None:
+            res.append({"id": m["id"], "mijoz": h["mijoz"], "telefon": h["telefon"],
+                        "qoldiq": int(h["qoldiq"]), "kunlik": int(h["kunlik"]),
+                        "qolgan_kun": h["qolgan_kun"], "tugash": h["tugash"]})
+    res.sort(key=lambda x: x["qolgan_kun"])
+    return res
+
+
+def set_predoplata(mijoz_id, on):
+    """Mijozni predoplata rejimiga qo'yish/olib tashlash."""
+    con = _con()
+    con.execute("UPDATE mijozlar SET predoplata=? WHERE id=?", (1 if on else 0, int(mijoz_id)))
+    con.commit()
+    con.close()
+    return {"ok": True, "predoplata": bool(on)}
+
+
+def predoplata_idlar():
+    """Predoplata belgili mijoz id lari."""
+    con = _con()
+    try:
+        rows = con.execute("SELECT id FROM mijozlar WHERE predoplata=1").fetchall()
+    except Exception:
+        rows = []
+    con.close()
+    return set(r[0] for r in rows)
+
+
+def is_predoplata(mijoz_id):
+    return int(mijoz_id) in predoplata_idlar()

@@ -552,6 +552,13 @@ def make_web_app(bot_token):
         d = db.mijoz_detail(mid)
         if not d:
             return web.json_response({"xato": "topilmadi"}, status=404)
+        # Predoplata rejimi va holati
+        try:
+            d["predoplata"] = (mid in db.predoplata_idlar())
+            if d["predoplata"]:
+                d["predoplata_holati"] = db.predoplata_holati(mid)
+        except Exception:
+            d["predoplata"] = False
         return web.json_response(d)
 
     async def api_mijoz_excel(request):
@@ -1041,6 +1048,16 @@ def make_web_app(bot_token):
         except Exception as e:
             return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
 
+    async def api_predoplata_rejim(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            return web.json_response(db.set_predoplata(int(b.get("mijoz_id")), bool(b.get("on"))))
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
     async def api_eslatma(request):
         uid, err = check(request)
         if err:
@@ -1296,6 +1313,7 @@ def make_web_app(bot_token):
     app.router.add_post("/api/qoshimcha_del", api_qoshimcha_del)
     app.router.add_post("/api/status", api_status)
     app.router.add_post("/api/tolov_turi", api_tolov_turi)
+    app.router.add_post("/api/predoplata_rejim", api_predoplata_rejim)
     app.router.add_post("/api/eslatma", api_eslatma)
     app.router.add_post("/api/eslatma_del", api_eslatma_del)
     app.router.add_post("/api/sms", api_sms)

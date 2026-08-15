@@ -1757,6 +1757,108 @@ async def backup_cmd(update, ctx):
         await update.message.reply_text("Backup yaratishda xatolik.")
 
 
+async def _pp_sms(app, x, bosqich):
+    """Mijozga predoplata SMS (1=1 kun qoldi, 0=tugadi)."""
+    try:
+        if not sms.is_configured():
+            return
+        tel = sms.normalize_phone(x.get("telefon"))
+        if not tel:
+            return
+        if bosqich == 1:
+            matn = ("Hurmatli mijoz! TEMIRCHI ijara xizmatidan foydalanganingiz uchun rahmat. "
+                    "Oldindan to'lovingiz muddati tugashiga 1 kun qoldi. "
+                    "Iltimos, to'lovni o'z vaqtida yangilang.")
+        else:
+            matn = ("Hurmatli mijoz! TEMIRCHI: oldindan to'lovingiz muddati bugun tugadi. "
+                    "Iltimos, to'lovni amalga oshiring yoki olgan mahsulotlaringizni qaytarib bering. "
+                    "Hamkorligingiz uchun rahmat.")
+        await sms.send_sms(x.get("telefon"), matn)
+    except Exception:
+        log.exception("predoplata sms")
+
+
+async def _predoplata_check(app):
+    """Kuniga bir marta (YIGISH_SOAT dan keyin): predoplata tugash nazorati."""
+    now = db.now_tk()
+    if now.hour < YIGISH_SOAT:
+        return
+    kun = now.date().isoformat()
+    if db.get_sozlama("pp_oxirgi_kun") == kun:
+        return
+    db.set_sozlama("pp_oxirgi_kun", kun)
+
+    lst = db.predoplata_royxati()
+    ikki, tugadi = [], []
+    for x in lst:
+        k = x["qolgan_kun"]
+        mid = x["id"]
+        if k <= 0:
+            b = "0"
+        elif k <= 1:
+            b = "1"
+        elif k <= 2:
+            b = "2"
+        else:
+            b = ""
+        oldingi = db.get_sozlama(f"pp_bosqich_{mid}") or ""
+        if b == "":
+            if oldingi:
+                db.set_sozlama(f"pp_bosqich_{mid}", "")   # to'ldirildi -> reset
+            continue
+        if b == oldingi:
+            continue
+        db.set_sozlama(f"pp_bosqich_{mid}", b)
+        if b == "2":
+            ikki.append(x)
+        elif b == "1":
+            await _pp_sms(app, x, 1)
+        elif b == "0":
+            tugadi.append(x)
+            await _pp_sms(app, x, 0)
+
+    if ikki or tugadi:
+        satlar = ["💳 *PREDOPLATA — nazorat*\n"]
+        if tugadi:
+            satlar.append("🔴 *Tugadi — pul olish kerak:*")
+            for x in tugadi:
+                tel = f" · {x['telefon']}" if x.get("telefon") else ""
+                satlar.append(f"• *{x['mijoz']}*{tel} — kuniga {som(x['kunlik'])} so'm")
+        if ikki:
+            satlar.append("\n🟡 *2 kun ichida tugaydi:*")
+            for x in ikki:
+                tel = f" · {x['telefon']}" if x.get("telefon") else ""
+                satlar.append(f"• *{x['mijoz']}*{tel} — {x['tugash']} gacha")
+        matn = "\n".join(satlar)
+        for uid in _yig_recipients():
+            try:
+                await app.bot.send_message(uid, matn, parse_mode="Markdown")
+            except Exception:
+                pass
+
+
+async def predoplata_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await guard(update, ctx):
+        return
+    lst = db.predoplata_royxati()
+    if not lst:
+        await update.message.reply_text(
+            "💳 Oldindan to'lov (predoplata) mijozlari yo'q.\n\n"
+            "_Mijoz ijara summasidan ko'proq to'lasa — 'krediti' hisoblanadi va shu yerda kuzatiladi._",
+            parse_mode="Markdown")
+        return
+    satlar = ["💳 *Oldindan to'lov — mijozlar*\n"]
+    for x in lst:
+        k = x["qolgan_kun"]
+        bel = "🔴" if k <= 0 else ("🟡" if k <= 2 else "🟢")
+        kunmatn = "bugun tugadi" if k <= 0 else f"~{int(round(k))} kun qoldi"
+        tel = f" · {x['telefon']}" if x.get("telefon") else ""
+        satlar.append(f"{bel} *{x['mijoz']}*{tel}\n    {kunmatn} · kredit {som(x['qoldiq'])} so'm · {x['tugash']}")
+    matn = "\n".join(satlar)
+    for i in range(0, len(matn), 3500):
+        await update.message.reply_text(matn[i:i+3500], parse_mode="Markdown")
+
+
 async def reminder_loop(app):
     while True:
         try:
@@ -1764,6 +1866,7 @@ async def reminder_loop(app):
                 await _send_eslatma(app, r)
                 db.mark_eslatma_sent(r["id"])
             await _daily_report(app)
+            await _predoplata_check(app)
         except Exception:
             log.exception("eslatma tekshiruvi xatolik")
         await asyncio.sleep(60)
@@ -1780,6 +1883,7 @@ async def run():
     app.add_handler(CommandHandler("kunlik", kunlik_cmd))
     app.add_handler(CommandHandler("xarajat", xarajat_cmd))
     app.add_handler(CommandHandler("qarzdorlar", qarzdorlar_cmd))
+    app.add_handler(CommandHandler("predoplata", predoplata_cmd))
     app.add_handler(CommandHandler("hisobot", hisobot_cmd))
     app.add_handler(CommandHandler("limit", limit_cmd))
     app.add_handler(CommandHandler("yiguvchi", yiguvchi_cmd))

@@ -537,6 +537,18 @@
         <button class="mini-btn" style="color:#2E7D5B;border-color:#2E7D5B" onclick="setTur(${d.id},'naqd')">💵 Naqd</button>
         <button class="mini-btn" style="color:#7A4FC0;border-color:#7A4FC0" onclick="setTur(${d.id},'perech')">🏦 Perechisleniye</button>
         <button class="mini-btn" onclick="setTur(${d.id},'')">✖️ Tozalash</button></div></div>`;
+    // Predoplata (oldindan to'lov) rejimi
+    const pp=d.predoplata_holati;
+    let ppKun='';
+    if(d.predoplata && pp && pp.qolgan_kun!=null){
+      const k=pp.qolgan_kun;
+      const bel=k<=0?'🔴 bugun tugadi':(k<=2?('🟡 ~'+Math.round(k)+' kun qoldi'):('🟢 ~'+Math.round(k)+' kun qoldi'));
+      ppKun=`<div style="margin-top:6px;font-size:13.5px;color:var(--soft)">📅 Predoplata: <b>${bel}</b>${pp.tugash?(' · '+pp.tugash):''}</div>`;
+    }
+    const ppHtml=`<div class="card statrow" style="flex-wrap:wrap">
+        <span class="stbadge" style="color:${d.predoplata?'#B0913F':'var(--soft)'};background:${d.predoplata?'#faf5e6':'transparent'}">📅 Predoplata: ${d.predoplata?'YONIQ':'o\\'chiq'}</span>
+        <button class="edit-status" onclick="setPredoplata(${d.id},${d.predoplata?0:1})">${d.predoplata?'✖️ O\\'chirish':'✅ Yoqish'}</button>
+        ${ppKun}</div>`;
     let vazCard='';
     try{ vazCard=`      <div class="addbox"><div class="t">🚚 Haydovchiga vazifa</div>
         <div class="inrow" style="margin-bottom:8px">
@@ -676,6 +688,7 @@
       <div id="tab_hisob" class="mpanel" style="display:none">
         ${statHtml}
         ${turHtml}
+        ${ppHtml}
         <div class="card">
           <div class="brk"><span class="k">Hisoblangan</span><b class="num">${som(d.hisoblangan)} so'm</b></div>
           <div class="brk"><span class="k">🚚 Yo'lkira</span><b class="num">${som(d.yolkira||0)} so'm</b></div>
@@ -1038,6 +1051,12 @@
   window.delQosh=async function(id,mid){
     try{const r=await fetch('/api/qoshimcha_del',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({id})});
       if(!r.ok)throw 0; toast('O\'chirildi'); mijozReload(mid);}catch(e){toast('Xato');}
+  };
+  window.setPredoplata=async function(mid,on){
+    try{const r=await fetch('/api/predoplata_rejim',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,on:!!on})});
+      let d=null; try{d=await r.json();}catch(_){}
+      if(d&&d.ok){toast(on?'✅ Predoplata yoqildi':'Predoplata o\'chirildi');mijozReload(mid);}else{toast((d&&d.xato)||'Xato');}
+    }catch(e){toast('Xato');}
   };
   window.setTur=async function(mid,turi){
     try{const r=await fetch('/api/tolov_turi',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,turi})});
