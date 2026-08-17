@@ -183,8 +183,29 @@ function ekranDavomat(d){
       }).join('')+'</div>')
       :'<div class="empty">Bugun hali hech kim qayd etilmadi</div>')};
 }
+function ekranlarOmbor(d){
+  const all=(d.ombor||[]).filter(x=>(x.total||0)>0 || (x.out||0)>0);
+  if(!all.length) return [];
+  const res=[]; const PER=16;
+  for(let i=0;i<all.length;i+=PER){
+    const bet=all.slice(i,i+PER), sahifa=Math.floor(i/PER)+1, jami=Math.ceil(all.length/PER);
+    res.push({nom:"Ombor — ostatka"+(jami>1?(' ('+sahifa+'/'+jami+')'):""), kind:"text", html:
+      '<div class="stitle">📦 Ombor — ostatka <span class="cnt">'+all.length+' mahsulot · '+son(d.jihoz_ijarada)+' arendada / '+son(d.jihoz_jami)+' jami</span></div>'
+      +'<div class="cols" style="column-count:2">'
+      +bet.map(x=>
+        '<div class="qc" style="display:block;padding:14px 16px">'
+        +'<div class="nm" style="font-size:20px;margin-bottom:10px">'+esc(x.name)+'</div>'
+        +'<div style="display:flex;gap:18px;font-size:16px;flex-wrap:wrap">'
+          +'<span style="color:#8ea0b6">Jami: <b style="color:#fff">'+son(x.total)+'</b></span>'
+          +'<span style="color:var(--gold)">Arendada: <b>'+son(x.out)+'</b></span>'
+          +'<span style="color:var(--gr)">Omborda: <b>'+son(x.omborda)+'</b></span>'
+        +'</div></div>').join('')
+      +'</div>'});
+  }
+  return res;
+}
 function qurViews(){
-  views=[]; if(DATA){ views.push(ekranUmumiy(DATA)); ekranlarQarzdor(DATA).forEach(v=>views.push(v)); }
+  views=[]; if(DATA){ views.push(ekranUmumiy(DATA)); ekranlarOmbor(DATA).forEach(v=>views.push(v)); ekranlarQarzdor(DATA).forEach(v=>views.push(v)); }
   if(DAVOMAT) views.push(ekranDavomat(DAVOMAT));
   if(DRIVERS && DRIVERS.length){
     views.push(ekranHaydRoyxat(DRIVERS));
