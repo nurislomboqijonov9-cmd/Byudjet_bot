@@ -95,7 +95,7 @@ body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linea
 </div>
 <div class="foot"><span class="dot"></span>Jonli — avtomat aylanadi</div>
 <script>
-let K=localStorage.getItem('tvpin')||new URLSearchParams(location.search).get('k')||'';
+let K=new URLSearchParams(location.search).get('k')||'';  // har yuklanishda bo'sh -> PIN so'raladi
 const GPS_URL="https://web-production-a8c5f.up.railway.app";  // GPS server manzili
 const DAVOMAT_URL="https://web-production-07267.up.railway.app";  // Davomat server manzili
 const $=id=>document.getElementById(id);
@@ -327,10 +327,8 @@ window.pinKirit=async function(){
   const p=document.getElementById('pinp'); if(!p) return;
   K=p.value.trim();
   if(await pinTekshir()){
-    localStorage.setItem('tvpin',K);
-    ishga();
+    ishga();          // eslab qolmaydi — har yuklanishda qayta so'raladi
   }else{
-    localStorage.removeItem('tvpin');
     pinEkran(true);
   }
 };
