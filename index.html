@@ -475,6 +475,7 @@
         <div class="li-sub"><span>🧮 ${som(p.narx)} so'm · ${p.kunlar} kun</span>
           <span class="li-acts"><button class="li-btn" onclick="tgl('edit${p.id}')">✏️</button>
             ${p.qolgan>0?`<button class="li-btn" onclick="tgl('ret${p.id}')">↩️</button>`:''}</span></div>
+        ${(p.ortiqcha&&p.ortiqcha>0)?`<div style="color:#c0392b;font-weight:700;font-size:12px;margin-top:4px">⚠️ ${son(p.ortiqcha)} ta ortiqcha qaytarilgan (olingandan ko'p)</div>`:''}
         <div id="edit${p.id}" style="display:none;margin-top:8px">
           <input class="f" id="e_mah${p.id}" value="${esc(p.mahsulot)}" placeholder="Mahsulot" list="tovarlist" oninput="tovarHint(this)" onblur="tovarFix(this)" autocomplete="off" style="margin-bottom:4px">
           <div class="thint" id="th${p.id}"></div>
