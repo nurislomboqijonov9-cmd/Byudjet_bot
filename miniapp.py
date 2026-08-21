@@ -1257,6 +1257,26 @@ def make_web_app(bot_token):
         bolim = request.query.get("bolim") or None
         return web.json_response({"tarix": db.ombor_history(pid, 200, bolim)})
 
+    async def api_mahsulot_harakati(request):
+        uid, err = check(request)
+        if err:
+            return err
+        nom = request.query.get("nom")
+        if not nom:
+            return web.json_response({"mahsulotlar": db.mahsulot_royxati_tarix()})
+        return web.json_response({"nom": nom, "harakat": db.mahsulot_harakati(nom)})
+
+    async def api_harakat_tahrir(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            return web.json_response(db.harakat_tahrir(
+                b.get("ref"), b.get("id"), miqdor=b.get("miqdor"), sana=b.get("sana")))
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"{type(e).__name__}"}, status=400)
+
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)
     app.router.add_get("/tv", tv_sahifa)
@@ -1331,4 +1351,6 @@ def make_web_app(bot_token):
     app.router.add_post("/api/ombor_del", api_ombor_del)
     app.router.add_post("/api/ombor_rename", api_ombor_rename)
     app.router.add_get("/api/ombor_tarix", api_ombor_tarix)
+    app.router.add_get("/api/mahsulot_harakati", api_mahsulot_harakati)
+    app.router.add_post("/api/harakat_tahrir", api_harakat_tahrir)
     return app

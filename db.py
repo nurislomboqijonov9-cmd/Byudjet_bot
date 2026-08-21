@@ -4466,3 +4466,74 @@ def predoplata_idlar():
 
 def is_predoplata(mijoz_id):
     return int(mijoz_id) in predoplata_idlar()
+
+
+# ============ OMBOR TARIXI — mahsulot bo'yicha (eski ma'lumotdan) ============
+def mahsulot_royxati_tarix():
+    """Tarix uchun barcha mahsulot nomlari (partiyalar + ombor)."""
+    con = _con()
+    rows = con.execute("SELECT DISTINCT mahsulot AS nom FROM partiyalar WHERE mahsulot IS NOT NULL AND mahsulot<>''").fetchall()
+    con.close()
+    nomlar = set(r["nom"] for r in rows)
+    try:
+        for n in ombor_names():
+            nomlar.add(n)
+    except Exception:
+        pass
+    return sorted(nomlar, key=lambda x: x.lower())
+
+
+def mahsulot_harakati(nom, limit=800):
+    """Bitta mahsulotning harakati: chiqdi (partiyalar) + qaytdi (qaytarishlar), mijoz+sana bilan."""
+    con = _con()
+    res = []
+    rows = con.execute("""
+        SELECT p.id AS pid, p.partiya_raqam AS praqam, p.miqdor AS miqdor,
+               p.chiqgan_sana AS sana, m.id AS mid, m.ism AS mijoz
+        FROM partiyalar p LEFT JOIN mijozlar m ON p.mijoz_id=m.id
+        WHERE p.mahsulot=?""", (nom,)).fetchall()
+    for r in rows:
+        res.append({"tur": "chiqdi", "sana": str(r["sana"])[:10], "miqdor": r["miqdor"],
+                    "mijoz": r["mijoz"] or "—", "mijoz_id": r["mid"],
+                    "id": r["pid"], "ref": "partiya", "praqam": r["praqam"]})
+    rows = con.execute("""
+        SELECT q.id AS qid, q.miqdor AS miqdor, q.qaytgan_sana AS sana,
+               p.id AS pid, p.partiya_raqam AS praqam, m.id AS mid, m.ism AS mijoz
+        FROM qaytarishlar q
+        JOIN partiyalar p ON q.partiya_id=p.id
+        LEFT JOIN mijozlar m ON p.mijoz_id=m.id
+        WHERE p.mahsulot=?""", (nom,)).fetchall()
+    for r in rows:
+        res.append({"tur": "qaytdi", "sana": str(r["sana"])[:10], "miqdor": r["miqdor"],
+                    "mijoz": r["mijoz"] or "—", "mijoz_id": r["mid"],
+                    "id": r["qid"], "ref": "qaytarish", "pid": r["pid"], "praqam": r["praqam"]})
+    con.close()
+    res.sort(key=lambda x: str(x["sana"]), reverse=True)
+    return res[:limit]
+
+
+def harakat_tahrir(ref, rid, miqdor=None, sana=None):
+    """Ombor tarixidagi bitta yozuvni tuzatish (chiqdi=partiya, qaytdi=qaytarish)."""
+    if ref == "qaytarish":
+        r = qaytarish_yangila(int(rid), miqdor=(float(miqdor) if miqdor not in (None, "") else None),
+                              sana=(sana or None))
+        try:
+            ombor_recalc()
+        except Exception:
+            pass
+        return {"ok": True}
+    # chiqdi = partiya
+    con = _con()
+    p = con.execute("SELECT * FROM partiyalar WHERE id=?", (int(rid),)).fetchone()
+    con.close()
+    if not p:
+        return {"ok": False, "xato": "topilmadi"}
+    p = dict(p)
+    ym = float(miqdor) if miqdor not in (None, "") else p["miqdor"]
+    ys = sana or p["chiqgan_sana"]
+    update_partiya(int(rid), p["mahsulot"], ym, p["kunlik_narx"], ys)
+    try:
+        ombor_recalc()
+    except Exception:
+        pass
+    return {"ok": True}
