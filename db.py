@@ -4537,3 +4537,34 @@ def harakat_tahrir(ref, rid, miqdor=None, sana=None):
     except Exception:
         pass
     return {"ok": True}
+
+
+# ============ OMBOR NOMLARINI TUZATISH (mos kelmaganlarni birlashtirish) ============
+def nomos_royxati():
+    """Nomi ombordagi mahsulotga MOS KELMAGAN partiyalar (notog'ri nom) — [ [nom, arendada_soni], ... ]."""
+    try:
+        r = ombor_recalc()
+        return r.get("nomos", [])
+    except Exception:
+        return []
+
+
+def partiya_nom_almashtir(eski_nom, yangi_nom):
+    """Notog'ri nomli partiyalarni to'g'ri nomga o'tkazadi (ombor bilan moslashadi)."""
+    import re as _re
+    eski = (eski_nom or "").strip()
+    # nomos ro'yxatidagi " (ijara)" / " (sotuv)" qo'shimchasini olib tashlaymiz
+    eski = _re.sub(r"\s*\((ijara|sotuv)\)\s*$", "", eski).strip()
+    yangi = _re.sub(r"\s*\((ijara|sotuv)\)\s*$", "", (yangi_nom or "").strip()).strip()
+    if not eski or not yangi:
+        return {"ok": False, "xato": "nom"}
+    con = _con()
+    cur = con.execute("UPDATE partiyalar SET mahsulot=? WHERE mahsulot=?", (yangi, eski))
+    n = cur.rowcount
+    con.commit()
+    con.close()
+    try:
+        ombor_recalc()
+    except Exception:
+        pass
+    return {"ok": True, "soni": n}

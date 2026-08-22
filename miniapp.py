@@ -1266,6 +1266,22 @@ def make_web_app(bot_token):
             return web.json_response({"mahsulotlar": db.mahsulot_royxati_tarix()})
         return web.json_response({"nom": nom, "harakat": db.mahsulot_harakati(nom)})
 
+    async def api_nomos(request):
+        uid, err = check(request)
+        if err:
+            return err
+        return web.json_response({"nomos": db.nomos_royxati(), "nomlar": db.ombor_names()})
+
+    async def api_nom_almashtir(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            return web.json_response(db.partiya_nom_almashtir(b.get("eski"), b.get("yangi")))
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"{type(e).__name__}"}, status=400)
+
     async def api_harakat_tahrir(request):
         uid, err = check(request)
         if err:
@@ -1352,5 +1368,7 @@ def make_web_app(bot_token):
     app.router.add_post("/api/ombor_rename", api_ombor_rename)
     app.router.add_get("/api/ombor_tarix", api_ombor_tarix)
     app.router.add_get("/api/mahsulot_harakati", api_mahsulot_harakati)
+    app.router.add_get("/api/nomos", api_nomos)
+    app.router.add_post("/api/nom_almashtir", api_nom_almashtir)
     app.router.add_post("/api/harakat_tahrir", api_harakat_tahrir)
     return app

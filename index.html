@@ -1213,7 +1213,7 @@
     a.classList.toggle('on',w==='omb'); b.classList.toggle('on',w==='tar');
     const body=document.getElementById('ombbody');
     if(w==='tar'){body.innerHTML='<div class="center" style="color:#5B6B7A">Yuklanmoqda…</div>';return loadOmborTarix();}
-    body.innerHTML=`<div class="omb-search"><input placeholder="🔍 Mahsulot qidirish…" oninput="renderOmborCards(this.value)"></div>
+    body.innerHTML=`<div id="nomos_panel"></div><div class="omb-search"><input placeholder="🔍 Mahsulot qidirish…" oninput="renderOmborCards(this.value)"></div>
       <button class="omb-btn" style="border-style:dashed;margin-bottom:10px" onclick="tgl('ombnew')">➕ Yangi tovar qo'shish</button>
       <div id="ombnew" style="display:none;margin-bottom:10px">
         <input class="omb-in" id="onew_nom" placeholder="Nomi (masalan: Stoyka 6 m)">
@@ -1221,6 +1221,36 @@
         <button class="omb-btn" onclick="omborAdd()">Qo'shish</button></div>
       <div id="ombcards"></div>`;
     renderOmborCards('');
+    nomosYukla();
+  };
+  window.nomosYukla=async function(){
+    var el=document.getElementById('nomos_panel'); if(!el)return;
+    var d; try{var r=await fetch('/api/nomos',{headers:H});d=await r.json();}catch(e){return;}
+    var nomos=d.nomos||[], nomlar=d.nomlar||[];
+    if(!nomos.length){ el.innerHTML=''; return; }
+    var opts=nomlar.map(function(n){return '<option value="'+n.replace(/"/g,'&quot;')+'">'+esc(n)+'</option>';}).join('');
+    var h='<div style="background:#3a2318;border:1px solid #7a4a2a;border-radius:12px;padding:12px;margin-bottom:12px">'
+      +'<div style="color:#e0982f;font-weight:800;font-size:14px;margin-bottom:4px">⚠️ Nomi mos kelmagan ('+nomos.length+')</div>'
+      +'<div style="color:#C9A;font-size:11.5px;margin-bottom:10px">Bular ombordagi mahsulotga boglanmagan (notogri nom). Togri nomga otkazing → ombor togrilanadi.</div>';
+    nomos.forEach(function(x,i){
+      var nm=x[0], soni=x[1];
+      h+='<div style="background:#2a1a10;border-radius:9px;padding:10px;margin-bottom:7px">'
+        +'<div style="color:#fff;font-size:13.5px;font-weight:700;margin-bottom:6px">'+esc(nm)+' <span style="color:#8A9AA8;font-weight:400">('+som(soni)+' dona arendada)</span></div>'
+        +'<div style="display:flex;gap:6px"><select id="nm_sel'+i+'" class="f" style="flex:1;font-size:13px;padding:8px">'+opts+'</select>'
+        +'<button onclick="nomBirlashtir('+i+')" style="padding:8px 12px;border-radius:8px;border:none;background:#1f9d55;color:#fff;font-weight:700;font-size:13px;cursor:pointer">Birlashtir</button></div></div>';
+      window['_nomos'+i]=nm;
+    });
+    h+='</div>';
+    el.innerHTML=h;
+  };
+  window.nomBirlashtir=async function(i){
+    var eski=window['_nomos'+i]; var yangi=(document.getElementById('nm_sel'+i)||{}).value;
+    if(!eski||!yangi)return;
+    if(!confirm('"'+eski+'" → "'+yangi+'" ga otkazilsinmi? Ombor togrilanadi.'))return;
+    try{ var r=await fetch('/api/nom_almashtir',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({eski:eski,yangi:yangi})});
+      var j=await r.json();
+      if(j&&j.ok){ toast('✅ '+j.soni+' ta otkazildi'); reloadOmbor(); }else{ toast('❌ Xato'); }
+    }catch(e){ toast('❌ Xato'); }
   };
   window.renderOmborCards=function(q){
     q=(q||'').toLowerCase().trim();
