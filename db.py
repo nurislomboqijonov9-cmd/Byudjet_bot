@@ -4521,8 +4521,9 @@ def mahsulot_harakati(nom, limit=800):
     return res[:limit]
 
 
-def harakat_tahrir(ref, rid, miqdor=None, sana=None):
-    """Ombor tarixidagi bitta yozuvni tuzatish (chiqdi=partiya, qaytdi=qaytarish)."""
+def harakat_tahrir(ref, rid, miqdor=None, sana=None, nom=None):
+    """Ombor tarixidagi bitta yozuvni tuzatish (chiqdi=partiya, qaytdi=qaytarish).
+    nom berilsa — partiyaning mahsulot nomini o'zgartiradi (boshqa mahsulotga ko'chiradi)."""
     if ref == "qaytarish":
         r = qaytarish_yangila(int(rid), miqdor=(float(miqdor) if miqdor not in (None, "") else None),
                               sana=(sana or None))
@@ -4540,7 +4541,8 @@ def harakat_tahrir(ref, rid, miqdor=None, sana=None):
     p = dict(p)
     ym = float(miqdor) if miqdor not in (None, "") else p["miqdor"]
     ys = sana or p["chiqgan_sana"]
-    update_partiya(int(rid), p["mahsulot"], ym, p["kunlik_narx"], ys)
+    ynom = nom.strip() if (nom and nom.strip()) else p["mahsulot"]
+    update_partiya(int(rid), ynom, ym, p["kunlik_narx"], ys)
     try:
         ombor_recalc()
     except Exception:

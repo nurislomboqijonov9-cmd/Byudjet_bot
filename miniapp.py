@@ -1290,7 +1290,7 @@ def make_web_app(bot_token):
         try:
             b = await request.json()
             return web.json_response(db.harakat_tahrir(
-                b.get("ref"), b.get("id"), miqdor=b.get("miqdor"), sana=b.get("sana")))
+                b.get("ref"), b.get("id"), miqdor=b.get("miqdor"), sana=b.get("sana"), nom=b.get("nom")))
         except Exception as e:
             return web.json_response({"ok": False, "xato": f"{type(e).__name__}"}, status=400)
 
