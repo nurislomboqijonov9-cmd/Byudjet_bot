@@ -1270,7 +1270,8 @@ def make_web_app(bot_token):
         uid, err = check(request)
         if err:
             return err
-        return web.json_response({"nomos": db.nomos_royxati(), "nomlar": db.ombor_names()})
+        bolim = request.query.get("bolim") or None
+        return web.json_response({"nomos": db.nomos_royxati(bolim), "nomlar": db.ombor_names(bolim)})
 
     async def api_nom_almashtir(request):
         uid, err = check(request)

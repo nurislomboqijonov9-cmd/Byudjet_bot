@@ -1266,9 +1266,12 @@ def ombor_history(pid=None, limit=200):
     return [dict(r) for r in rows]
 
 
-def ombor_names():
+def ombor_names(bolim=None):
     con = _con()
-    rows = con.execute("SELECT name FROM ombor_mahsulot ORDER BY sort_order, name").fetchall()
+    if bolim:
+        rows = con.execute("SELECT name FROM ombor_mahsulot WHERE bolim=? ORDER BY sort_order, name", (_bl(bolim),)).fetchall()
+    else:
+        rows = con.execute("SELECT name FROM ombor_mahsulot ORDER BY sort_order, name").fetchall()
     con.close()
     return [r["name"] for r in rows]
 
@@ -2950,9 +2953,12 @@ def ombor_history(pid=None, limit=200):
     return [dict(r) for r in rows]
 
 
-def ombor_names():
+def ombor_names(bolim=None):
     con = _con()
-    rows = con.execute("SELECT name FROM ombor_mahsulot ORDER BY sort_order, name").fetchall()
+    if bolim:
+        rows = con.execute("SELECT name FROM ombor_mahsulot WHERE bolim=? ORDER BY sort_order, name", (_bl(bolim),)).fetchall()
+    else:
+        rows = con.execute("SELECT name FROM ombor_mahsulot ORDER BY sort_order, name").fetchall()
     con.close()
     return [r["name"] for r in rows]
 
@@ -3970,7 +3976,7 @@ def ombor_recalc(today=None, bolim=None):
     today = today or today_tk()
     con = _con()
     prows = con.execute(
-        "SELECT p.*, m.bolim AS _mbolim FROM partiyalar p LEFT JOIN mijozlar m ON m.id=p.mijoz_id"
+        "SELECT p.*, m.bolim AS _mbolim, m.id AS _mid FROM partiyalar p LEFT JOIN mijozlar m ON m.id=p.mijoz_id"
     ).fetchall()
     con.close()
 
@@ -3978,6 +3984,8 @@ def ombor_recalc(today=None, bolim=None):
     hisob, nomos = {}, {}
     for p in prows:
         p = dict(p)
+        if p.get("_mid") is None:
+            continue  # o'chirilgan mijoz (yacheyka) — sanoqqa kirmaydi
         pb = _bl(p.get("_mbolim"))
         h = partiya_hisob(p, today)
         qolgan = float(h["qolgan"])
@@ -4007,7 +4015,8 @@ def ombor_recalc(today=None, bolim=None):
     con.commit()
     con.close()
     return {"ok": True, "ozgargan": ozgargan,
-            "nomos": sorted(((f"{k[1]} ({k[0]})", v) for k, v in nomos.items()), key=lambda x: -x[1])}
+            "nomos": sorted(({"nom": k[1], "bolim": k[0], "soni": v} for k, v in nomos.items()),
+                            key=lambda x: -x["soni"])}
 
 
 # ==========================================================================
@@ -4540,11 +4549,16 @@ def harakat_tahrir(ref, rid, miqdor=None, sana=None):
 
 
 # ============ OMBOR NOMLARINI TUZATISH (mos kelmaganlarni birlashtirish) ============
-def nomos_royxati():
-    """Nomi ombordagi mahsulotga MOS KELMAGAN partiyalar (notog'ri nom) — [ [nom, arendada_soni], ... ]."""
+def nomos_royxati(bolim=None):
+    """Nomi ombordagi mahsulotga MOS KELMAGAN partiyalar. bolim berilsa — faqat o'sha bo'lim.
+    Qaytadi: [{"nom","bolim","soni"}, ...] (o'chirilgan mijozlarniki kirmaydi)."""
     try:
         r = ombor_recalc()
-        return r.get("nomos", [])
+        items = r.get("nomos", [])
+        if bolim:
+            b = _bl(bolim)
+            items = [x for x in items if x.get("bolim") == b]
+        return items
     except Exception:
         return []
 
