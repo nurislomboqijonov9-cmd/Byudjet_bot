@@ -194,9 +194,9 @@ def mijoz_excel(d, gacha=None, **_kw):
     return bio
 
 
-def umumiy_excel(mlist, sana=None, mahsulotlar=None):
+def umumiy_excel(mlist, sana=None, mahsulotlar=None, brovdan=None):
     """Butun mijozlar bazasi. Har mahsulot uchun alohida ustun — mijozda nechta borligi.
-    mlist[i]['ostatka_map'] = {nom: qolgan}; mahsulotlar = ustun nomlari ro'yxati."""
+    brovdan: [{kim, jami}] — pastda alohida ko'rsatiladi."""
     from openpyxl.utils import get_column_letter
     mahsulotlar = mahsulotlar or []
     wb = Workbook()
@@ -255,6 +255,30 @@ def umumiy_excel(mlist, sana=None, mahsulotlar=None):
         c.alignment = Alignment(horizontal="center")
     for col in range(1, span + 1):
         ws.cell(row=r, column=col).fill = PatternFill("solid", fgColor=LIGHT)
+    r += 1
+
+    # --- Pastda: YAKUNIY — O'zimizniki + Brovdan (Alisher akadan olingan) alohida ---
+    jami_arend = sum(col_tot.values())
+    ja = jami_arend
+    ja = int(ja) if ja == int(ja) else round(ja, 1)
+    jb = sum(b["jami"] for b in (brovdan or []))
+    jb = int(jb) if jb == int(jb) else round(jb, 1)
+    r += 1
+    c = ws.cell(row=r, column=1, value="YAKUNIY (hozir tashqarida):")
+    c.font = Font(bold=True, size=12)
+    r += 1
+    c = ws.cell(row=r, column=1, value=f"O'zimizniki: {ja}")
+    c.font = Font(bold=True, size=12, color="1F7A4D")
+    r += 1
+    if brovdan:
+        c = ws.cell(row=r, column=1, value=f"Brovdan: {jb}")
+        c.font = Font(bold=True, size=12, color="C8901E")
+        r += 1
+        for b in brovdan:
+            q = b["jami"]
+            q = int(q) if q == int(q) else round(q, 1)
+            ws.cell(row=r, column=1, value=f"   ▪ {b['kim']}: {q}")
+            r += 1
 
     bio = BytesIO()
     wb.save(bio)

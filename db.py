@@ -4588,7 +4588,7 @@ def partiya_nom_almashtir(eski_nom, yangi_nom):
 
 # ============ MIJOZ OSTATKASI (hozir nima bor) — hisobot uchun ============
 def mijoz_ostatka(mid):
-    """Mijozda hozir arendada turgan mahsulotlar: [{nom, qolgan}] (qolgan>0)."""
+    """Mijozda hozir arendada turgan BIZNIKI mahsulotlar (brovdan ayirilgan): [{nom, qolgan}]."""
     from collections import defaultdict
     agg = defaultdict(float)
     try:
@@ -4598,12 +4598,50 @@ def mijoz_ostatka(mid):
             except Exception:
                 continue
             q = h.get("qolgan", 0) or 0
+            brov = float((p.get("brov_miqdor") if isinstance(p, dict) else None) or 0)
+            real = q - brov
+            if real < 0:
+                real = 0
             nom = h.get("mahsulot") or (p.get("mahsulot") if isinstance(p, dict) else None) or "?"
-            if q > 0:
-                agg[nom] += q
+            if real > 0:
+                agg[nom] += real
     except Exception:
         pass
     return [{"nom": k, "qolgan": v} for k, v in agg.items() if v > 0]
+
+
+def mijoz_brovdan(mid):
+    """Mijozdagi brovga (brak) berilganlar: {kim: jami}."""
+    from collections import defaultdict
+    agg = defaultdict(float)
+    try:
+        for p in partiyalar_of(mid):
+            pd = p if isinstance(p, dict) else dict(p)
+            kim = (pd.get("brov_kim") or "").strip()
+            bm = float(pd.get("brov_miqdor") or 0)
+            if kim and bm > 0:
+                agg[kim] += bm
+    except Exception:
+        pass
+    return dict(agg)
+
+
+def umumiy_brovdan(bolim=None):
+    """Hamma mijozlarda brovga berilganlar jami: [{kim, jami}] (ko'pdan kamga)."""
+    con = _con()
+    if bolim:
+        rows = con.execute("SELECT id FROM mijozlar WHERE COALESCE(bolim,'ijara')=?", (bolim,)).fetchall()
+    else:
+        rows = con.execute("SELECT id FROM mijozlar").fetchall()
+    con.close()
+    from collections import defaultdict
+    agg = defaultdict(float)
+    for r in rows:
+        for kim, jami in mijoz_brovdan(r["id"]).items():
+            agg[kim] += jami
+    res = [{"kim": k, "jami": v} for k, v in agg.items() if v > 0]
+    res.sort(key=lambda x: -x["jami"])
+    return res
 
 
 def _son_qisqa(v):
