@@ -249,6 +249,52 @@ async def _send_excel(message, detail):
         log.exception("excel yuborishda xatolik")
 
 
+def _mijoz_qidir(query):
+    """Ism yoki tel bo'yicha mijoz qidirish (AI'siz)."""
+    q = (query or "").strip().lower()
+    if not q:
+        return []
+    raqam = "".join(ch for ch in q if ch.isdigit())
+    res = []
+    for m in db.mijozlar():
+        nom = (m.get("mijoz") or "").lower()
+        tel = "".join(ch for ch in (m.get("telefon") or "") if ch.isdigit())
+        if (q in nom) or (raqam and len(raqam) >= 4 and raqam in tel):
+            res.append({"id": m["id"], "ism": m.get("mijoz"), "telefon": m.get("telefon")})
+    return res
+
+
+async def _mijoz_excel_yubor(message, mid):
+    d = db.mijoz_detail(mid)
+    if not d:
+        await message.reply_text("Topilmadi.")
+        return
+    await _send_excel(message, d)
+
+
+def _qidir_kb(matches):
+    rows = [[InlineKeyboardButton(f"{m['ism']} \u00b7 {m['telefon'] or 'raqamsiz'}", callback_data=f"xls:{m['id']}")]
+            for m in matches[:20]]
+    return InlineKeyboardMarkup(rows)
+
+
+async def mijoz_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await guard(update, ctx):
+        return
+    query = " ".join(ctx.args or []).strip()
+    if not query:
+        await update.message.reply_text("Ism yoki tel yozing:\n/mijoz Ixtiyor")
+        return
+    matches = _mijoz_qidir(query)
+    if not matches:
+        await update.message.reply_text(f"'{query}' \u2014 topilmadi.")
+        return
+    if len(matches) == 1:
+        await _mijoz_excel_yubor(update.message, matches[0]["id"])
+        return
+    await update.message.reply_text("Kimning hisobotini chiqaray?", reply_markup=_qidir_kb(matches))
+
+
 def _audit_bot(uid, mijoz_id, res, manba="bot"):
     try:
         if not res or not res.get("ok"):
@@ -485,13 +531,12 @@ async def hisobot_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Hozircha mijoz yo'q.")
         return
     jami_qarz = sum(m["qolgan_qarz"] for m in ml)
-    for m in ml:
-        try:
-            m["ostatka"] = db.mijoz_ostatka_str(m["id"])
-        except Exception:
-            m["ostatka"] = ""
     try:
-        bio = excel.umumiy_excel(ml, sana=db.today_tk().isoformat())
+        ost = db.umumiy_ostatka()
+    except Exception:
+        ost = None
+    try:
+        bio = excel.umumiy_excel(ml, sana=db.today_tk().isoformat(), ostatka=ost)
         await update.message.reply_document(
             document=InputFile(bio, filename="umumiy_hisobot.xlsx"),
             caption=f"📊 Umumiy hisobot · {len(ml)} ta mijoz · umumiy qarz {som(jami_qarz)} so'm")
@@ -504,9 +549,6 @@ async def qarzdorlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await guard(update, ctx):
         return
     lst = db.qarzdorlar()
-    for _x in lst:
-        try: _x["ostatka"] = db.mijoz_ostatka_str(_x["id"])
-        except Exception: _x["ostatka"] = ""
     if not lst:
         await update.message.reply_text("Qarzdor yo'q. 👍")
         return
@@ -1206,6 +1248,13 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         actions = ai.from_text(txt)
     except Exception:
         log.exception("text xatolik")
+        matches = _mijoz_qidir(txt)
+        if len(matches) == 1:
+            await _mijoz_excel_yubor(update.message, matches[0]["id"])
+            return
+        if len(matches) > 1:
+            await update.message.reply_text("Kimning hisobotini chiqaray?", reply_markup=_qidir_kb(matches))
+            return
         await update.message.reply_text("Xatolik yuz berdi. Qaytadan urinib ko'ring.")
         return
     actions = [a for a in actions if a.tushunildi and a.amal] or actions[:1]
@@ -1313,6 +1362,14 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 await ctx.bot.send_message(tuid, "✅ Sizga ruxsat berildi! Endi botdan foydalanishingiz mumkin — /start bosing.")
             except Exception:
                 pass
+        return
+    if data.startswith("xls:"):
+        try:
+            await q.answer()
+        except Exception:
+            pass
+        mid = int(data.split(":")[1])
+        await _mijoz_excel_yubor(q.message, mid)
         return
     if data.startswith("pick:"):
         mijoz_id = int(data.split(":")[1])
@@ -1454,9 +1511,6 @@ async def _daily_report(app):
     db.set_sozlama("yig_oxirgi_kun", now.date().isoformat())
     limit_kun = db.get_limit_kun()
     lst = db.qarzdorlar(limit_kun)
-    for _x in lst:
-        try: _x["ostatka"] = db.mijoz_ostatka_str(_x["id"])
-        except Exception: _x["ostatka"] = ""
     if not lst:
         return
     over = [x for x in lst if x["over"]]
@@ -1896,6 +1950,7 @@ async def run():
     app.add_handler(CommandHandler("qarzdorlar", qarzdorlar_cmd))
     app.add_handler(CommandHandler("predoplata", predoplata_cmd))
     app.add_handler(CommandHandler("hisobot", hisobot_cmd))
+    app.add_handler(CommandHandler("mijoz", mijoz_cmd))
     app.add_handler(CommandHandler("limit", limit_cmd))
     app.add_handler(CommandHandler("yiguvchi", yiguvchi_cmd))
     app.add_handler(CommandHandler("brovdan", brovdan_cmd))
@@ -1922,7 +1977,7 @@ async def run():
     app.add_handler(CommandHandler("jurnal", jurnal_cmd))
     app.add_handler(CommandHandler("savol", savol_cmd))
     app.add_handler(CommandHandler("sql", sql_cmd))
-    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:|sms:|smsok:|smsno|loc:)"))
+    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(xls:|pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:|sms:|smsok:|smsno|loc:)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.LOCATION | filters.VENUE, handle_location))
     app.add_handler(MessageHandler(filters.Sticker.ALL, handle_sticker))

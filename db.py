@@ -4616,3 +4616,21 @@ def mijoz_ostatka_str(mid):
     items = mijoz_ostatka(mid)
     items.sort(key=lambda x: -x["qolgan"])
     return " · ".join(f"{x['nom']}: {_son_qisqa(x['qolgan'])}" for x in items)
+
+
+def umumiy_ostatka(bolim=None):
+    """Hamma mijozlarda hozir arendada turgan mahsulotlar jami: [{nom, qolgan}] (ko'pdan kamga)."""
+    con = _con()
+    if bolim:
+        rows = con.execute("SELECT id FROM mijozlar WHERE COALESCE(bolim,'ijara')=?", (bolim,)).fetchall()
+    else:
+        rows = con.execute("SELECT id FROM mijozlar").fetchall()
+    con.close()
+    from collections import defaultdict
+    agg = defaultdict(float)
+    for r in rows:
+        for it in mijoz_ostatka(r["id"]):
+            agg[it["nom"]] += it["qolgan"]
+    res = [{"nom": k, "qolgan": v} for k, v in agg.items() if v > 0]
+    res.sort(key=lambda x: -x["qolgan"])
+    return res
