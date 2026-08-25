@@ -44,7 +44,7 @@ def _header_row(ws, row, heads):
         c.alignment = Alignment(horizontal="center", vertical="center")
 
 
-def mijoz_excel(d):
+def mijoz_excel(d, gacha=None, **_kw):
     wb = Workbook()
     ws = wb.active
     ws.title = "Hisobot"

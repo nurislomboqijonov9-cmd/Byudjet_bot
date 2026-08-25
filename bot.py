@@ -247,6 +247,10 @@ async def _send_excel(message, detail):
         await message.reply_document(document=InputFile(bio, filename=f"{nom}.xlsx"))
     except Exception:
         log.exception("excel yuborishda xatolik")
+        try:
+            await message.reply_text("Excel yaratishda xatolik bo'ldi. Qaytadan urinib ko'ring yoki mijozni ilovadan oching.")
+        except Exception:
+            pass
 
 
 def _mijoz_qidir(query):
