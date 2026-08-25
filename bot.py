@@ -485,6 +485,11 @@ async def hisobot_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Hozircha mijoz yo'q.")
         return
     jami_qarz = sum(m["qolgan_qarz"] for m in ml)
+    for m in ml:
+        try:
+            m["ostatka"] = db.mijoz_ostatka_str(m["id"])
+        except Exception:
+            m["ostatka"] = ""
     try:
         bio = excel.umumiy_excel(ml, sana=db.today_tk().isoformat())
         await update.message.reply_document(
@@ -499,6 +504,9 @@ async def qarzdorlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await guard(update, ctx):
         return
     lst = db.qarzdorlar()
+    for _x in lst:
+        try: _x["ostatka"] = db.mijoz_ostatka_str(_x["id"])
+        except Exception: _x["ostatka"] = ""
     if not lst:
         await update.message.reply_text("Qarzdor yo'q. 👍")
         return
@@ -1446,6 +1454,9 @@ async def _daily_report(app):
     db.set_sozlama("yig_oxirgi_kun", now.date().isoformat())
     limit_kun = db.get_limit_kun()
     lst = db.qarzdorlar(limit_kun)
+    for _x in lst:
+        try: _x["ostatka"] = db.mijoz_ostatka_str(_x["id"])
+        except Exception: _x["ostatka"] = ""
     if not lst:
         return
     over = [x for x in lst if x["over"]]
@@ -1770,9 +1781,9 @@ async def _pp_sms(app, x, bosqich):
                     "Oldindan to'lovingiz muddati tugashiga 1 kun qoldi. "
                     "Iltimos, to'lovni o'z vaqtida yangilang.")
         else:
-            matn = ("Hurmatli mijoz! TEMIRCHI: oldindan to'lovingiz muddati bugun tugadi. "
-                    "Iltimos, to'lovni amalga oshiring yoki olgan mahsulotlaringizni qaytarib bering. "
-                    "Hamkorligingiz uchun rahmat.")
+            matn = ("TEMIRCHI: Hurmatli mijoz, oldindan to'lov muddatingiz tugadi. "
+                    "Iltimos, bugun to'lovni amalga oshiring, aks holda "
+                    "mahsulotlarni qaytarib olishga majbur bo'lamiz.")
         await sms.send_sms(x.get("telefon"), matn)
     except Exception:
         log.exception("predoplata sms")

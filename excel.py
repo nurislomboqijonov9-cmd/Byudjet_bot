@@ -18,18 +18,6 @@ def _dmy(s):
     return f"{p[2]}.{p[1]}.{p[0][2:]}" if len(p) == 3 else s
 
 
-def _in_range(s, dan, gacha):
-    """sana ISO (YYYY-MM-DD) [dan,gacha] oralig'idami."""
-    s = str(s or "")[:10]
-    if not s:
-        return False
-    if dan and s < str(dan)[:10]:
-        return False
-    if gacha and s > str(gacha)[:10]:
-        return False
-    return True
-
-
 def _som(n):
     return f"{round(n or 0):,}".replace(",", " ")
 
@@ -56,7 +44,7 @@ def _header_row(ws, row, heads):
         c.alignment = Alignment(horizontal="center", vertical="center")
 
 
-def mijoz_excel(d, dan=None, gacha=None):
+def mijoz_excel(d):
     wb = Workbook()
     ws = wb.active
     ws.title = "Hisobot"
@@ -90,25 +78,8 @@ def mijoz_excel(d, dan=None, gacha=None):
         r += 1
     r += 1
 
-    # --- Davr (sana oralig'i) ---
-    davr = bool(dan or gacha)
-    if davr:
-        d1 = _dmy(dan) if dan else "boshidan"
-        d2 = _dmy(gacha) if gacha else "bugungacha"
-        title(f"HISOBOT DAVRI:  {d1}  –  {d2}", r, span=11, fill="1F6F54"); r += 1
-        r += 1
-        _all_p = d.get("partiyalar", [])
-        partiyalar = [p for p in _all_p if _in_range(p.get("chiqgan_sana"), dan, gacha)]
-        tolovlar = [x for x in (d.get("tolovlar") or []) if _in_range(x.get("sana"), dan, gacha)]
-        qoshimcha = [x for x in (d.get("qoshimcha") or []) if _in_range(x.get("sana"), dan, gacha)]
-    else:
-        _all_p = d.get("partiyalar", [])
-        partiyalar = _all_p
-        tolovlar = d.get("tolovlar") or []
-        qoshimcha = d.get("qoshimcha") or []
-
     # Partiyalar jadvali
-    title("PARTIYALAR (chiqgan mollar)" + (" — shu davrda" if davr else ""), r, span=11); r += 1
+    title("PARTIYALAR (chiqgan mollar)", r, span=11); r += 1
     heads = ["№", "Mahsulot", "Jami", "Qolgan", "Birlik", "Kunlik narx", "Chiqgan sana", "Kun", "Summa (so'm)", "Manzil", "Brovdan (kim)"]
     for i, h in enumerate(heads, 1):
         c = ws.cell(row=r, column=i, value=h)
@@ -117,7 +88,7 @@ def mijoz_excel(d, dan=None, gacha=None):
         c.border = BORDER
         c.alignment = Alignment(horizontal="center")
     r += 1
-    for p in partiyalar:
+    for p in d.get("partiyalar", []):
         row = [p["partiya_raqam"], p["mahsulot"], p["miqdor"], p["qolgan"], p.get("birlik") or "ta",
                p["kunlik_narx"], _dmy(p["chiqgan_sana"]), p["kunlar"], round(p["narx"]),
                p.get("manzil") or "—", p.get("brov_kim") or "—"]
@@ -151,9 +122,7 @@ def mijoz_excel(d, dan=None, gacha=None):
         r += 1
 
     # Qaytarishlar
-    rets = [(p, rr) for p in _all_p for rr in p.get("qaytarishlar", [])
-            if (not davr) or _in_range(rr.get("qaytgan_sana"), dan, gacha)]
-    rets.sort(key=lambda x: (x[1].get("qaytgan_sana") or ""))
+    rets = [(p, rr) for p in d.get("partiyalar", []) for rr in p.get("qaytarishlar", [])]
     if rets:
         title("QAYTARISHLAR", r); r += 1
         for h, col in [("Partiya", 1), ("Mahsulot", 2), ("Soni", 3), ("Sana", 4), ("Brovdan (kim)", 5)]:
@@ -169,9 +138,9 @@ def mijoz_excel(d, dan=None, gacha=None):
         r += 1
 
     # To'lovlar
-    if tolovlar:
-        title("TO'LOVLAR (predoplata)" + (" — shu davrda" if davr else ""), r); r += 1
-        for p in tolovlar:
+    if d.get("tolovlar"):
+        title("TO'LOVLAR (predoplata)", r); r += 1
+        for p in d["tolovlar"]:
             ws.cell(row=r, column=1, value=_dmy(p["sana"]))
             ws.cell(row=r, column=2, value=(p.get("izoh") or "to'lov"))
             ws.cell(row=r, column=3, value=round(p["summa"])).alignment = Alignment(horizontal="right")
@@ -179,9 +148,9 @@ def mijoz_excel(d, dan=None, gacha=None):
         r += 1
 
     # Qo'shimcha (yo'lkira / remont)
-    if qoshimcha:
-        title("QO'SHIMCHA (yo'lkira / remont)" + (" — shu davrda" if davr else ""), r); r += 1
-        for q in qoshimcha:
+    if d.get("qoshimcha"):
+        title("QO'SHIMCHA (yo'lkira / remont)", r); r += 1
+        for q in d["qoshimcha"]:
             ws.cell(row=r, column=1, value=_dmy(q["sana"]))
             ws.cell(row=r, column=2, value=("Yo'lkira" if q["tur"] == "yolkira" else "Remont"))
             ws.cell(row=r, column=3, value=round(q["summa"])).alignment = Alignment(horizontal="right")
@@ -199,25 +168,8 @@ def mijoz_excel(d, dan=None, gacha=None):
             r += 1
         r += 1
 
-    # Davr jamlamasi (sana oralig'i bo'lsa)
-    if davr:
-        title("DAVR JAMLAMASI", r); r += 1
-        t_chiq = sum(round(p["narx"]) for p in partiyalar)
-        t_tol = sum(round(x["summa"]) for x in tolovlar)
-        t_qay = len(rets)
-        for lbl, val, sfx in [("Shu davrda chiqgan mahsulot", len(partiyalar), " ta partiya"),
-                              ("Shu davrda chiqgan (summa)", t_chiq, " so'm"),
-                              ("Shu davrda qaytdi", t_qay, " marta"),
-                              ("Shu davrda to'langan", t_tol, " so'm")]:
-            ws.cell(row=r, column=1, value=lbl).font = Font(bold=True)
-            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
-            c = ws.cell(row=r, column=3, value=f"{_som(val)}{sfx}")
-            c.alignment = Alignment(horizontal="right")
-            r += 1
-        r += 1
-
     # Yakuniy hisob
-    title("YAKUNIY HISOB" + (" (hozirgi, umumiy)" if davr else ""), r); r += 1
+    title("YAKUNIY HISOB", r); r += 1
     rows = [("Hisoblangan (ijara)", d.get("hisoblangan", 0)),
             ("Yo'lkira", d.get("yolkira", 0)),
             ("Remont", d.get("remont", 0)),
@@ -247,15 +199,15 @@ def umumiy_excel(mlist, sana=None):
     wb = Workbook()
     ws = wb.active
     ws.title = "Umumiy"
-    for c, w in {"A": 5, "B": 24, "C": 16, "D": 9, "E": 11, "F": 15, "G": 14, "H": 16}.items():
+    for c, w in {"A": 5, "B": 24, "C": 16, "D": 9, "E": 11, "F": 15, "G": 14, "H": 16, "I": 70}.items():
         ws.column_dimensions[c].width = w
 
     r = 1
     sarlavha = "UMUMIY MIJOZLAR RO'YXATI"
     if sana:
         sarlavha += f" ({_dmy(sana)})"
-    _banner(ws, sarlavha, r, span=8); r += 1
-    heads = ["№", "Mijoz", "Telefon", "Status", "Qolgan dona", "Hisoblangan", "To'langan", "Qolgan qarz"]
+    _banner(ws, sarlavha, r, span=9); r += 1
+    heads = ["№", "Mijoz", "Telefon", "Status", "Qolgan dona", "Hisoblangan", "To'langan", "Qolgan qarz", "Ostatka (hozir nima bor)"]
     _header_row(ws, r, heads); r += 1
 
     n = 0
@@ -267,12 +219,15 @@ def umumiy_excel(mlist, sana=None):
         t_qarz += m.get("qolgan_qarz", 0) or 0
         vals = [n, m.get("mijoz", ""), m.get("telefon") or "-", _status_uz(m.get("status")),
                 m.get("jami_qolgan", 0), round(m.get("jami", 0) or 0),
-                round(m.get("tolangan", 0) or 0), round(m.get("qolgan_qarz", 0) or 0)]
+                round(m.get("tolangan", 0) or 0), round(m.get("qolgan_qarz", 0) or 0),
+                m.get("ostatka", "")]
         for i, v in enumerate(vals, 1):
             c = ws.cell(row=r, column=i, value=v)
             c.border = BORDER
             if i in (5, 6, 7, 8):
                 c.alignment = Alignment(horizontal="right")
+            if i == 9:
+                c.alignment = Alignment(horizontal="left")
         r += 1
 
     # Jami qatori
@@ -282,7 +237,7 @@ def umumiy_excel(mlist, sana=None):
         c = ws.cell(row=r, column=i, value=round(v))
         c.font = Font(bold=True)
         c.alignment = Alignment(horizontal="right")
-    for col in range(1, 9):
+    for col in range(1, 10):
         ws.cell(row=r, column=col).fill = PatternFill("solid", fgColor=LIGHT)
 
     bio = BytesIO()
@@ -296,15 +251,15 @@ def qarzdorlar_excel(qlist, limit_kun, sana=None):
     wb = Workbook()
     ws = wb.active
     ws.title = "Qarzdorlar"
-    for c, w in {"A": 5, "B": 14, "C": 24, "D": 16, "E": 16, "F": 14, "G": 13, "H": 10}.items():
+    for c, w in {"A": 5, "B": 14, "C": 24, "D": 16, "E": 16, "F": 14, "G": 13, "H": 10, "I": 70}.items():
         ws.column_dimensions[c].width = w
 
     r = 1
     sarlavha = f"QARZDORLAR RO'YXATI · chegara {limit_kun} kunlik ijara"
     if sana:
         sarlavha += f" ({_dmy(sana)})"
-    _banner(ws, sarlavha, r, span=8); r += 1
-    heads = ["№", "Holat", "Mijoz", "Telefon", "Qarz (so'm)", "Kunlik ijara", "Necha kunlik", "Status"]
+    _banner(ws, sarlavha, r, span=9); r += 1
+    heads = ["№", "Holat", "Mijoz", "Telefon", "Qarz (so'm)", "Kunlik ijara", "Necha kunlik", "Status", "Ostatka (hozir nima bor)"]
     _header_row(ws, r, heads); r += 1
 
     n = 0
@@ -317,13 +272,15 @@ def qarzdorlar_excel(qlist, limit_kun, sana=None):
         kun = "rental yo'q" if x.get("kun") is None else round(x["kun"])
         vals = [n, holat, x.get("ism", ""), x.get("telefon") or "-",
                 round(x.get("qarz", 0) or 0), round(x.get("rate", 0) or 0),
-                kun, _status_uz(x.get("status"))]
+                kun, _status_uz(x.get("status")), x.get("ostatka", "")]
         for i, v in enumerate(vals, 1):
             c = ws.cell(row=r, column=i, value=v)
             c.border = BORDER
             if i in (5, 6, 7):
                 c.alignment = Alignment(horizontal="right")
-            if over:
+            if i == 9:
+                c.alignment = Alignment(horizontal="left")
+            if over and i != 9:
                 c.fill = PatternFill("solid", fgColor=REDBG)
                 if i == 2:
                     c.font = Font(bold=True, color=REDINK)

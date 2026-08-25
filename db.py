@@ -4584,3 +4584,35 @@ def partiya_nom_almashtir(eski_nom, yangi_nom):
     except Exception:
         pass
     return {"ok": True, "soni": n}
+
+
+# ============ MIJOZ OSTATKASI (hozir nima bor) — hisobot uchun ============
+def mijoz_ostatka(mid):
+    """Mijozda hozir arendada turgan mahsulotlar: [{nom, qolgan}] (qolgan>0)."""
+    from collections import defaultdict
+    agg = defaultdict(float)
+    try:
+        for p in partiyalar_of(mid):
+            try:
+                h = partiya_hisob(p)
+            except Exception:
+                continue
+            q = h.get("qolgan", 0) or 0
+            nom = h.get("mahsulot") or (p.get("mahsulot") if isinstance(p, dict) else None) or "?"
+            if q > 0:
+                agg[nom] += q
+    except Exception:
+        pass
+    return [{"nom": k, "qolgan": v} for k, v in agg.items() if v > 0]
+
+
+def _son_qisqa(v):
+    v = float(v or 0)
+    return str(int(v)) if v == int(v) else str(round(v, 1))
+
+
+def mijoz_ostatka_str(mid):
+    """Gorizontal matn: 'Lesa oyoq: 50 · Stoyka: 30 · Balka: 12' (ko'pdan kamga)."""
+    items = mijoz_ostatka(mid)
+    items.sort(key=lambda x: -x["qolgan"])
+    return " · ".join(f"{x['nom']}: {_son_qisqa(x['qolgan'])}" for x in items)
