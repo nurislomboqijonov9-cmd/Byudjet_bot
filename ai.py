@@ -22,7 +22,6 @@ class Amal(str, Enum):
     tolov = "tolov"
     malumot = "malumot"
     eslatma = "eslatma"
-    savol = "savol"
 
 
 class IjaraAmal(BaseModel):
@@ -46,13 +45,10 @@ PROMPT = """Sen ijara (arenda) hisobi yordamchisisan. Korxona lesa va temir mahs
 KUNLIK ijaraga beradi. Foydalanuvchi o'zbek tilida (ovoz yoki matn) gapiradi.
 
 AMALLAR:
-- "chiqish": mijozga mahsulot ijaraga chiqdi. KALIT SO'ZLAR: "ketdi", "chiqdi", "berdim", "olib ketdi".
+- "chiqish": mijozga mahsulot ijaraga chiqdi.
   Masalan: "Abbosga 100 ta lesa chiqdi kuniga 2000 so'm" ->
   amal=chiqish, mijoz=Abbos, mahsulot=lesa, miqdor=100, kunlik_narx=2000
-  Format namunalari (mijoz ismi "ga" bilan boshida; sana KUN.OY yoki KUN.OY.YIL; narx "kuniga X" yoki "X so'mdan"):
-  "Nurislomga ketdi 20.07.26 200 ta lesa oyoq kuniga 2000 so'm" -> chiqish, mijoz=Nurislom, sana=2026-07-20, mahsulot="lesa oyoq", miqdor=200, kunlik_narx=2000
-  "18.07 700 ta lesa qaychi ketdi kuniga 1800 so'mdan" -> chiqish, sana=2026-07-18, mahsulot="lesa qaychi", miqdor=700, kunlik_narx=1800 (mijoz oldin aytilgan bo'lsa — o'sha mijoz)
-- "qaytarish": mijoz mahsulotni qaytardi. KALIT SO'ZLAR: "qaytdi", "keldi", "olib keldi", "qaytardi".
+- "qaytarish": mijoz mahsulotni qaytardi.
   Masalan: "Abbos 1-partiyadan 30 ta qaytardi" -> amal=qaytarish, mijoz=Abbos, partiya=1, miqdor=30
   "Karim 2-partiyadan hammasini qaytardi" -> amal=qaytarish, mijoz=Karim, partiya=2, hammasi=true
   "Nig'matulladan 500 ta lesa qaytdi" -> amal=qaytarish, mijoz=Nig'matulla, mahsulot=lesa, miqdor=500 (partiya=null;
@@ -69,23 +65,11 @@ AMALLAR:
 - "eslatma": mijoz to'lovni qachondir va'da qilsa. Masalan: "Siroj aka 15-iyulda beraman dedi",
   "Abbos 20 kuni to'layman dedi" -> amal=eslatma, mijoz=ism, sana=va'da qilingan sana (ISO),
   izoh=mijoz aytgan gap. O'sha kuni ertalab bot eslatadi.
-- "savol": foydalanuvchi TAHLILIY / umumiy savol bersa (bitta mijoz emas, balki hisob-kitob, ro'yxat,
-  jami, statistika). Masalan: "bu oy qancha pul kirdi", "eng katta 5 qarzdor kim", "bugun ahvol qanday",
-  "3 oydan beri hech narsa olmagan mijozlar", "omborda nechta lesa qoldi", "o'rtacha necha kun ijarada turadi"
-  -> amal=savol, transkript=savol matni (mijoz/mahsulot to'ldirilmaydi).
-  FARQ: bitta mijozning o'zini so'rasa ("Abbos", "Karim qancha qarzi bor") -> malumot. Umumiy/statistik -> savol.
 
 QOIDALAR:
 - Agar bir nechta mahsulot yoki amal aytilsa, HAR BIRINI alohida amal qilib "amallar" ro'yxatiga qo'sh.
-  MUHIM: mahsulotlar nechta bo'lsa (5 ta, 10 ta yoki ko'p) — HAMMASINI, aytilgan TARTIBDA yoz.
-  Bittasini ham tashlab ketma, ikkitasini bittaga qo'shib yuborma, tartibini almashtirma.
-  Har mahsulot o'z soni va o'z narxi bilan alohida amal bo'lsin.
   Masalan: "Abbosga 50 ta lesa 3 mingdan va 50 ta tayrot 900 dan" -> 2 ta chiqish amali (ikkisida ham mijoz=Abbos).
   Bitta amal bo'lsa ham "amallar" ichida bitta element bo'ladi.
-- KALIT SO'Z xabarning BOSHIDA ham, OXIRIDA ham kelishi mumkin: "ketdi"/"chiqdi" -> chiqish; "qaytdi"/"keldi" -> qaytarish.
-  Agar boshida "ketdi" aytilib keyin bir nechta mahsulot sanalsa — HAMMASI chiqish. "qaytdi"/"keldi" bo'lsa — hammasi qaytarish.
-- Sana yilsiz aytilsa ("20.07", "18.07") — joriy yilni qo'y (masalan 20.07 -> 2026-07-20).
-- Agar mijoz ismi faqat BIR MARTA (boshida, "Nurislomga" kabi) aytilsa — keyingi BARCHA mahsulotlar ham SHU mijozga tegishli (har amalda mijoz to'ldiriladi).
 - Agar xabarda ⬆️ (yuqoriga strelka) bo'lsa — bu CHIQISH belgisi (amal=chiqish).
   ⬇️ (pastga strelka) bo'lsa — QAYTARISH belgisi (amal=qaytarish).
 - Sonlarni raqam qil: "100 ta"=100, "2 ming"=2000, "yarim million"=500000.
@@ -105,21 +89,31 @@ class Javob(BaseModel):
 
 
 def _extract(parts):
-    resp = client().models.generate_content(
-        model=MODEL,
-        contents=parts,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=Javob,
-            system_instruction=PROMPT,
-        ),
-    )
-    if getattr(resp, "parsed", None) is not None:
-        _log_usage(resp)
-        return list(resp.parsed.amallar)
-    import json
-    _log_usage(resp)
-    return list(Javob(**json.loads(resp.text)).amallar)
+    import time as _time
+    oxirgi = None
+    for urinish in range(3):
+        try:
+            resp = client().models.generate_content(
+                model=MODEL,
+                contents=parts,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=Javob,
+                    system_instruction=PROMPT,
+                ),
+            )
+            if getattr(resp, "parsed", None) is not None:
+                _log_usage(resp)
+                return list(resp.parsed.amallar)
+            import json
+            _log_usage(resp)
+            return list(Javob(**json.loads(resp.text)).amallar)
+        except Exception as e:
+            oxirgi = e
+            if urinish < 2:
+                _time.sleep(0.6 * (urinish + 1))  # vaqtinchalik xato -> qayta urinish
+                continue
+            raise oxirgi
 
 
 def _log_usage(resp):
@@ -145,106 +139,10 @@ def _now_context():
     return f"Hozirgi sana (Toshkent): {now.strftime('%Y-%m-%d')}, hafta kuni: {kunlar[now.weekday()]}."
 
 
-def _transcribe(audio_bytes, mime_type):
-    resp = client().models.generate_content(
-        model=MODEL,
-        contents=[types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
-                  "Bu ovozli xabarni AYNAN va TO'LIQ o'zbekcha matnga o'gir. "
-                  "Aytilgan har bir mahsulot, son va narxni tushirib qoldirma. Faqat matnni qaytar."])
-    return (resp.text or "").strip()
-
-
 def from_audio(audio_bytes: bytes, mime_type: str = "audio/ogg") -> list:
     part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
-    # 1-qadam: aniq transkript (ko'p tovarda adashmaslik uchun)
-    matn = ""
-    try:
-        matn = _transcribe(audio_bytes, mime_type)
-    except Exception:
-        matn = ""
-    # 2-qadam: transkript + ovozdan tuzilgan ma'lumot
-    if matn:
-        return _extract([_now_context(), f"Ovoz matni: «{matn}»", part,
-                         "Yuqoridagi ovoz va uning matnini tahlil qil. Aytilgan HAR BIR mahsulotni "
-                         "alohida amal qilib, aytilgan tartibda ro'yxatga qo'sh — bittasini ham tushirib qoldirma."])
-    return _extract([_now_context(), part,
-                     "Yuqoridagi ovozli xabarni tahlil qil. Aytilgan har bir mahsulotni alohida, tartibda yoz."])
+    return _extract([_now_context(), part, "Yuqoridagi ovozli xabarni tahlil qil."])
 
 
 def from_text(text: str) -> list:
     return _extract([_now_context(), text])
-
-
-# ==========================================================================
-# SAVOL-JAVOB AGENTI: savol -> SQL SELECT -> (kod bajaradi) -> o'zbekcha javob
-# ==========================================================================
-
-class SqlSavol(BaseModel):
-    sql: str = Field(description="Bitta SQLite SELECT so'rovi (faqat o'qish). Boshqa hech narsa emas.")
-
-
-_AGENT_QOIDA = """Sen ijara (arenda) hisobi bazasi bo'yicha SQL yozuvchisisan.
-Foydalanuvchi savolidan BITTA SQLite SELECT so'rovi yoz. Faqat SELECT — INSERT/UPDATE/DELETE/DROP MUMKIN EMAS.
-
-BAZA SXEMASI:
-{sxema}
-
-QO'SHIMCHA HISOBLANGAN JADVAL (qarz savollari uchun SHUNI ishlat):
-- v_mijoz_qarz(mijoz_id, ism, telefon, bolim, status, qolgan_qarz, jami_qolgan)
-  qolgan_qarz = mijozning HOZIRGI qarzi (so'm). jami_qolgan = qaytarilmagan dona soni.
-  Qarz jadval ustunida saqlanmaydi — QARZ haqidagi har qanday savolda faqat v_mijoz_qarz'dan foydalan.
-
-USTUNLAR MA'NOSI:
-- mijozlar: id, ism, telefon, status ('faol'/'nofaol'/'sotuv'), bolim ('ijara'/'sotuv').
-- partiyalar: mijozga chiqarilgan mollar. mahsulot, miqdor (dona), kunlik_narx, chiqgan_sana, mijoz_id.
-- qaytarishlar: partiya_id -> partiyalar.id, miqdor, qaytgan_sana (qaytarilgan mollar).
-- tolovlar: mijoz to'lovlari. mijoz_id, summa (so'm), sana.
-- qoshimcha: yo'lkira/remont. mijoz_id, tur, summa, sana.
-- ombor_mahsulot: name, total, out_qty. Omborda qolgan = total - out_qty. bolim: ijara/sotuv.
-- eslatmalar: to'lov va'dalari (mijoz_id, vada_sana, izoh, yuborildi).
-
-QOIDALAR:
-- Faqat 1 ta SELECT. Nuqta-vergul (;) va bir nechta so'rov YO'Q.
-- Sanalar 'YYYY-MM-DD' matn. "bu oy" -> strftime('%Y-%m', sana) = strftime('%Y-%m','now','localtime').
-  "bugun" -> date(sana) = date('now','localtime'). "shu yil" -> strftime('%Y', sana)=strftime('%Y','now','localtime').
-- Mijoz ismini qidirganda ism LIKE '%...%' ishlat (aniq mos kelmasligi mumkin).
-- Ko'p qatorli natijada LIMIT 50 qo'y. "eng ko'p/katta N" bo'lsa ORDER BY ... DESC LIMIT N.
-- Mahsulotni qidirganda name LIKE '%...%' (masalan lesa, stoyka).
-- Faqat SELECT so'rovni qaytar, izohsiz.
-"""
-
-
-def savol_sql(savol: str, sxema: str, oldingi_xato: str | None = None) -> str:
-    """Savoldan bitta SELECT so'rovi generatsiya qiladi."""
-    sys = _AGENT_QOIDA.format(sxema=sxema)
-    matn = savol
-    if oldingi_xato:
-        matn = f"{savol}\n\n(Avvalgi SQL xato berdi: {oldingi_xato}\nTo'g'rilab, faqat bitta SELECT qaytar.)"
-    resp = client().models.generate_content(
-        model=MODEL,
-        contents=[_now_context(), matn],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=SqlSavol,
-            system_instruction=sys,
-        ),
-    )
-    _log_usage(resp)
-    if getattr(resp, "parsed", None) is not None:
-        return resp.parsed.sql
-    import json
-    return SqlSavol(**json.loads(resp.text)).sql
-
-
-def natija_javob(savol: str, jadval_matn: str) -> str:
-    """SQL natijasini (jadval matni) o'zbekcha qisqa javobga aylantiradi."""
-    sys = ("Sen o'zbek tilida javob beruvchi tahlilchisan. Senga savol va SQL natijasi (jadval) beriladi. "
-           "Qisqa, aniq, tabiiy o'zbekcha javob ber. Pul summalarini o'qishli yoz (masalan 1 500 000 so'm). "
-           "Faqat javobning o'zi — SQL yoki ortiqcha izoh yozma. Natija bo'sh bo'lsa \"Ma'lumot topilmadi\" de.")
-    resp = client().models.generate_content(
-        model=MODEL,
-        contents=[f"Savol: {savol}\n\nNatija (jadval):\n{jadval_matn}"],
-        config=types.GenerateContentConfig(system_instruction=sys),
-    )
-    _log_usage(resp)
-    return (resp.text or "").strip()

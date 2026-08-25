@@ -1234,7 +1234,7 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             ctx.user_data.pop("loc", None)
     if ctx.user_data.pop("await_edit", False):
         try:
-            actions = ai.from_text(txt)
+            actions = await asyncio.to_thread(ai.from_text, txt)
         except Exception:
             log.exception("tahrir xatolik")
             await update.message.reply_text("Xatolik. Qaytadan urinib ko'ring.")
@@ -1246,8 +1246,24 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return await _show_tasdiq(update, ctx, actions)
     if _only_arrows(txt):
         return await _set_yonalish(update, ctx, _arrow_dir(txt))
+    # --- AI'dan OLDIN: oddiy ism/tel bo'lsa -> to'g'ridan hisobot (Gemini'siz, tez) ---
+    _t = txt.strip()
+    _raqam = "".join(c for c in _t if c.isdigit())
+    _lookup = bool(_t) and (
+        (not any(c.isdigit() for c in _t) and len(_t.split()) <= 4 and len(_t) <= 40)
+        or (len(_raqam) >= 7 and len(_t) <= 20)
+    )
+    if _lookup:
+        _mm = _mijoz_qidir(_t)
+        if len(_mm) == 1:
+            await _mijoz_excel_yubor(update.message, _mm[0]["id"])
+            return
+        if len(_mm) > 1:
+            await update.message.reply_text("Kimning hisobotini chiqaray?", reply_markup=_qidir_kb(_mm))
+            return
+        # topilmasa -> AI'ga o'tadi
     try:
-        actions = ai.from_text(txt)
+        actions = await asyncio.to_thread(ai.from_text, txt)
     except Exception:
         log.exception("text xatolik")
         matches = _mijoz_qidir(txt)
@@ -1257,7 +1273,7 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if len(matches) > 1:
             await update.message.reply_text("Kimning hisobotini chiqaray?", reply_markup=_qidir_kb(matches))
             return
-        await update.message.reply_text("Xatolik yuz berdi. Qaytadan urinib ko'ring.")
+        await update.message.reply_text("Ism yoki tel bo'yicha topilmadi. Buyruq bo'lsa — qaytadan yozing.")
         return
     actions = [a for a in actions if a.tushunildi and a.amal] or actions[:1]
     if not actions:
