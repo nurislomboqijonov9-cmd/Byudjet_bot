@@ -713,6 +713,7 @@
             <button class="mini-btn" onclick="yopPreview(${d.id})">👁 Ko'rsat</button></div>
           <label style="display:flex;align-items:center;gap:8px;margin:10px 2px;font-size:13.5px;color:var(--sub)"><input type="checkbox" id="yop_qaytar"> Tovar omborga ham qaytsin</label>
           <div id="yop_pv"></div>
+          <button class="mini-btn" style="width:100%;margin-bottom:8px;background:rgba(30,122,90,.10);color:#14603F;border-color:#9CCFB8" onclick="yopHisobot(${d.id})">📊 Shu sanagacha hisobot (Excel)</button>
           <button class="send" onclick="yopTasdiq(${d.id})">🔒 Yopish (tasdiqlash)</button>
           <button class="mini-btn" style="width:100%;margin-top:8px" onclick="yopBekor(${d.id})">🔓 Yopishni bekor qilish</button></div>
       </div>
@@ -861,6 +862,22 @@
   };
 
   // ===== Yopish / kesim sanasi =====
+window.yopHisobot=async function(id){
+    const sana=(document.getElementById('yop_sana')||{}).value;
+    if(!sana){ toast('Sana tanlang'); return; }
+    toast('\u23F3 Hisobot tayyorlanmoqda\u2026');
+    try{
+      const r=await fetch('/api/mijoz_excel?id='+id+'&kungacha='+encodeURIComponent(sana),{headers:H});
+      if(!r.ok) throw 0;
+      const blob=await r.blob();
+      const nom=((window._curMijoz&&window._curMijoz.mijoz)||'mijoz').replace(/[^\w .\-]/g,'_')+'_'+sana;
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=nom+'.xlsx';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){URL.revokeObjectURL(url);},5000);
+      toast('\u2705 '+sana+' gacha hisobot yuklandi');
+    }catch(e){ toast('\u274C Xato'); }
+  };
   window.yopPreview=async function(id){
     const sana=(document.getElementById('yop_sana')||{}).value;
     const mah=(document.getElementById('yop_mah')||{}).value||'';

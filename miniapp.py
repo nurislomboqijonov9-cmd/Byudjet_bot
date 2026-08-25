@@ -570,10 +570,18 @@ def make_web_app(bot_token):
         except Exception:
             return web.json_response({"xato": "id kerak"}, status=400)
         d = db.mijoz_detail(mid)
+        kungacha = request.query.get("kungacha") or None
+        if kungacha:
+            import datetime as _dt
+            try:
+                _kd = _dt.date.fromisoformat(kungacha[:10])
+                d = db.mijoz_detail(mid, today=_kd)
+            except Exception:
+                pass
         if not d:
             return web.Response(status=404)
         dan = request.query.get("dan") or None
-        gacha = request.query.get("gacha") or None
+        gacha = request.query.get("gacha") or kungacha or None
         try:
             bio = excel.mijoz_excel(d, dan, gacha)
             data = bio.getvalue()
