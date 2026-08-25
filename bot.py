@@ -532,11 +532,13 @@ async def hisobot_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     jami_qarz = sum(m["qolgan_qarz"] for m in ml)
     try:
-        ost = db.umumiy_ostatka()
+        cols = [x["nom"] for x in db.umumiy_ostatka()]   # ustunlar (mahsulot nomlari)
+        for m in ml:
+            m["ostatka_map"] = {it["nom"]: it["qolgan"] for it in db.mijoz_ostatka(m["id"])}
     except Exception:
-        ost = None
+        cols = []
     try:
-        bio = excel.umumiy_excel(ml, sana=db.today_tk().isoformat(), ostatka=ost)
+        bio = excel.umumiy_excel(ml, sana=db.today_tk().isoformat(), mahsulotlar=cols)
         await update.message.reply_document(
             document=InputFile(bio, filename="umumiy_hisobot.xlsx"),
             caption=f"📊 Umumiy hisobot · {len(ml)} ta mijoz · umumiy qarz {som(jami_qarz)} so'm")

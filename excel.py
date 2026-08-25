@@ -194,48 +194,31 @@ def mijoz_excel(d):
     return bio
 
 
-def umumiy_excel(mlist, sana=None, ostatka=None):
-    """Butun mijozlar bazasi bitta jadvalda (db.mijozlar() natijasi).
-    ostatka: db.umumiy_ostatka() natijasi — tepada gorizontal ko'rsatiladi."""
+def umumiy_excel(mlist, sana=None, mahsulotlar=None):
+    """Butun mijozlar bazasi. Har mahsulot uchun alohida ustun — mijozda nechta borligi.
+    mlist[i]['ostatka_map'] = {nom: qolgan}; mahsulotlar = ustun nomlari ro'yxati."""
+    from openpyxl.utils import get_column_letter
+    mahsulotlar = mahsulotlar or []
     wb = Workbook()
     ws = wb.active
     ws.title = "Umumiy"
     for c, w in {"A": 5, "B": 24, "C": 16, "D": 9, "E": 11, "F": 15, "G": 14, "H": 16}.items():
         ws.column_dimensions[c].width = w
+    for idx in range(len(mahsulotlar)):
+        ws.column_dimensions[get_column_letter(9 + idx)].width = 12
 
     r = 1
+    span = 8 + len(mahsulotlar)
     sarlavha = "UMUMIY MIJOZLAR RO'YXATI"
     if sana:
         sarlavha += f" ({_dmy(sana)})"
-    _banner(ws, sarlavha, r, span=8); r += 1
-
-    # --- TEPADA: umumiy ostatka (hozir arendada) — gorizontal ---
-    if ostatka:
-        lbl = ws.cell(row=r, column=1, value="HOZIR ARENDADA (jami):")
-        lbl.font = Font(bold=True)
-        r += 1
-        # nomlar qatori
-        for i, it in enumerate(ostatka, 1):
-            c = ws.cell(row=r, column=i, value=it["nom"])
-            c.font = Font(bold=True)
-            c.fill = PatternFill("solid", fgColor=LIGHT)
-            c.border = BORDER
-            c.alignment = Alignment(horizontal="center")
-        r += 1
-        # sonlar qatori
-        for i, it in enumerate(ostatka, 1):
-            q = it["qolgan"]
-            q = int(q) if q == int(q) else round(q, 1)
-            c = ws.cell(row=r, column=i, value=q)
-            c.border = BORDER
-            c.alignment = Alignment(horizontal="center")
-        r += 2  # bo'sh qator
-
-    heads = ["№", "Mijoz", "Telefon", "Status", "Qolgan dona", "Hisoblangan", "To'langan", "Qolgan qarz"]
+    _banner(ws, sarlavha, r, span=max(8, span)); r += 1
+    heads = ["№", "Mijoz", "Telefon", "Status", "Qolgan dona", "Hisoblangan", "To'langan", "Qolgan qarz"] + list(mahsulotlar)
     _header_row(ws, r, heads); r += 1
 
     n = 0
     t_his = t_tol = t_qarz = 0.0
+    col_tot = {nom: 0.0 for nom in mahsulotlar}
     for m in mlist:
         n += 1
         t_his += m.get("jami", 0) or 0
@@ -244,11 +227,18 @@ def umumiy_excel(mlist, sana=None, ostatka=None):
         vals = [n, m.get("mijoz", ""), m.get("telefon") or "-", _status_uz(m.get("status")),
                 m.get("jami_qolgan", 0), round(m.get("jami", 0) or 0),
                 round(m.get("tolangan", 0) or 0), round(m.get("qolgan_qarz", 0) or 0)]
+        omap = m.get("ostatka_map") or {}
+        for nom in mahsulotlar:
+            q = omap.get(nom, 0) or 0
+            col_tot[nom] += q
+            vals.append("" if not q else (int(q) if q == int(q) else round(q, 1)))
         for i, v in enumerate(vals, 1):
             c = ws.cell(row=r, column=i, value=v)
             c.border = BORDER
             if i in (5, 6, 7, 8):
                 c.alignment = Alignment(horizontal="right")
+            if i >= 9:
+                c.alignment = Alignment(horizontal="center")
         r += 1
 
     # Jami qatori
@@ -258,7 +248,12 @@ def umumiy_excel(mlist, sana=None, ostatka=None):
         c = ws.cell(row=r, column=i, value=round(v))
         c.font = Font(bold=True)
         c.alignment = Alignment(horizontal="right")
-    for col in range(1, 9):
+    for idx, nom in enumerate(mahsulotlar):
+        q = col_tot.get(nom, 0)
+        c = ws.cell(row=r, column=9 + idx, value=("" if not q else (int(q) if q == int(q) else round(q, 1))))
+        c.font = Font(bold=True)
+        c.alignment = Alignment(horizontal="center")
+    for col in range(1, span + 1):
         ws.cell(row=r, column=col).fill = PatternFill("solid", fgColor=LIGHT)
 
     bio = BytesIO()
