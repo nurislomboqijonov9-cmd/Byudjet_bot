@@ -1295,8 +1295,26 @@ window.yopHisobot=async function(id){
   };
   async function ombPost(url,body){const r=await fetch(url,{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify(body)});let j=null;try{j=await r.json();}catch(_){}return j;}
   async function reloadOmbor(){try{const r=await fetch('/api/ombor?bolim='+encodeURIComponent(window._ombBolim||'ijara'),{headers:H});const d=await r.json();window._omb=d.mahsulotlar||[];}catch(e){}loadTovarlar();renderOmborView();}
+  window._izohOyna=function(sarlavha, miqdor, cb){
+    var bg=document.createElement('div');
+    bg.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px';
+    bg.innerHTML='<div style="background:#13202e;border-radius:16px;padding:18px;width:100%;max-width:340px"><div style="color:#fff;font-size:16px;font-weight:800;margin-bottom:6px">'+sarlavha+' - '+miqdor+' dona</div><div style="color:#8A9AA8;font-size:12px;margin-bottom:10px">Izoh yozing: kim va nima uchun (majburiy)</div><input id="izx" placeholder="masalan: Alisher aka oldi / sindi" style="width:100%;box-sizing:border-box;font-size:15px;padding:11px;border-radius:10px;border:1px solid #2a3648;background:#0e1824;color:#fff;margin-bottom:12px"><div style="display:flex;gap:8px"><button id="izno" style="flex:1;padding:11px;border-radius:10px;border:1px solid #2a3648;background:transparent;color:#C9D6E2">Bekor</button><button id="izok" style="flex:2;padding:11px;border-radius:10px;border:none;background:#C8A24A;color:#1a1a1a;font-weight:700">Saqlash</button></div></div>';
+    document.body.appendChild(bg);
+    bg.querySelector('#izno').onclick=function(){bg.remove();};
+    bg.onclick=function(e){ if(e.target===bg) bg.remove(); };
+    bg.querySelector('#izok').onclick=function(){ var iz=(bg.querySelector('#izx').value||'').trim(); if(!iz){ toast('Izoh yozing'); return; } bg.remove(); cb(iz); };
+    setTimeout(function(){ var el=bg.querySelector('#izx'); if(el) el.focus(); }, 100);
+  };
   window.omborMove=async function(id,tur){const v=parseFloat((document.getElementById('ot'+id).value||'').replace(/\s/g,''));
-    if(!v||v<=0){toast('Sonini yozing');return;} const j=await ombPost('/api/ombor_move',{id,tur,miqdor:v});
+    if(!v||v<=0){toast('Sonini yozing');return;}
+    if(tur==='add'||tur==='writeoff'){
+      _izohOyna(tur==='writeoff'?'\ud83d\uddd1 Spisat (chiqarish)':'\u2795 Yangi mol', v, async function(izoh){
+        const j=await ombPost('/api/ombor_move',{id,tur,miqdor:v,izoh:izoh});
+        if(j&&j.ok){toast('\u2705 Saqlandi');reloadOmbor();}else{toast('\u274c '+((j&&j.xato)||'Xato'));}
+      });
+      return;
+    }
+    const j=await ombPost('/api/ombor_move',{id,tur,miqdor:v});
     if(j&&j.ok){toast('✅ Saqlandi');reloadOmbor();}else{toast('❌ '+((j&&j.xato)||'Xato'));}};
   window.omborTotal=async function(id){const v=parseFloat((document.getElementById('os'+id).value||'').replace(/\s/g,''));
     if(isNaN(v)||v<0){toast('Son?');return;} const j=await ombPost('/api/ombor_total',{id,total:v});
@@ -1340,22 +1358,45 @@ window.yopHisobot=async function(id){
     var body=document.getElementById('ombbody');
     var nom=window._harNom, all=window._harData, f=window._harFilter;
     var jc=0,jq=0; all.forEach(function(x){ if(x.tur==='chiqdi')jc+=(+x.miqdor||0); else jq+=(+x.miqdor||0); });
-    var har = f==='chiqdi'? all.filter(function(x){return x.tur==='chiqdi';})
-            : f==='qaytdi'? all.filter(function(x){return x.tur==='qaytdi';}) : all;
+    var har = (f==='all')? all : all.filter(function(x){return x.tur===f;});
     var h='<div class="omb-card" style="padding:10px 12px;margin-bottom:10px;cursor:pointer;background:#182636" onclick="loadOmborTarix()">&lsaquo; Mahsulotlar</div>';
     h+='<div style="color:#fff;font-size:17px;font-weight:800;margin-bottom:8px">'+esc(nom)+'</div>';
-    // ichki tablar
-    function tb(id,txt,on){ return '<button onclick="harFiltr(\''+id+'\')" style="flex:1;padding:9px 4px;border-radius:9px;border:none;font-size:13px;font-weight:700;cursor:pointer;background:'+(on?'#C8A24A':'#182636')+';color:'+(on?'#1a1a1a':'#8A9AA8')+'">'+txt+'</button>'; }
-    h+='<div style="display:flex;gap:6px;margin-bottom:10px">'+tb('all','Hammasi',f==='all')+tb('chiqdi','\ud83d\udd34 Chiqgan',f==='chiqdi')+tb('qaytdi','\ud83d\udfe2 Qaytgan',f==='qaytdi')+'</div>';
-    h+='<div class="omb-card" style="padding:11px 14px;margin-bottom:10px;background:#0f2233"><div style="color:#fff;font-size:13.5px">Chiqdi: <b>'+som(jc)+'</b> - Qaytdi: <b>'+som(jq)+'</b> - Tashqarida: <b>'+som(jc-jq)+'</b></div></div>';
-    if(!har.length){ h+='<div class="empty" style="color:#5B6B7A">Bu bo\'limda yozuv yoq</div>'; body.innerHTML=h; return; }
+    function tb(id,txt,on){ return '<button onclick="harFiltr(\''+id+'\')" style="padding:8px 10px;border-radius:9px;border:none;font-size:12.5px;font-weight:700;cursor:pointer;background:'+(on?'#C8A24A':'#182636')+';color:'+(on?'#1a1a1a':'#8A9AA8')+'">'+txt+'</button>'; }
+    h+='<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">'+tb('all','Hammasi',f==='all')+tb('chiqdi','\ud83d\udd34 Chiqgan',f==='chiqdi')+tb('qaytdi','\ud83d\udfe2 Qaytgan',f==='qaytdi')+tb('spisat','\ud83d\uddd1 Spisat',f==='spisat')+tb('yangi','\u2795 Yangi',f==='yangi')+'</div>';
+    var jc=0,jq=0,js=0,jy=0;
+    all.forEach(function(x){ if(x.tur==='chiqdi')jc+=(+x.miqdor||0); else if(x.tur==='qaytdi')jq+=(+x.miqdor||0); else if(x.tur==='spisat')js+=(+x.miqdor||0); else if(x.tur==='yangi')jy+=(+x.miqdor||0); });
+    h+='<div class="omb-card" style="padding:11px 14px;margin-bottom:10px;background:#0f2233"><div style="color:#fff;font-size:13px;line-height:1.6">Chiqdi: <b>'+som(jc)+'</b> - Qaytdi: <b>'+som(jq)+'</b> - Tashqarida: <b>'+som(jc-jq)+'</b><br>\ud83d\uddd1 Spisat: <b>'+som(js)+'</b> - \u2795 Yangi: <b>'+som(jy)+'</b></div></div>';
+    if(!har.length){ h+='<div class="empty" style="color:#5B6B7A">Bu bolimda yozuv yoq</div>'; body.innerHTML=h; return; }
     har.forEach(function(x){
-      var chiq=(x.tur==='chiqdi');
-      var rang=chiq?'#E5637A':'#4FBF87';
-      var belgi=chiq?'Chiqdi':'Qaytdi';
-      h+='<div class="omb-card" style="padding:12px 14px;margin-bottom:7px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="color:'+rang+';font-weight:700;font-size:14px">'+belgi+' <b class="num">'+som(x.miqdor)+'</b> dona</span><span style="color:#8A9AA8;font-size:12px">'+dmy(x.sana)+'</span></div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px"><span style="color:#C9D6E2;font-size:13px">'+esc(x.mijoz||'-')+(x.praqam?(' #'+x.praqam):'')+'</span><button class="li-btn" onclick="harakatTahrir(\''+x.ref+'\','+x.id+','+x.miqdor+',\''+x.sana+'\')" style="padding:3px 9px">&#9998;</button></div></div>';
+      var rang, belgi, tahrir;
+      if(x.tur==='chiqdi'){ rang='#E5637A'; belgi='Chiqdi'; }
+      else if(x.tur==='qaytdi'){ rang='#4FBF87'; belgi='Qaytdi'; }
+      else if(x.tur==='spisat'){ rang='#E09B3B'; belgi='\ud83d\uddd1 Spisat'; }
+      else { rang='#5B9BD5'; belgi='\u2795 Yangi'; }
+      var pastki;
+      if(x.tur==='spisat'||x.tur==='yangi'){
+        pastki='<span style="color:#C9D6E2;font-size:13px">\ud83d\udcdd '+esc(x.izoh||x.mijoz||'-')+'</span><button class="li-btn" onclick="omborHarakatTahrir('+x.id+',\''+x.tur+'\','+x.miqdor+')" style="padding:3px 9px">&#9998;</button>';
+      } else {
+        pastki='<span style="color:#C9D6E2;font-size:13px">'+esc(x.mijoz||'-')+(x.praqam?(' #'+x.praqam):'')+'</span><button class="li-btn" onclick="harakatTahrir(\''+x.ref+'\','+x.id+','+x.miqdor+',\''+x.sana+'\')" style="padding:3px 9px">&#9998;</button>';
+      }
+      h+='<div class="omb-card" style="padding:12px 14px;margin-bottom:7px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="color:'+rang+';font-weight:700;font-size:14px">'+belgi+' <b class="num">'+som(x.miqdor)+'</b> dona</span><span style="color:#8A9AA8;font-size:12px">'+dmy(x.sana)+'</span></div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">'+pastki+'</div></div>';
     });
     body.innerHTML=h;
+  };
+  window.omborHarakatTahrir=function(id,tur,miqdor){
+    var nomi=(tur==='spisat')?'Spisat':'Yangi qoshilgan';
+    var bg=document.createElement('div');
+    bg.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px';
+    bg.innerHTML='<div style="background:#13202e;border-radius:16px;padding:18px;width:100%;max-width:340px"><div style="color:#fff;font-size:16px;font-weight:800;margin-bottom:10px">'+nomi+' - tuzatish</div><div style="color:#8A9AA8;font-size:12px;margin-bottom:4px">Miqdor (dona)</div><input id="oht_m" inputmode="numeric" value="'+miqdor+'" style="width:100%;box-sizing:border-box;font-size:16px;padding:11px;border-radius:10px;border:1px solid #2a3648;background:#0e1824;color:#fff;margin-bottom:8px"><div style="color:#5B6B7A;font-size:11px;margin-bottom:12px">Kamaytirsangiz - farqi omborga qaytadi. Ochirsangiz - hammasi qaytadi.</div><div style="display:flex;gap:8px;margin-bottom:8px"><button id="oht_no" style="flex:1;padding:11px;border-radius:10px;border:1px solid #2a3648;background:transparent;color:#C9D6E2">Bekor</button><button id="oht_ok" style="flex:2;padding:11px;border-radius:10px;border:none;background:#C8A24A;color:#1a1a1a;font-weight:700">Saqlash</button></div><button id="oht_del" style="width:100%;padding:11px;border-radius:10px;border:none;background:#7a2a2a;color:#fff;font-weight:700">\ud83d\uddd1 Ochirish (omborga qaytsin)</button></div>';
+    document.body.appendChild(bg);
+    bg.querySelector('#oht_no').onclick=function(){bg.remove();};
+    bg.onclick=function(e){ if(e.target===bg) bg.remove(); };
+    bg.querySelector('#oht_ok').onclick=async function(){
+      try{ await fetch('/api/harakat_tahrir',{method:'POST',headers:Object.assign({},H,{'Content-Type':'application/json'}),body:JSON.stringify({ref:'ombor',id:id,miqdor:bg.querySelector('#oht_m').value})}); bg.remove(); toast('Tuzatildi'); if(window._harNom) harakatOch(window._harNom); reloadOmbor&&reloadOmbor(); }catch(e){ toast('Xato'); }
+    };
+    bg.querySelector('#oht_del').onclick=async function(){
+      try{ await fetch('/api/harakat_ochir',{method:'POST',headers:Object.assign({},H,{'Content-Type':'application/json'}),body:JSON.stringify({ref:'ombor',id:id})}); bg.remove(); toast('Ochirildi - omborga qaytdi'); if(window._harNom) harakatOch(window._harNom); reloadOmbor&&reloadOmbor(); }catch(e){ toast('Xato'); }
+    };
   };
   window.harakatTahrir=function(ref,id,miqdor,sana){
     var nomOpts='';

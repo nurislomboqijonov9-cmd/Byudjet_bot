@@ -581,7 +581,7 @@ def make_web_app(bot_token):
         if not d:
             return web.Response(status=404)
         dan = request.query.get("dan") or None
-        gacha = request.query.get("gacha") or kungacha or None
+        gacha = request.query.get("gacha") or None
         try:
             bio = excel.mijoz_excel(d, dan, gacha)
             data = bio.getvalue()
@@ -1211,7 +1211,7 @@ def make_web_app(bot_token):
             return err
         try:
             b = await request.json()
-            res = db.ombor_move(b.get("id"), b.get("tur"), b.get("miqdor"))
+            res = db.ombor_move(b.get("id"), b.get("tur"), b.get("miqdor"), izoh=b.get("izoh"))
             return web.json_response(res)
         except Exception as e:
             return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
@@ -1302,6 +1302,18 @@ def make_web_app(bot_token):
         except Exception as e:
             return web.json_response({"ok": False, "xato": f"{type(e).__name__}"}, status=400)
 
+    async def api_harakat_ochir(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            if b.get("ref") == "ombor":
+                return web.json_response(db.ombor_harakat_bekor(b.get("id")))
+            return web.json_response({"ok": False, "xato": "faqat ombor"}, status=400)
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"{type(e).__name__}"}, status=400)
+
     app = web.Application(client_max_size=25 * 1024 * 1024)
     app.router.add_get("/", index)
     app.router.add_get("/tv", tv_sahifa)
@@ -1380,4 +1392,5 @@ def make_web_app(bot_token):
     app.router.add_get("/api/nomos", api_nomos)
     app.router.add_post("/api/nom_almashtir", api_nom_almashtir)
     app.router.add_post("/api/harakat_tahrir", api_harakat_tahrir)
+    app.router.add_post("/api/harakat_ochir", api_harakat_ochir)
     return app
