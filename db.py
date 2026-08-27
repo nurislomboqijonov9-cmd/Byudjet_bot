@@ -1923,6 +1923,11 @@ def init_db():
     con.execute("""CREATE TABLE IF NOT EXISTS ombor_tarix (
         id INTEGER PRIMARY KEY AUTOINCREMENT, mahsulot_id TEXT, mahsulot_nom TEXT,
         tur TEXT, miqdor INTEGER, ombor_after INTEGER, izoh TEXT, ts TEXT NOT NULL)""")
+    for _c in ("izoh TEXT", "bolim TEXT"):
+        try:
+            con.execute(f"ALTER TABLE ombor_tarix ADD COLUMN {_c}")
+        except Exception:
+            pass
     c = con.execute("SELECT COUNT(*) FROM ombor_mahsulot").fetchone()[0]
     if c == 0:
         seed = [
@@ -3913,9 +3918,18 @@ def ombor_move(pid, tur, miqdor, izoh=None):
         total -= miqdor
     con.execute("UPDATE ombor_mahsulot SET total=?, out_qty=? WHERE id=?", (total, out, pid))
     ombor = total - out
-    con.execute(
-        "INSERT INTO ombor_tarix (mahsulot_id, mahsulot_nom, tur, miqdor, ombor_after, izoh, ts, bolim) VALUES (?,?,?,?,?,?,?,?)",
-        (pid, name, tur, miqdor, ombor, (izoh or None), now_tk().isoformat(), bolim))
+    try:
+        con.execute(
+            "INSERT INTO ombor_tarix (mahsulot_id, mahsulot_nom, tur, miqdor, ombor_after, izoh, ts, bolim) VALUES (?,?,?,?,?,?,?,?)",
+            (pid, name, tur, miqdor, ombor, (izoh or None), now_tk().isoformat(), bolim))
+    except Exception:
+        try:
+            con.execute("ALTER TABLE ombor_tarix ADD COLUMN izoh TEXT")
+        except Exception:
+            pass
+        con.execute(
+            "INSERT INTO ombor_tarix (mahsulot_id, mahsulot_nom, tur, miqdor, ombor_after, ts, bolim) VALUES (?,?,?,?,?,?,?)",
+            (pid, name, tur, miqdor, ombor, now_tk().isoformat(), bolim))
     con.commit()
     con.close()
     return {"ok": True, "id": pid, "name": name, "total": total, "out": out, "omborda": ombor}
