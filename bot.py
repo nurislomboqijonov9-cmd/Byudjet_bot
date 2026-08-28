@@ -2054,7 +2054,7 @@ async def run():
     app.add_handler(CommandHandler("jurnal", jurnal_cmd))
     app.add_handler(CommandHandler("savol", savol_cmd))
     app.add_handler(CommandHandler("sql", sql_cmd))
-    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(xls:|pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:|sms:|smsok:|smsno|loc:)"))
+    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(ruxx:|ruxa:|ruxh:|ruxn:|xls:|pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:|sms:|smsok:|smsno|loc:)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.LOCATION | filters.VENUE, handle_location))
     app.add_handler(MessageHandler(filters.Sticker.ALL, handle_sticker))
