@@ -411,13 +411,15 @@
     let d; try{const r=await fetch('/api/mijozlar?bolim='+(window.BOLIM||'ijara')+'&arxiv='+(window.ARXIV?'1':'0'),{headers:H});if(authXato(r))return;if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+m.qolgan_qarz,0);
     window._pulKorsin=(d.pul_korsin!==false);
+    window._canYoz=(d.can_yoz!==false);
+    window._isAloqa=(d.is_aloqa===true);
     setTimeout(()=>{const b=document.getElementById('fsb');if(b)b.textContent=document.body.classList.contains('wide')?'⤡':'⛶';tunSync();tickClock();},0);
     app.innerHTML=`<header><div><div class="eyebrow">${BOLIM==='sotuv'?'Sotuv hisobi':'Ijara hisobi'}${window.ARXIV?' · 📂 Arxiv':''}</div><h1>Mijozlar</h1></div>
-        <button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>
+        ${window._isAloqa?'':'<button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>'}
         <button class="fsbtn" id="fsb" onclick="wideTgl()">⛶</button>
         <button class="tunbtn" id="tunb" onclick="tunTgl()">🌙</button>
         ${(tg&&tg.initData)?'':'<button class="tunbtn" onclick="chiqish()">🚪</button>'}
-        <button class="plus" style="margin-left:8px" onclick="showNew()">➕</button></header>
+        ${window._isAloqa?'':'<button class="plus" style="margin-left:8px" onclick="showNew()">➕</button>'}</header>
       <div class="inrow" style="margin:0 0 12px">
         <button class="tabb ${(BOLIM==='ijara'&&!window.ARXIV)?'on':''}" onclick="bolimTgl('ijara')">🏗 Ijara</button>
         <button class="tabb ${(BOLIM==='sotuv'&&!window.ARXIV)?'on':''}" onclick="bolimTgl('sotuv')">🏷 Sotuv</button>

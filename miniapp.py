@@ -123,6 +123,15 @@ def make_web_app(bot_token):
             return None, web.json_response({"xato": "Ruxsat yo'q"}, status=403)
         return uid, None
 
+    def check_yoz(request):
+        """check() + aloqa (Shahzod) yozish/o'zgartirishga ruxsatsiz."""
+        uid, err = check(request)
+        if err:
+            return None, err
+        if db.is_aloqa(uid):
+            return None, web.json_response({"xato": "Sizda bu amal uchun ruxsat yo'q"}, status=403)
+        return uid, None
+
     def _audit(uid, amal, tafsilot="", mijoz_id=None):
         try:
             db.audit_qosh(uid, db.audit_ism(uid), amal, str(tafsilot)[:200], mijoz_id, "ilova")
@@ -555,7 +564,10 @@ def make_web_app(bot_token):
         a = request.query.get("arxiv")
         arxiv = True if a == "1" else (False if a == "0" else None)
         return web.json_response({"mijozlar": db.mijozlar(bolim=bolim, arxiv=arxiv),
-                                  "pul_korsin": db.pul_korsin(uid)})
+                                  "pul_korsin": db.pul_korsin(uid),
+                                  "can_yoz": (not db.is_aloqa(uid)),
+                                  "is_aloqa": db.is_aloqa(uid),
+                                  "is_admin": db.is_bosh_admin(uid)})
 
     async def api_mijoz(request):
         uid, err = check(request)
@@ -664,7 +676,7 @@ def make_web_app(bot_token):
         })
 
     async def api_mijoz_yop(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         b = await request.json()
@@ -685,7 +697,7 @@ def make_web_app(bot_token):
         return web.json_response({"ok": True, "qolgan_qarz": d.get("qolgan_qarz", 0) if d else 0})
 
     async def api_mijoz_yop_bekor(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         b = await request.json()
@@ -710,7 +722,7 @@ def make_web_app(bot_token):
         return web.json_response({"jurnal": db.audit_mijoz(mid, 20)})
 
     async def api_mijoz_qosh(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         body = await request.json()
@@ -722,7 +734,7 @@ def make_web_app(bot_token):
         return web.json_response({"ok": True, "id": mid})
 
     async def api_mijoz_edit(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -854,7 +866,7 @@ def make_web_app(bot_token):
         return web.json_response({"ok": True})
 
     async def api_tolov(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -873,7 +885,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
 
     async def api_tolov_del(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -885,7 +897,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False}, status=400)
 
     async def api_partiya_edit(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -930,7 +942,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
 
     async def api_partiya_toplam(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -940,7 +952,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
 
     async def api_qaytarish(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -963,7 +975,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
 
     async def api_qaytarish_edit(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         b = await request.json()
@@ -991,7 +1003,7 @@ def make_web_app(bot_token):
         return web.json_response({"ok": True})
 
     async def api_qaytarish_del(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -1003,7 +1015,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False}, status=400)
 
     async def api_partiya_del(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -1063,7 +1075,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False, "xabar": f"Server xato: {type(e).__name__}: {str(e)[:150]}"})
 
     async def api_tolov_turi(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -1222,7 +1234,7 @@ def make_web_app(bot_token):
         return web.json_response({"mahsulotlar": db.ombor_list(bolim), "bolim": bolim})
 
     async def api_ombor_move(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -1233,7 +1245,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
 
     async def api_ombor_total(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -1243,7 +1255,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
 
     async def api_ombor_add(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -1253,7 +1265,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
 
     async def api_ombor_del(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -1264,7 +1276,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False}, status=400)
 
     async def api_ombor_rename(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -1298,7 +1310,7 @@ def make_web_app(bot_token):
         return web.json_response({"nomos": db.nomos_royxati(bolim), "nomlar": db.ombor_names(bolim)})
 
     async def api_nom_almashtir(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -1308,7 +1320,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False, "xato": f"{type(e).__name__}"}, status=400)
 
     async def api_harakat_tahrir(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -1319,7 +1331,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False, "xato": f"{type(e).__name__}"}, status=400)
 
     async def api_harakat_ochir(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
