@@ -554,7 +554,8 @@ def make_web_app(bot_token):
         bolim = request.query.get("bolim") or None
         a = request.query.get("arxiv")
         arxiv = True if a == "1" else (False if a == "0" else None)
-        return web.json_response({"mijozlar": db.mijozlar(bolim=bolim, arxiv=arxiv)})
+        return web.json_response({"mijozlar": db.mijozlar(bolim=bolim, arxiv=arxiv),
+                                  "pul_korsin": db.pul_korsin(uid)})
 
     async def api_mijoz(request):
         uid, err = check(request)

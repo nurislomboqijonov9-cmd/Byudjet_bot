@@ -410,6 +410,7 @@
     app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
     let d; try{const r=await fetch('/api/mijozlar?bolim='+(window.BOLIM||'ijara')+'&arxiv='+(window.ARXIV?'1':'0'),{headers:H});if(authXato(r))return;if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+m.qolgan_qarz,0);
+    window._pulKorsin=(d.pul_korsin!==false);
     setTimeout(()=>{const b=document.getElementById('fsb');if(b)b.textContent=document.body.classList.contains('wide')?'⤡':'⛶';tunSync();tickClock();},0);
     app.innerHTML=`<header><div><div class="eyebrow">${BOLIM==='sotuv'?'Sotuv hisobi':'Ijara hisobi'}${window.ARXIV?' · 📂 Arxiv':''}</div><h1>Mijozlar</h1></div>
         <button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>
@@ -422,7 +423,7 @@
         <button class="tabb ${(BOLIM==='sotuv'&&!window.ARXIV)?'on':''}" onclick="bolimTgl('sotuv')">🏷 Sotuv</button>
         <button class="tabb ${window.ARXIV?'on':''}" onclick="arxivTgl()">📂 Arxiv</button></div>
       <div class="hero"><div class="arc"></div><div class="lbl">${window.ARXIV?'Arxiv — yopilgan mijozlar':'Umumiy qarz'}</div>
-        <div class="amt num">${window.ARXIV?_ml.length:som(jami)} <small>${window.ARXIV?'ta':'so\'m'}</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
+        <div class="amt num">${window.ARXIV?_ml.length:(window._pulKorsin?som(jami):'•••')} <small>${window.ARXIV?'ta':(window._pulKorsin?'so\'m':'')}</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
       <div id="newform"></div>
       <div class="search"><input id="qidir" placeholder="🔍 Ism, telefon yoki manzil..." oninput="renderCards(this.value)"></div>
       <div id="cards"></div>`;
