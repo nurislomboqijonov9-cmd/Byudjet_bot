@@ -750,7 +750,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False, "xabar": f"Xato: {type(e).__name__}"})
 
     async def api_qoshish(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -808,7 +808,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False, "xabar": f"Server xato: {type(e).__name__}: {str(e)[:150]}"})
 
     async def api_qoshish_audio(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
@@ -1027,7 +1027,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False}, status=400)
 
     async def api_qoshimcha(request):
-        uid, err = check(request)
+        uid, err = check_yoz(request)
         if err:
             return err
         try:
