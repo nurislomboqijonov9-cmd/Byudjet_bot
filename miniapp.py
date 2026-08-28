@@ -148,14 +148,29 @@ def make_web_app(bot_token):
         return web.FileResponse(yol, headers={"Cache-Control": "public, max-age=86400"})
 
     async def api_dashboard(request):
-        # Ixtiyoriy himoya: TV_KEY o'rnatilgan bo'lsa, ?k= mos kelsin
-        kalit = os.environ.get("TV_KEY")
+        # PIN: avval bazadagi (TV'dan o'zgartiriladigan), bo'lmasa TV_KEY env
+        kalit = db.get_sozlama("tv_pin") or os.environ.get("TV_KEY")
         if kalit and request.query.get("k") != kalit:
             return web.json_response({"xato": "ruxsat yo'q"}, status=403)
         try:
             return web.json_response(db.dashboard_stats())
         except Exception as e:
             return web.json_response({"xato": str(e)}, status=500)
+
+    async def api_tv_pin_ozgartir(request):
+        # Faqat joriy PIN to'g'ri bo'lsa — yangi PIN o'rnatiladi
+        joriy = db.get_sozlama("tv_pin") or os.environ.get("TV_KEY")
+        try:
+            b = await request.json()
+        except Exception:
+            b = {}
+        if joriy and (b.get("k") != joriy):
+            return web.json_response({"ok": False, "xato": "joriy PIN xato"}, status=403)
+        yangi = (str(b.get("yangi") or "")).strip()
+        if len(yangi) < 4:
+            return web.json_response({"ok": False, "xato": "PIN kamida 4 belgi"}, status=400)
+        db.set_sozlama("tv_pin", yangi)
+        return web.json_response({"ok": True})
 
     # ---- Mijoz uchun ochiq sahifa (login talab qilinmaydi) ----
     async def mijoz_sahifa(request):
@@ -1319,6 +1334,7 @@ def make_web_app(bot_token):
     app.router.add_get("/tv", tv_sahifa)
     app.router.add_get("/logo.png", tv_logo)
     app.router.add_get("/api/dashboard", api_dashboard)
+    app.router.add_post("/api/tv_pin_ozgartir", api_tv_pin_ozgartir)
     app.router.add_post("/api/login", api_login)
     app.router.add_get("/m/{token}", mijoz_sahifa)
     app.router.add_get("/v/{token}", haydovchi_sahifa)
