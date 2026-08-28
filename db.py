@@ -390,6 +390,8 @@ def delete_mijoz(mijoz_id):
 # ---------- Xodimlar / ruxsat ----------
 def is_allowed(uid):
     """Botga kirish huquqi bormi (ega, admin yoki xodim)."""
+    if uid in OLINGAN_XODIMLAR:
+        return False
     if uid == OWNER_ID:
         return True
     con = _con()
@@ -399,6 +401,8 @@ def is_allowed(uid):
 
 
 def is_admin(uid):
+    if uid in OLINGAN_XODIMLAR:
+        return False
     if uid == OWNER_ID:
         return True
     con = _con()
@@ -420,7 +424,7 @@ def get_xodim(uid):
 
 def add_xodim(uid, ism=None, rol="xodim", qoshgan_id=None):
     """Yangi xodim/admin qo'shadi yoki mavjudini yangilaydi (rol/ism)."""
-    if rol not in ("xodim", "admin"):
+    if rol not in ("xodim", "admin", "aloqa"):
         rol = "xodim"
     con = _con()
     ex = con.execute("SELECT id FROM xodimlar WHERE id = ?", (uid,)).fetchone()
@@ -2082,6 +2086,8 @@ def delete_mijoz(mijoz_id):
 # ---------- Xodimlar / ruxsat ----------
 def is_allowed(uid):
     """Botga kirish huquqi bormi (ega, admin yoki xodim)."""
+    if uid in OLINGAN_XODIMLAR:
+        return False
     if uid == OWNER_ID:
         return True
     con = _con()
@@ -2091,6 +2097,8 @@ def is_allowed(uid):
 
 
 def is_admin(uid):
+    if uid in OLINGAN_XODIMLAR:
+        return False
     if uid == OWNER_ID:
         return True
     con = _con()
@@ -2112,7 +2120,7 @@ def get_xodim(uid):
 
 def add_xodim(uid, ism=None, rol="xodim", qoshgan_id=None):
     """Yangi xodim/admin qo'shadi yoki mavjudini yangilaydi (rol/ism)."""
-    if rol not in ("xodim", "admin"):
+    if rol not in ("xodim", "admin", "aloqa"):
         rol = "xodim"
     con = _con()
     ex = con.execute("SELECT id FROM xodimlar WHERE id = ?", (uid,)).fetchone()
@@ -3816,6 +3824,10 @@ def init_db():
         amal TEXT, tafsilot TEXT, mijoz_id INTEGER, manba TEXT, vaqt TEXT)""")
     con.commit()
     con.close()
+    try:
+        rollarni_seed()
+    except Exception:
+        pass
 
 
 def mijoz_bolim(mijoz_id):
@@ -4756,3 +4768,91 @@ def ombor_harakat_tahrir(tid, yangi_miqdor):
     con.commit()
     con.close()
     return {"ok": True}
+
+
+# ============ ROLLAR VA RUXSATLAR (TEMIRCHI ijara jamoasi) ============
+# Bosh adminlar — faqat shular: admin/xodim qo'shish, tasdiqlash, umumiy pul ko'rish
+BOSH_ADMINLAR = {8125534634, 1596271}   # Mirfozil, Sherzod aka
+# Adminlikdan/ruxsatdan olinadiganlar (init'da o'chiriladi) — masalan eski ega Umar
+OLINGAN_XODIMLAR = {5808245573}   # eski ega Umar — adminlikdan olindi
+
+def xodim_ochir(uid):
+    """Xodim/adminni butunlay o'chiradi (ruxsat ham). Keyingi /start -> qayta ruxsat so'raydi."""
+    try:
+        con = _con()
+        con.execute("DELETE FROM xodimlar WHERE id=?", (int(uid),))
+        try:
+            con.execute("DELETE FROM ruxsat_sorov WHERE uid=?", (int(uid),))
+        except Exception:
+            pass
+        con.commit()
+        con.close()
+        return {"ok": True}
+    except Exception:
+        return {"ok": False}
+
+def rol_of(uid):
+    try:
+        con = _con()
+        r = con.execute("SELECT rol FROM xodimlar WHERE id=?", (int(uid),)).fetchone()
+        con.close()
+        return (r["rol"] if r else None)
+    except Exception:
+        return None
+
+def is_bosh_admin(uid):
+    """Faqat Mirfozil va Sherzod aka — admin boshqaruvi + umumiy pul."""
+    try:
+        return int(uid) in BOSH_ADMINLAR
+    except Exception:
+        return False
+
+def is_aloqa(uid):
+    """Shahzod — faqat ko'rish + atchot + aloqa (pul/tovar/ombor yo'q)."""
+    return rol_of(uid) == "aloqa"
+
+def pul_korsin(uid):
+    """Umumiy pul (jami banner) faqat bosh adminlarga ko'rinadi."""
+    return is_bosh_admin(uid)
+
+def can_admin_boshqar(uid):
+    """Admin/xodim qo'shish, tasdiqlash — faqat bosh adminlar."""
+    return is_bosh_admin(uid)
+
+def can_pul_qosh(uid):
+    """To'lov/pul kiritish — aloqa (Shahzod) uchun yo'q."""
+    return not is_aloqa(uid)
+
+def can_tovar_qosh(uid):
+    """Mahsulot/partiya qo'shish — aloqa uchun yo'q."""
+    return not is_aloqa(uid)
+
+def can_ombor(uid):
+    """Ombor (spisat/yangi/harakat) — aloqa uchun yo'q."""
+    return not is_aloqa(uid)
+
+def rollarni_seed():
+    """TEMIRCHI jamoasi rollarini o'rnatadi (bir marta, mavjudini yangilaydi)."""
+    jamoa = [
+        (8125534634, "Mirfozil", "admin"),
+        (1596271,    "Sherzod aka", "admin"),
+        (6216686815, "Oybek", "xodim"),
+        (5767710837, "Nurmuhammad", "xodim"),
+        (7248142052, "Shahzod", "aloqa"),
+    ]
+    con = _con()
+    for uid, ism, rol in jamoa:
+        ex = con.execute("SELECT id FROM xodimlar WHERE id=?", (uid,)).fetchone()
+        if ex:
+            con.execute("UPDATE xodimlar SET ism=COALESCE(ism,?), rol=? WHERE id=?", (ism, rol, uid))
+        else:
+            con.execute("INSERT INTO xodimlar (id, ism, rol, qoshgan_id, yaratilgan) VALUES (?,?,?,?,?)",
+                        (uid, ism, rol, None, now_tk().isoformat()))
+    # Olib tashlanadiganlar (eski ega Umar va h.k.)
+    for _uid in OLINGAN_XODIMLAR:
+        try:
+            con.execute("DELETE FROM xodimlar WHERE id=?", (int(_uid),))
+        except Exception:
+            pass
+    con.commit()
+    con.close()

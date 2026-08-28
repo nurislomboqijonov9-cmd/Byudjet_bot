@@ -106,10 +106,14 @@ async def _ruxsat_sorovi(ctx, user):
          InlineKeyboardButton("❌ Rad", callback_data=f"ruxn:{user.id}")],
     ])
     try:
-        await ctx.bot.send_message(
-            db.OWNER_ID,
-            f"👤 *Yangi kirish so'rovi*\n\nIsm: {user.full_name}\nUsername: {uname}\n🆔 `{user.id}`\n\nRuxsat berilsinmi?",
-            parse_mode="Markdown", reply_markup=kb)
+        for _aid in db.BOSH_ADMINLAR:
+            try:
+                await ctx.bot.send_message(
+                    _aid,
+                    f"👤 *Yangi kirish so'rovi*\n\nIsm: {user.full_name}\nUsername: {uname}\n🆔 `{user.id}`\n\nRuxsat berilsinmi?",
+                    parse_mode="Markdown", reply_markup=kb)
+            except Exception:
+                pass
     except Exception:
         log.exception("ruxsat so'rovi yuborilmadi")
 
@@ -253,6 +257,35 @@ async def _send_excel(message, detail):
             pass
 
 
+def _sana_parse(s):
+    """'04.09.26' / '04.09.2026' / '2026-09-04' -> date yoki None."""
+    import datetime as _dt
+    s = (s or "").strip()
+    m = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})$', s)
+    if m:
+        y, mo, d = m.groups()
+    else:
+        m = re.match(r'^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})$', s)
+        if m:
+            d, mo, y = m.groups()
+            y = int(y)
+            if y < 100:
+                y += 2000
+        else:
+            m = re.match(r'^(\d{1,2})[.\-/](\d{1,2})$', s)   # 31.08 -> joriy yil
+            if not m:
+                return None
+            d, mo = m.groups()
+            try:
+                y = today_tk().year
+            except Exception:
+                y = _dt.date.today().year
+    try:
+        return _dt.date(int(y), int(mo), int(d))
+    except Exception:
+        return None
+
+
 def _mijoz_qidir(query):
     """Ism yoki tel bo'yicha mijoz qidirish (AI'siz)."""
     q = (query or "").strip().lower()
@@ -268,16 +301,22 @@ def _mijoz_qidir(query):
     return res
 
 
-async def _mijoz_excel_yubor(message, mid):
-    d = db.mijoz_detail(mid)
+async def _mijoz_excel_yubor(message, mid, sana=None):
+    d = db.mijoz_detail(mid, today=sana) if sana else db.mijoz_detail(mid)
     if not d:
         await message.reply_text("Topilmadi.")
         return
+    if sana:
+        try:
+            await message.reply_text(f"\U0001F4C6 {sana} sanasiga proyeksiya (agar shu kungacha ishlatilsa):")
+        except Exception:
+            pass
     await _send_excel(message, d)
 
 
-def _qidir_kb(matches):
-    rows = [[InlineKeyboardButton(f"{m['ism']} \u00b7 {m['telefon'] or 'raqamsiz'}", callback_data=f"xls:{m['id']}")]
+def _qidir_kb(matches, sana=None):
+    suf = f":{sana.isoformat()}" if sana else ""
+    rows = [[InlineKeyboardButton(f"{m['ism']} \u00b7 {m['telefon'] or 'raqamsiz'}", callback_data=f"xls:{m['id']}{suf}")]
             for m in matches[:20]]
     return InlineKeyboardMarkup(rows)
 
@@ -285,18 +324,24 @@ def _qidir_kb(matches):
 async def mijoz_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await guard(update, ctx):
         return
-    query = " ".join(ctx.args or []).strip()
+    args = list(ctx.args or [])
+    sana = None
+    if args:
+        p = _sana_parse(args[-1])
+        if p:
+            sana = p; args = args[:-1]
+    query = " ".join(args).strip()
     if not query:
-        await update.message.reply_text("Ism yoki tel yozing:\n/mijoz Ixtiyor")
+        await update.message.reply_text("Ism yoki tel yozing:\n/mijoz Ixtiyor\n\nKelajak sana bilan (proyeksiya):\n/mijoz Ixtiyor 04.09.2026")
         return
     matches = _mijoz_qidir(query)
     if not matches:
         await update.message.reply_text(f"'{query}' \u2014 topilmadi.")
         return
     if len(matches) == 1:
-        await _mijoz_excel_yubor(update.message, matches[0]["id"])
+        await _mijoz_excel_yubor(update.message, matches[0]["id"], sana=sana)
         return
-    await update.message.reply_text("Kimning hisobotini chiqaray?", reply_markup=_qidir_kb(matches))
+    await update.message.reply_text("Kimning hisobotini chiqaray?", reply_markup=_qidir_kb(matches, sana=sana))
 
 
 def _audit_bot(uid, mijoz_id, res, manba="bot"):
@@ -1251,8 +1296,15 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return await _show_tasdiq(update, ctx, actions)
     if _only_arrows(txt):
         return await _set_yonalish(update, ctx, _arrow_dir(txt))
-    # --- AI'dan OLDIN: oddiy ism/tel bo'lsa -> to'g'ridan hisobot (Gemini'siz, tez) ---
+    # --- AI'dan OLDIN: oddiy ism/tel (ixtiyoriy kelajak sana) -> to'g'ridan hisobot ---
     _t = txt.strip()
+    _sana = None
+    _boл = _t.split()
+    if len(_boл) >= 2:
+        _p = _sana_parse(_boл[-1])
+        if _p:
+            _sana = _p
+            _t = " ".join(_boл[:-1]).strip()
     _raqam = "".join(c for c in _t if c.isdigit())
     _lookup = bool(_t) and (
         (not any(c.isdigit() for c in _t) and len(_t.split()) <= 4 and len(_t) <= 40)
@@ -1261,10 +1313,10 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if _lookup:
         _mm = _mijoz_qidir(_t)
         if len(_mm) == 1:
-            await _mijoz_excel_yubor(update.message, _mm[0]["id"])
+            await _mijoz_excel_yubor(update.message, _mm[0]["id"], sana=_sana)
             return
         if len(_mm) > 1:
-            await update.message.reply_text("Kimning hisobotini chiqaray?", reply_markup=_qidir_kb(_mm))
+            await update.message.reply_text("Kimning hisobotini chiqaray?", reply_markup=_qidir_kb(_mm, sana=_sana))
             return
         # topilmasa -> AI'ga o'tadi
     try:
@@ -1359,7 +1411,7 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await q.answer()
     data = q.data
     if data.startswith(("ruxx:", "ruxa:", "ruxh:", "ruxn:")):
-        if not db.is_admin(q.from_user.id):
+        if not db.can_admin_boshqar(q.from_user.id):
             return
         tuid = int(data.split(":")[1])
         srov = db.ruxsat_sorov_get(tuid)
@@ -1391,8 +1443,10 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await q.answer()
         except Exception:
             pass
-        mid = int(data.split(":")[1])
-        await _mijoz_excel_yubor(q.message, mid)
+        parts = data.split(":")
+        mid = int(parts[1])
+        sana = _sana_parse(parts[2]) if len(parts) > 2 else None
+        await _mijoz_excel_yubor(q.message, mid, sana=sana)
         return
     if data.startswith("pick:"):
         mijoz_id = int(data.split(":")[1])
