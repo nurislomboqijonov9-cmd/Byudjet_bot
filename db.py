@@ -950,6 +950,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         "qoshimcha": qo,
         "eslatmalar": eslatmalar_of(mijoz_id),
         "jami_qolgan": sum(x["qolgan"] for x in ps),
+        "kunlik": round(sum((x.get("qolgan", 0) or 0) * (x.get("kunlik_narx", 0) or 0) for x in ps)),
     }
 
 
@@ -2646,6 +2647,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         "qoshimcha": qo,
         "eslatmalar": eslatmalar_of(mijoz_id),
         "jami_qolgan": sum(x["qolgan"] for x in ps),
+        "kunlik": round(sum((x.get("qolgan", 0) or 0) * (x.get("kunlik_narx", 0) or 0) for x in ps)),
     }
 
 
@@ -4856,3 +4858,18 @@ def rollarni_seed():
             pass
     con.commit()
     con.close()
+
+
+def mijoz_kunlik(mid):
+    """Mijozda hozir turgan tovarlar bo'yicha kunlik ijara (qolgan * kunlik_narx yig'indisi)."""
+    total = 0.0
+    try:
+        for p in partiyalar_of(mid):
+            try:
+                h = partiya_hisob(p)
+            except Exception:
+                continue
+            total += (h.get("qolgan", 0) or 0) * (h.get("kunlik_narx", 0) or 0)
+    except Exception:
+        pass
+    return round(total)

@@ -641,7 +641,7 @@
         <button class="send" onclick="saveMijoz(${d.id})">Saqlash</button></div>
       <div class="hero"><div class="arc"></div><div class="lbl">${neg?'Mijozning haqi':'Qolgan qarzi'}</div>
         <div class="amt num">${som(Math.abs(d.qolgan_qarz))} <small>so'm</small></div>
-        <div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan</div></div>
+        <div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan${(d.kunlik>0)?(' · 📅 kuniga '+som(d.kunlik)+' soʻm'):''}</div></div>
       <div style="display:flex;justify-content:flex-end;margin:-2px 0 8px"><button class="qbtn" id="mviewb" onclick="mviewTgl()">☰ Bitta ro'yxat</button></div>
       <div class="mtabs">
         <button class="tabb on" id="mt_qosh" onclick="mtab('qosh')">➕ Qo'shish</button>
