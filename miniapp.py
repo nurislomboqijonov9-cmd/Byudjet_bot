@@ -875,7 +875,7 @@ def make_web_app(bot_token):
             summa = float(body.get("summa"))
             if summa == 0:
                 return web.json_response({"ok": False, "xabar": "Summa noto'g'ri"})
-            izoh = "qarz qo'shildi" if summa < 0 else None
+            izoh = "qarz qo'shildi" if summa < 0 else ((body.get("izoh") or "").strip() or None)
             sana = (body.get("sana") or db.today_tk().isoformat())[:10]
             db.add_tolov(mid, summa, sana, izoh)
             _audit(uid, ("qarz qo'shish" if summa < 0 else "to'lov"), f"{summa:,.0f} so'm", mid)
