@@ -655,8 +655,8 @@
             <div class="amt num" style="font-size:27px;line-height:1.05;white-space:nowrap">${som(Math.abs(d.qolgan_qarz))}<br><small style="font-size:13px">soʻm</small></div>
           </div>
           <div style="width:1px;background:rgba(255,255,255,.22)"></div>
-          <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
-            ${d.qarz_manba.map(x=>`<div style="display:flex;justify-content:space-between;gap:8px;font-size:11.5px;padding:2px 0"><span style="color:${x.brov?'#ffd98a':'#8fe3b0'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.brov?'🔁 ':'▪ '}${esc(x.kim)}</span><span style="font-weight:700;white-space:nowrap;color:${x.brov?'#ffd98a':'#8fe3b0'}">${som(x.summa)}</span></div>`).join('')}
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:3px">
+            ${d.qarz_manba.map(x=>`<div style="font-size:14px;white-space:nowrap"><span style="color:${x.brov?'#ffd98a':'#8fe3b0'}">${x.brov?'🔁 ':'▪ '}${esc(x.kim)}: </span><b style="color:${x.brov?'#ffd98a':'#8fe3b0'}">${som(x.summa)}</b></div>`).join('')}
           </div>
         </div>
         <div class="sub" style="margin-top:10px">${son(d.jami_qolgan)} dona qaytarilmagan${(d.kunlik>0)?(' · 📅 kuniga '+som(d.kunlik)+' soʻm'):''}</div>`:`
