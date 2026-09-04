@@ -579,9 +579,9 @@
         <div id="verr"></div>
         <div id="vlist"></div></div>`; }catch(e){ vazCard=''; }
     const brovRoy=((d.brovdan||[]).length)?`${(d.brovdan||[]).map(g=>`<div class="mzg">
-        <div class="mzg-h">🔁 ${esc(g.kim)}</div>${
-        g.items.map(it=>`<div class="mzg-i"><span>${esc(it.mahsulot)}</span>
-          <b style="${it.qolgan<=0?'color:var(--pos)':''}">${son(it.qolgan)}/${son(it.miqdor)}${it.qolgan<=0?' ✓ qaytdi':''}</b></div>`).join('')}</div>`).join('')}`:'';
+        <div class="mzg-h">🔁 ${esc(g.kim)}${g.jami_kunlik>0?` · <span style="color:#B0913F">kuniga ${som(g.jami_kunlik)} so\u02bbm</span>`:''}</div>${
+        g.items.map(it=>`<div class="mzg-i"><span>${esc(it.mahsulot)}${it.narx>0?` <small style="color:var(--soft)">(${som(it.narx)} so\u02bbm/kun)</small>`:''}</span>
+          <b style="${it.qolgan<=0?'color:var(--pos)':''}">${son(it.qolgan)}/${son(it.miqdor)}${it.qolgan<=0?' ✓ qaytdi':(it.kunlik>0?' · '+som(it.kunlik):'')}</b></div>`).join('')}</div>`).join('')}`:'';
     const brovIn=`<div class="addbox"><div class="t">🔁 Brovdan olindi (shu mijoz uchun)</div>
       ${brovRoy}
       <div class="inrow" style="margin-top:8px">

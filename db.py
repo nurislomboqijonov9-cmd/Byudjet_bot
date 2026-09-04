@@ -908,10 +908,13 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         bm = float(h.get("brov_miqdor") or 0)
         if not kim or bm <= 0:
             continue
-        g = bgr.setdefault(kim, {"kim": kim, "items": [], "jami": 0.0})
+        g = bgr.setdefault(kim, {"kim": kim, "items": [], "jami": 0.0, "jami_kunlik": 0.0})
+        _kn = float(h.get("kunlik_narx") or 0)
         g["items"].append({"mahsulot": h["mahsulot"], "miqdor": bm,
-                           "partiya_raqam": h["partiya_raqam"], "qolgan": h["qolgan"]})
+                           "partiya_raqam": h["partiya_raqam"], "qolgan": h["qolgan"],
+                           "narx": _kn, "kunlik": round(bm * _kn)})
         g["jami"] += bm
+        g["jami_kunlik"] += bm * _kn
     for g in bgr.values():
         g["items"].sort(key=lambda x: (x["mahsulot"] or "").lower())
     brovdan = sorted(bgr.values(), key=lambda x: x["kim"].lower())
@@ -2605,10 +2608,13 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         bm = float(h.get("brov_miqdor") or 0)
         if not kim or bm <= 0:
             continue
-        g = bgr.setdefault(kim, {"kim": kim, "items": [], "jami": 0.0})
+        g = bgr.setdefault(kim, {"kim": kim, "items": [], "jami": 0.0, "jami_kunlik": 0.0})
+        _kn = float(h.get("kunlik_narx") or 0)
         g["items"].append({"mahsulot": h["mahsulot"], "miqdor": bm,
-                           "partiya_raqam": h["partiya_raqam"], "qolgan": h["qolgan"]})
+                           "partiya_raqam": h["partiya_raqam"], "qolgan": h["qolgan"],
+                           "narx": _kn, "kunlik": round(bm * _kn)})
         g["jami"] += bm
+        g["jami_kunlik"] += bm * _kn
     for g in bgr.values():
         g["items"].sort(key=lambda x: (x["mahsulot"] or "").lower())
     brovdan = sorted(bgr.values(), key=lambda x: x["kim"].lower())
