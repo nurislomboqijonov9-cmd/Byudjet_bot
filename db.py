@@ -919,6 +919,31 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         g["items"].sort(key=lambda x: (x["mahsulot"] or "").lower())
     brovdan = sorted(bgr.values(), key=lambda x: x["kim"].lower())
 
+    # Qarz manbasi: Bizdan + har brov egasi (mijoz kartasida ajratib ko'rsatish uchun)
+    _src = {}
+    for h in ps:
+        _narx = float(h.get("narx") or 0)
+        _miq = float(h.get("miqdor") or 0)
+        _bm = float(h.get("brov_miqdor") or 0)
+        _kim = (h.get("brov_kim") or "").strip()
+        if _kim and _bm > 0 and _miq > 0:
+            _brovr = _narx * (min(_bm, _miq) / _miq)
+            _src[_kim] = _src.get(_kim, 0.0) + _brovr
+            _src[""] = _src.get("", 0.0) + (_narx - _brovr)
+        else:
+            _src[""] = _src.get("", 0.0) + _narx
+    _src[""] = _src.get("", 0.0) + yolkira + remont
+    _gross = sum(_src.values())
+    if _gross > 0 and tolangan:
+        for _k in list(_src):
+            _src[_k] -= tolangan * (_src[_k] / _gross)
+    qarz_manba = []
+    if round(_src.get("", 0)) != 0:
+        qarz_manba.append({"kim": "Bizdan", "brov": False, "summa": round(_src.get("", 0))})
+    for _k, _v in sorted(((k, v) for k, v in _src.items() if k), key=lambda x: -x[1]):
+        if round(_v) != 0:
+            qarz_manba.append({"kim": _k, "brov": True, "summa": round(_v)})
+
     jami_qolgan_ = sum(x["qolgan"] for x in ps)
     _st = m.get("status")
     if _st != "sotuv":  # 'sotuv' qo'lda qo'yiladi, avtomat o'zgarmaydi
@@ -954,6 +979,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         "eslatmalar": eslatmalar_of(mijoz_id),
         "jami_qolgan": sum(x["qolgan"] for x in ps),
         "kunlik": round(sum((x.get("qolgan", 0) or 0) * (x.get("kunlik_narx", 0) or 0) for x in ps)),
+        "qarz_manba": qarz_manba,
     }
 
 
@@ -2619,6 +2645,31 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         g["items"].sort(key=lambda x: (x["mahsulot"] or "").lower())
     brovdan = sorted(bgr.values(), key=lambda x: x["kim"].lower())
 
+    # Qarz manbasi: Bizdan + har brov egasi (mijoz kartasida ajratib ko'rsatish uchun)
+    _src = {}
+    for h in ps:
+        _narx = float(h.get("narx") or 0)
+        _miq = float(h.get("miqdor") or 0)
+        _bm = float(h.get("brov_miqdor") or 0)
+        _kim = (h.get("brov_kim") or "").strip()
+        if _kim and _bm > 0 and _miq > 0:
+            _brovr = _narx * (min(_bm, _miq) / _miq)
+            _src[_kim] = _src.get(_kim, 0.0) + _brovr
+            _src[""] = _src.get("", 0.0) + (_narx - _brovr)
+        else:
+            _src[""] = _src.get("", 0.0) + _narx
+    _src[""] = _src.get("", 0.0) + yolkira + remont
+    _gross = sum(_src.values())
+    if _gross > 0 and tolangan:
+        for _k in list(_src):
+            _src[_k] -= tolangan * (_src[_k] / _gross)
+    qarz_manba = []
+    if round(_src.get("", 0)) != 0:
+        qarz_manba.append({"kim": "Bizdan", "brov": False, "summa": round(_src.get("", 0))})
+    for _k, _v in sorted(((k, v) for k, v in _src.items() if k), key=lambda x: -x[1]):
+        if round(_v) != 0:
+            qarz_manba.append({"kim": _k, "brov": True, "summa": round(_v)})
+
     jami_qolgan_ = sum(x["qolgan"] for x in ps)
     _st = m.get("status")
     if _st != "sotuv":  # 'sotuv' qo'lda qo'yiladi, avtomat o'zgarmaydi
@@ -2654,6 +2705,7 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
         "eslatmalar": eslatmalar_of(mijoz_id),
         "jami_qolgan": sum(x["qolgan"] for x in ps),
         "kunlik": round(sum((x.get("qolgan", 0) or 0) * (x.get("kunlik_narx", 0) or 0) for x in ps)),
+        "qarz_manba": qarz_manba,
     }
 
 
