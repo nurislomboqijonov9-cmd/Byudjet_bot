@@ -4475,8 +4475,26 @@ def dashboard_stats(today=None):
     qd_sotuv = qarzdorlar(today=today, bolim="sotuv")
     sotuv_qarz = int(sum(x["qarz"] for x in qd_sotuv))
     omb = ombor_list()
+    # Predoplatali (haqi bor) mijozlar — qolgan_qarz < 0
+    _ms = mijozlar(today=today, bolim="ijara")
+    _pre = sorted([m for m in _ms if (m.get("qolgan_qarz") or 0) < 0], key=lambda x: x.get("qolgan_qarz") or 0)
+    predoplata_jami = int(sum(-(m.get("qolgan_qarz") or 0) for m in _pre))
+    # 7 kunlik tushum
+    import datetime as _dt
+    _kunlar = ["Dush", "Sesh", "Chor", "Pay", "Jum", "Shan", "Yak"]
+    _hafta = []
+    _c2 = _con()
+    for _i in range(6, -1, -1):
+        _dd = today - _dt.timedelta(days=_i)
+        _v = _c2.execute("SELECT COALESCE(SUM(summa),0) FROM tolovlar WHERE substr(sana,1,10)=?", (str(_dd)[:10],)).fetchone()[0]
+        _hafta.append({"kun": _kunlar[_dd.weekday()], "summa": int(_v or 0)})
+    _c2.close()
     return {
         "sana": d10,
+        "predoplata_jami": predoplata_jami,
+        "predoplata_soni": len(_pre),
+        "predoplata": [{"ism": (m.get("mijoz") or m.get("ism") or "—"), "summa": int(-(m.get("qolgan_qarz") or 0))} for m in _pre[:8]],
+        "hafta": _hafta,
         "bugun_tushum": int(bugun or 0),
         "oylik_tushum": int(oylik or 0),
         "jami_qarz": int(sum(x["qarz"] for x in qd)),
