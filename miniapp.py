@@ -1038,7 +1038,7 @@ def make_web_app(bot_token):
             if tur not in ("yolkira", "remont") or summa <= 0:
                 return web.json_response({"ok": False, "xabar": "Noto'g'ri"})
             sana = (b.get("sana") or db.today_tk().isoformat())[:10]
-            db.add_qoshimcha(mid, tur, summa, sana, None)
+            db.add_qoshimcha(mid, tur, summa, sana, (b.get("izoh") or "").strip() or None)
             _audit(uid, tur, f"{summa:,.0f} so'm", mid)
             d = db.mijoz_detail(mid)
             return web.json_response({"ok": True, "qolgan_qarz": d["qolgan_qarz"]})
