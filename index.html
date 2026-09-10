@@ -384,7 +384,7 @@
   const app = document.getElementById('app');
   let rec=null, recChunks=[], recMid=null;
 
-  const som=n=>{n=Math.round(Number(n)||0);return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');};
+  const som=n=>{n=Number(n)||0;const neg=n<0;n=Math.abs(n);let s=Number.isInteger(n)?n.toString():(Math.round(n*100)/100).toString();const p=s.split('.');p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,' ');return (neg?'-':'')+p.join('.');};
   const son=n=>{n=Number(n)||0;return Number.isInteger(n)?n:parseFloat(n.toFixed(2)).toString();};
   const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const ini=s=>(s||'?').trim().charAt(0).toUpperCase();

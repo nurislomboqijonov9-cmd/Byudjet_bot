@@ -19,7 +19,10 @@ def _dmy(s):
 
 
 def _som(n):
-    return f"{round(n or 0):,}".replace(",", " ")
+    n = n or 0
+    if n == int(n):
+        return f"{int(n):,}".replace(",", " ")
+    return f"{round(n, 2):,}".replace(",", " ")
 
 
 def _status_uz(s):
@@ -90,7 +93,7 @@ def mijoz_excel(d, dan=None, gacha=None, **_kw):
     r += 1
     for p in d.get("partiyalar", []):
         row = [p["partiya_raqam"], p["mahsulot"], p["miqdor"], p["qolgan"], p.get("birlik") or "ta",
-               p["kunlik_narx"], _dmy(p["chiqgan_sana"]), p["kunlar"], round(p["narx"]),
+               p["kunlik_narx"], _dmy(p["chiqgan_sana"]), p["kunlar"], round(p["narx"], 2),
                p.get("manzil") or "—", p.get("brov_kim") or "—"]
         for i, v in enumerate(row, 1):
             c = ws.cell(row=r, column=i, value=v)
@@ -116,7 +119,7 @@ def mijoz_excel(d, dan=None, gacha=None, **_kw):
                 ws.cell(row=r, column=2, value=it["mahsulot"]).border = BORDER
                 cc = ws.cell(row=r, column=3, value=it["qolgan"]); cc.border = BORDER
                 cc.alignment = Alignment(horizontal="right")
-                cs = ws.cell(row=r, column=8, value=round(it["narx"])); cs.border = BORDER
+                cs = ws.cell(row=r, column=8, value=round(it["narx"], 2)); cs.border = BORDER
                 cs.alignment = Alignment(horizontal="right")
                 r += 1
         r += 1
