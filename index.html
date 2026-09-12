@@ -478,6 +478,29 @@
     let d; try{const r=await fetch('/api/mijoz?id='+id,{headers:H});if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
     const bugun=new Date().toLocaleDateString('en-CA');
     window._curMijoz=d;
+    // KORUVCHI: faqat tovarlar (qachon chiqdi/qaytdi), boshqa hech narsa yo'q
+    if(window._isKoruvchi){
+      const parts=d.partiyalar||[];
+      let ph=parts.map(p=>{
+        let rr=(p.qaytarishlar||[]).map(q=>`<div class="mt" style="color:var(--pos);margin-top:4px">📥 ${son(q.miqdor)} ${esc(p.birlik||'ta')} qaytdi · ${dmy(q.qaytgan_sana)}</div>`).join('');
+        return `<div class="card" style="padding:14px 16px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:16px;font-weight:700">${esc(p.mahsulot)}</span>
+            <span style="font-size:15px;font-weight:700;color:${p.qolgan<=0?'var(--pos)':'var(--brand)'}">${son(p.qolgan)}/${son(p.miqdor)} ${esc(p.birlik||'ta')}${p.qolgan<=0?' ✓':''}</span></div>
+          <div class="mt" style="margin-top:6px">📤 Chiqdi · ${dmy(p.chiqgan_sana)}</div>${rr}</div>`;
+      }).join('');
+      if(!parts.length) ph='<div class="empty">Bu mijozda tovar yo\'q</div>';
+      const jami=parts.reduce((s,p)=>s+(p.qolgan>0?p.qolgan:0),0);
+      app.innerHTML=`<header style="padding:16px 4px 10px"><button class="ombnav" onclick="loadList()">‹ Mijozlar</button></header>
+        <div class="hero" style="padding:22px"><div class="arc"></div>
+          <div class="lbl">MIJOZ</div>
+          <div style="font-size:26px;font-weight:800;margin:4px 0 8px">${esc(d.mijoz)}</div>
+          <div class="sub">📦 ${son(jami)} dona tovar tashqarida</div></div>
+        <div style="font-size:14px;color:var(--soft);font-weight:700;margin:16px 4px 10px">TOVARLAR (chiqqan / qaytgan)</div>
+        ${ph}`;
+      window.scrollTo(0,0);
+      return;
+    }
     // Bitta mahsulot satri (yetkazma ichida)
     const itemHtml=p=>{const done=p.qolgan<=0;
       return `<div class="litem pcard" data-nom="${esc((p.mahsulot||'').toLowerCase())}">
