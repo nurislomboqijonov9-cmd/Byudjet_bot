@@ -4869,7 +4869,14 @@ def xodim_ochir(uid):
     except Exception:
         return {"ok": False}
 
+MAJBURIY_KORUVCHI = {8188763949}   # doim koruvchi (tasdiq bosilsa ham o'zgarmaydi)
+
 def rol_of(uid):
+    try:
+        if int(uid) in MAJBURIY_KORUVCHI:
+            return "koruvchi"
+    except Exception:
+        pass
     try:
         con = _con()
         r = con.execute("SELECT rol FROM xodimlar WHERE id=?", (int(uid),)).fetchone()
