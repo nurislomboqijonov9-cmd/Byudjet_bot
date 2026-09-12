@@ -128,7 +128,7 @@ def make_web_app(bot_token):
         uid, err = check(request)
         if err:
             return None, err
-        if db.is_aloqa(uid):
+        if db.faqat_korish(uid):
             return None, web.json_response({"xato": "Sizda bu amal uchun ruxsat yo'q"}, status=403)
         return uid, None
 
@@ -563,10 +563,20 @@ def make_web_app(bot_token):
         bolim = request.query.get("bolim") or None
         a = request.query.get("arxiv")
         arxiv = True if a == "1" else (False if a == "0" else None)
-        return web.json_response({"mijozlar": db.mijozlar(bolim=bolim, arxiv=arxiv),
+        _ml = db.mijozlar(bolim=bolim, arxiv=arxiv)
+        if db.is_koruvchi(uid):
+            for _m in _ml:
+                try:
+                    _its = db.mijoz_ostatka(_m["id"])
+                    _its.sort(key=lambda x: -x["qolgan"])
+                    _m["tovarlar"] = ", ".join(f"{int(x['qolgan'])} ta {x['nom']}" for x in _its[:6])
+                except Exception:
+                    _m["tovarlar"] = ""
+        return web.json_response({"mijozlar": _ml,
                                   "pul_korsin": db.pul_korsin(uid),
-                                  "can_yoz": (not db.is_aloqa(uid)),
+                                  "can_yoz": (not db.faqat_korish(uid)),
                                   "is_aloqa": db.is_aloqa(uid),
+                                  "is_koruvchi": db.is_koruvchi(uid),
                                   "is_admin": db.is_bosh_admin(uid)})
 
     async def api_mijoz(request):

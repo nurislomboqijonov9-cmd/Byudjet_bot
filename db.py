@@ -424,7 +424,7 @@ def get_xodim(uid):
 
 def add_xodim(uid, ism=None, rol="xodim", qoshgan_id=None):
     """Yangi xodim/admin qo'shadi yoki mavjudini yangilaydi (rol/ism)."""
-    if rol not in ("xodim", "admin", "aloqa"):
+    if rol not in ("xodim", "admin", "aloqa", "koruvchi"):
         rol = "xodim"
     con = _con()
     ex = con.execute("SELECT id FROM xodimlar WHERE id = ?", (uid,)).fetchone()
@@ -2150,7 +2150,7 @@ def get_xodim(uid):
 
 def add_xodim(uid, ism=None, rol="xodim", qoshgan_id=None):
     """Yangi xodim/admin qo'shadi yoki mavjudini yangilaydi (rol/ism)."""
-    if rol not in ("xodim", "admin", "aloqa"):
+    if rol not in ("xodim", "admin", "aloqa", "koruvchi"):
         rol = "xodim"
     con = _con()
     ex = con.execute("SELECT id FROM xodimlar WHERE id = ?", (uid,)).fetchone()
@@ -4889,6 +4889,14 @@ def is_aloqa(uid):
     """Shahzod — faqat ko'rish + atchot + aloqa (pul/tovar/ombor yo'q)."""
     return rol_of(uid) == "aloqa"
 
+def is_koruvchi(uid):
+    """Faqat ko'ruvchi — hech nima o'zgartira olmaydi (faqat klient+ombor ko'radi)."""
+    return rol_of(uid) == "koruvchi"
+
+def faqat_korish(uid):
+    """Yozish/o'zgartirishga ruxsatsiz rollar (aloqa + koruvchi)."""
+    return rol_of(uid) in ("aloqa", "koruvchi")
+
 def pul_korsin(uid):
     """Umumiy pul (jami banner) faqat bosh adminlarga ko'rinadi."""
     return is_bosh_admin(uid)
@@ -4898,16 +4906,16 @@ def can_admin_boshqar(uid):
     return is_bosh_admin(uid)
 
 def can_pul_qosh(uid):
-    """To'lov/pul kiritish — aloqa (Shahzod) uchun yo'q."""
-    return not is_aloqa(uid)
+    """To'lov/pul kiritish — aloqa/koruvchi uchun yo'q."""
+    return not faqat_korish(uid)
 
 def can_tovar_qosh(uid):
-    """Mahsulot/partiya qo'shish — aloqa uchun yo'q."""
-    return not is_aloqa(uid)
+    """Mahsulot/partiya qo'shish — aloqa/koruvchi uchun yo'q."""
+    return not faqat_korish(uid)
 
 def can_ombor(uid):
-    """Ombor (spisat/yangi/harakat) — aloqa uchun yo'q."""
-    return not is_aloqa(uid)
+    """Ombor (spisat/yangi/harakat) — aloqa/koruvchi uchun yo'q."""
+    return not faqat_korish(uid)
 
 def rollarni_seed():
     """TEMIRCHI jamoasi rollarini o'rnatadi (bir marta, mavjudini yangilaydi)."""
@@ -4917,6 +4925,7 @@ def rollarni_seed():
         (6216686815, "Oybek", "xodim"),
         (5767710837, "Nurmuhammad", "xodim"),
         (7248142052, "Shahzod", "aloqa"),
+        (8188763949, "Koruvchi hodim", "koruvchi"),
     ]
     con = _con()
     for uid, ism, rol in jamoa:

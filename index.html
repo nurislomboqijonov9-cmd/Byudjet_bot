@@ -422,19 +422,20 @@
     window._pulKorsin=(d.pul_korsin!==false);
     window._canYoz=(d.can_yoz!==false);
     window._isAloqa=(d.is_aloqa===true);
+    window._isKoruvchi=(d.is_koruvchi===true);
     setTimeout(()=>{const b=document.getElementById('fsb');if(b)b.textContent=document.body.classList.contains('wide')?'⤡':'⛶';tunSync();tickClock();},0);
     app.innerHTML=`<header><div><div class="eyebrow">${BOLIM==='sotuv'?'Sotuv hisobi':'Ijara hisobi'}${window.ARXIV?' · 📂 Arxiv':''}</div><h1>Mijozlar</h1></div>
         ${window._isAloqa?'':'<button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>'}
         <button class="fsbtn" id="fsb" onclick="wideTgl()">⛶</button>
         <button class="tunbtn" id="tunb" onclick="tunTgl()">🌙</button>
         ${(tg&&tg.initData)?'':'<button class="tunbtn" onclick="chiqish()">🚪</button>'}
-        ${window._isAloqa?'':'<button class="plus" style="margin-left:8px" onclick="showNew()">➕</button>'}</header>
+        ${window._canYoz?'<button class="plus" style="margin-left:8px" onclick="showNew()">➕</button>':''}</header>
       <div class="inrow" style="margin:0 0 12px">
         <button class="tabb ${(BOLIM==='ijara'&&!window.ARXIV)?'on':''}" onclick="bolimTgl('ijara')">🏗 Ijara</button>
         <button class="tabb ${(BOLIM==='sotuv'&&!window.ARXIV)?'on':''}" onclick="bolimTgl('sotuv')">🏷 Sotuv</button>
         <button class="tabb ${window.ARXIV?'on':''}" onclick="arxivTgl()">📂 Arxiv</button></div>
-      <div class="hero"><div class="arc"></div><div class="lbl">${window.ARXIV?'Arxiv — yopilgan mijozlar':'Umumiy qarz'}</div>
-        <div class="amt num">${window.ARXIV?_ml.length:(window._pulKorsin?som(jami):'•••')} <small>${window.ARXIV?'ta':(window._pulKorsin?'so\'m':'')}</small></div><div class="sub">${_ml.length} ta mijoz</div></div>
+      <div class="hero"><div class="arc"></div><div class="lbl">${window.ARXIV?'Arxiv — yopilgan mijozlar':(window._isKoruvchi?'Mijozlar':'Umumiy qarz')}</div>
+        <div class="amt num">${window.ARXIV?_ml.length:(window._isKoruvchi?_ml.length:(window._pulKorsin?som(jami):'•••'))} <small>${window.ARXIV?'ta':(window._isKoruvchi?'ta mijoz':(window._pulKorsin?'so\'m':''))}</small></div>${window._isKoruvchi?'':`<div class="sub">${_ml.length} ta mijoz</div>`}</div>
       <div id="newform"></div>
       <div class="search"><input id="qidir" placeholder="🔍 Ism, telefon yoki manzil..." oninput="renderCards(this.value)"></div>
       <div id="cards"></div>`;
@@ -448,9 +449,9 @@
     let cards=list.map(m=>`<div class="card mcard st-${esc(m.status||'')}${m.tolov_turi==='perech'?' perech':''}"><div class="mijoz" onclick="window._listY=window.scrollY;loadMijoz(${m.id})">
         <div class="av"><span>${ini(m.mijoz)}</span></div>
         <div><div class="nm">${m.status&&STAT[m.status]?`<span class="stdot" style="background:${STAT[m.status].c}"></span>`:''}${esc(m.mijoz)}</div>
-          <div class="mt">${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan${m.tolov_turi==='perech'?' · <b style="color:#7A4FC0">🏦 perech</b>':(m.tolov_turi==='naqd'?' · 💵':'')}</div>
+          <div class="mt">${window._isKoruvchi?('📦 '+(m.tovarlar||'tovar yoq')):(`${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan${m.tolov_turi==='perech'?' · <b style="color:#7A4FC0">🏦 perech</b>':(m.tolov_turi==='naqd'?' · 💵':'')}`)}</div>
           ${m.adres?`<div class="mt" style="color:var(--brand)">📍 ${esc(m.adres)}</div>`:''}</div>
-        <div class="val"><b>${som(m.qolgan_qarz)}</b><span>so'm</span></div><div class="chev">›</div></div></div>`).join('');
+        ${window._isKoruvchi?'':`<div class="val"><b>${som(m.qolgan_qarz)}</b><span>so'm</span></div>`}<div class="chev">›</div></div></div>`).join('');
     if(!list.length) cards='<div class="empty">'+(q?'Topilmadi':'Hozircha mijoz yo\'q. «➕ Yangi» bosing.')+'</div>';
     document.getElementById('cards').innerHTML=cards;
   };
