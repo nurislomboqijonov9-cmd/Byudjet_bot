@@ -156,6 +156,43 @@ def make_web_app(bot_token):
             return web.Response(status=404)
         return web.FileResponse(yol, headers={"Cache-Control": "public, max-age=86400"})
 
+    async def api_faktura(request):
+        uid, err = check(request)
+        if err:
+            return err
+        import datetime as _dt
+        try:
+            mid = int(request.query.get("id"))
+        except Exception:
+            return web.json_response({"xato": "id kerak"}, status=400)
+        try:
+            dan = _dt.date.fromisoformat((request.query.get("dan") or "")[:10])
+            gacha = _dt.date.fromisoformat((request.query.get("gacha") or "")[:10])
+        except Exception:
+            return web.json_response({"xato": "sana kerak"}, status=400)
+        d = db.mijoz_detail(mid)
+        if not d:
+            return web.Response(status=404)
+        rows = db.faktura_data(mid, dan, gacha)
+        try:
+            bio = excel.faktura_excel(d.get("mijoz") or "-", rows, dan, gacha, db.FAKTURA_MXIK)
+            data = bio.getvalue()
+        except Exception:
+            import logging; logging.getLogger("miniapp").exception("faktura")
+            return web.json_response({"xato": "faktura yaratilmadi"}, status=500)
+        import urllib.parse
+        nom = (d.get("mijoz") or "faktura")
+        fn = urllib.parse.quote(f"Faktura_{nom}_{dan}_{gacha}.xlsx")
+        return web.Response(body=data,
+            headers={"Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                     "Content-Disposition": f"attachment; filename*=UTF-8''{fn}"})
+
+    async def api_perech_mijozlar(request):
+        uid, err = check(request)
+        if err:
+            return err
+        return web.json_response({"mijozlar": [{"id": m["id"], "mijoz": m.get("mijoz"), "telefon": m.get("telefon")} for m in db.perech_mijozlar()]})
+
     async def api_dashboard(request):
         # PIN: avval bazadagi (TV'dan o'zgartiriladigan), bo'lmasa TV_KEY env
         kalit = db.get_sozlama("tv_pin") or os.environ.get("TV_KEY")
@@ -885,7 +922,7 @@ def make_web_app(bot_token):
             summa = float(body.get("summa"))
             if summa == 0:
                 return web.json_response({"ok": False, "xabar": "Summa noto'g'ri"})
-            izoh = "qarz qo'shildi" if summa < 0 else ((body.get("izoh") or "").strip() or None)
+            izoh = ((body.get("izoh") or "").strip() or ("qarz qo'shildi" if summa < 0 else None))
             sana = (body.get("sana") or db.today_tk().isoformat())[:10]
             db.add_tolov(mid, summa, sana, izoh)
             _audit(uid, ("qarz qo'shish" if summa < 0 else "to'lov"), f"{summa:,.0f} so'm", mid)
@@ -1357,6 +1394,8 @@ def make_web_app(bot_token):
     app.router.add_get("/tv", tv_sahifa)
     app.router.add_get("/logo.png", tv_logo)
     app.router.add_get("/api/dashboard", api_dashboard)
+    app.router.add_get("/api/faktura", api_faktura)
+    app.router.add_get("/api/perech_mijozlar", api_perech_mijozlar)
     app.router.add_post("/api/tv_pin_ozgartir", api_tv_pin_ozgartir)
     app.router.add_post("/api/login", api_login)
     app.router.add_get("/m/{token}", mijoz_sahifa)
@@ -1380,7 +1419,48 @@ def make_web_app(bot_token):
     app.router.add_get("/sw.js", sw_js)
     app.router.add_get("/{nom:icon-\\d+\\.png}", icon)
     app.router.add_get("/logo.png", icon)
+    async def api_faktura(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            mid = int(request.query.get("id"))
+        except Exception:
+            return web.json_response({"xato": "id kerak"}, status=400)
+        dan = request.query.get("dan")
+        gacha = request.query.get("gacha")
+        if not dan or not gacha:
+            return web.json_response({"xato": "dan/gacha kerak"}, status=400)
+        d = db.mijoz_detail(mid)
+        if not d:
+            return web.Response(status=404)
+        items = db.faktura_data(mid, dan, gacha)
+        if not items:
+            return web.json_response({"xato": "Bu davrda arenda yo'q"}, status=400)
+        try:
+            bio = excel.faktura_excel(d.get("mijoz") or "-", dan, gacha, items, db.FAKTURA_MXIK)
+            data = bio.getvalue()
+        except Exception:
+            import logging
+            logging.getLogger("miniapp").exception("faktura")
+            return web.json_response({"xato": "faktura yaratilmadi"}, status=500)
+        import urllib.parse
+        nom = (d.get("mijoz") or "faktura")
+        fn = urllib.parse.quote(f"Faktura_{nom}_{dan}_{gacha}.xlsx")
+        return web.Response(body=data,
+            headers={"Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                     "Content-Disposition": f"attachment; filename*=UTF-8''{fn}"})
+
+    async def api_perech_mijozlar(request):
+        uid, err = check(request)
+        if err:
+            return err
+        ms = [m for m in db.mijozlar(bolim="ijara") if m.get("tolov_turi") == "perech" and not m.get("arxiv")]
+        return web.json_response({"mijozlar": [{"id": m["id"], "mijoz": m.get("mijoz"), "telefon": m.get("telefon")} for m in ms]})
+
     app.router.add_get("/api/mijozlar", api_mijozlar)
+    app.router.add_get("/api/faktura", api_faktura)
+    app.router.add_get("/api/perech_mijozlar", api_perech_mijozlar)
     app.router.add_get("/api/mijoz", api_mijoz)
     app.router.add_get("/api/mijoz_excel", api_mijoz_excel)
     app.router.add_post("/api/mijoz_excel_yubor", api_mijoz_excel_yubor)

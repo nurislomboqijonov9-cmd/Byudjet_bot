@@ -4965,3 +4965,129 @@ def mijoz_kunlik(mid):
     except Exception:
         pass
     return round(total)
+
+
+# ============ FAKTURA (perechisleniya mijozlar uchun) ============
+FAKTURA_NOM = {
+    "lyulka": "Аренда Строительная люлка",
+    "lesa oyoq": "Аренда Хавоза",
+    "oyoq 2m": "Аренда Монолитная леса 2 м",
+    "oyoq 1.5m": "Аренда Монолитная леса 1,5 м",
+    "qaychi 1.5m": "Аренда Монолит кайчи 1,5 м",
+    "qaychi 2m": "Аренда Монолит кайчи 2 м",
+    "univilka": "Аренда Унивилка",
+    "soedinitel": "Аренда Соединитель",
+    "rezba 1m": "Аренда Подёмный механизм",
+    "tayrot": "Аренда Тайрот",
+    "balka 3 m": "Аренда Балка 3 м",
+}
+FAKTURA_MXIK = ("10701001012000000 - Қурилиш, ишлаб чиқариш учун ускуналар, асбоблар, "
+                "қолиплар ва бошқа товарлар, қурилиш учун эҳтиёт қисмлар ва жиҳозларни "
+                "ижарага бериш хизматлари")
+
+def faktura_nom(nom):
+    """Bot nomini faktura nomiga o'giradi (ro'yxatdan yoki 'Аренда {nom}')."""
+    import re as _re
+    n = (nom or "").strip().lower()
+    if n in FAKTURA_NOM:
+        return FAKTURA_NOM[n]
+    m = _re.match(r"^stoyka\s*([\d.,]+)\s*m", n)   # barcha Stoyka X m -> Аренда Стойка X м
+    if m:
+        return f"Аренда Стойка {m.group(1)} м"
+    return "Аренда " + (nom or "").strip()
+
+def faktura_data(mid, dan, gacha):
+    """Mijozning [dan..gacha] davri uchun mahsulot bo'yicha ijara (summa NDS bilan=112%).
+    dan, gacha: date. Qaytadi: [{nom, faktura_nom, soni, summa112}]."""
+    from collections import defaultdict
+    agg = defaultdict(lambda: {"soni": 0.0, "summa112": 0.0})
+    try:
+        for p in partiyalar_of(mid):
+            try:
+                hg = partiya_hisob(p, today=gacha)
+                hd = partiya_hisob(p, today=dan)
+            except Exception:
+                continue
+            period = (hg.get("narx", 0) or 0) - (hd.get("narx", 0) or 0)  # davr ijarasi (112%)
+            if period <= 0:
+                continue
+            nom = hg.get("mahsulot") or (p.get("mahsulot") if isinstance(p, dict) else "?")
+            soni = hg.get("qolgan", 0) or (p.get("miqdor") if isinstance(p, dict) else 0) or 0
+            agg[nom]["soni"] += soni
+            agg[nom]["summa112"] += period
+    except Exception:
+        pass
+    res = []
+    for nom, v in agg.items():
+        if v["summa112"] <= 0:
+            continue
+        res.append({"nom": nom, "faktura_nom": faktura_nom(nom),
+                    "soni": round(v["soni"], 2), "summa112": round(v["summa112"])})
+    res.sort(key=lambda x: -x["summa112"])
+    return res
+
+def perech_mijozlar():
+    """Perechisleniya (tolov_turi='perech') mijozlar ro'yxati."""
+    return [m for m in mijozlar(bolim="ijara") if (m.get("tolov_turi") == "perech")]
+
+
+# ============ FAKTURA (perechisleniya mijozlar uchun) ============
+FAKTURA_MXIK = "10701001012000000 - Қурилиш, ишлаб чиқариш учун ускуналар, асбоблар, қолиплар ва бошқа товарлар, қурилиш учун эҳтиёт қисмлар ва жиҳозларни ижарага бериш хизматлари"
+
+_FAKTURA_NOMLAR = {
+    "lyulka": "Аренда Строительная люлка",
+    "lesa oyoq": "Аренда Хавоза",
+    "oyoq 2m": "Аренда Монолитная леса 2 м",
+    "oyoq 1.5m": "Аренда Монолитная леса 1,5 м",
+    "qaychi 1.5m": "Аренда Монолит кайчи 1,5 м",
+    "qaychi 2m": "Аренда Монолит кайчи 2 м",
+    "univilka": "Аренда Унивилка",
+    "soedinitel": "Аренда Соединитель",
+    "rezba 1m": "Аренда Подёмный механизм",
+    "tayrot": "Аренда Тайрот",
+    "balka 3 m": "Аренда Балка 3 м",
+}
+
+def faktura_nom(nom):
+    """Bot tovar nomini faktura nomiga o'giradi."""
+    import re as _re
+    key = (nom or "").strip().lower()
+    if key in _FAKTURA_NOMLAR:
+        return _FAKTURA_NOMLAR[key]
+    m = _re.match(r'stoyka\s*([\d.,]+)\s*m', key)   # Stoyka X m -> Аренда Стойка X м
+    if m:
+        return f"Аренда Стойка {m.group(1)} м"
+    if key.startswith("stoyka"):
+        return "Аренда Стойка"
+    return "Аренда " + (nom or "").strip()   # ro'yxatda yo'q -> "Аренда " + o'zi
+
+def faktura_data(mid, dan, gacha):
+    """Mijozning [dan..gacha] davri uchun har mahsulot: soni + jami(NDS bilan, 112%)."""
+    import datetime as _dt
+    from collections import defaultdict
+    try:
+        dd = _dt.date.fromisoformat(str(dan)[:10])
+        dg = _dt.date.fromisoformat(str(gacha)[:10])
+    except Exception:
+        return []
+    agg = defaultdict(lambda: {"soni": 0.0, "summa": 0.0})
+    for p in partiyalar_of(mid):
+        try:
+            hg = partiya_hisob(p, today=dg)
+            hd = partiya_hisob(p, today=dd)
+        except Exception:
+            continue
+        davr = (hg.get("narx", 0) or 0) - (hd.get("narx", 0) or 0)   # shu davrdagi arenda (112%)
+        if davr <= 0:
+            continue
+        nom = (p.get("mahsulot") if isinstance(p, dict) else None) or hg.get("mahsulot") or "?"
+        agg[nom]["summa"] += davr
+        agg[nom]["soni"] += (hg.get("miqdor", 0) or 0)
+    res = []
+    for nom, v in sorted(agg.items()):
+        if round(v["summa"]) <= 0:
+            continue
+        res.append({"nom": nom, "faktura_nom": faktura_nom(nom),
+                    "soni": int(v["soni"]) if v["soni"] == int(v["soni"]) else round(v["soni"], 1),
+                    "jami": round(v["summa"])})
+    return res

@@ -384,3 +384,115 @@ def brov_excel(groups, sana=None):
     wb.save(bio)
     bio.seek(0)
     return bio
+
+
+def faktura_excel(mijoz_nom, rows, dan, gacha, mxik):
+    """Rasmiy faktura (Excel). rows: [{faktura_nom, soni, summa112}]. summa112 = NDS bilan."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    from io import BytesIO
+    wb = Workbook(); ws = wb.active; ws.title = "Faktura"
+    thin = Side(style="thin", color="888888"); Bd = Border(left=thin, right=thin, top=thin, bottom=thin)
+    hf = PatternFill("solid", fgColor="D9E1F2"); C = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    ws.merge_cells("A1:I1"); ws["A1"] = "HISOBVARAQ-FAKTURA"
+    ws["A1"].font = Font(bold=True, size=13); ws["A1"].alignment = Alignment(horizontal="center")
+    ws.merge_cells("A2:I2")
+    ws["A2"] = f"Yetkazib beruvchi: TEMIRCHI   ·   Xaridor: {mijoz_nom}   ·   Davr: {_dmy(dan)} - {_dmy(gacha)}"
+    ws["A2"].alignment = Alignment(horizontal="center"); ws["A2"].font = Font(size=10, color="555555")
+
+    heads = ["№", "Mahsulot nomi", "MXIK kodi", "O'lchov birligi", "Soni",
+             "Narxi (NDSsiz)", "Summa (NDSsiz)", "NDS 12%", "Jami (NDS bilan)"]
+    r = 4
+    for i, h in enumerate(heads, 1):
+        c = ws.cell(row=r, column=i, value=h); c.font = Font(bold=True); c.fill = hf; c.border = Bd; c.alignment = C
+    ws.row_dimensions[r].height = 32
+    r = 5
+    t_ns = t_nds = t_112 = 0.0
+    for i, x in enumerate(rows, 1):
+        s112 = x["summa112"]; ns = round(s112 / 1.12); nds = s112 - ns
+        soni = x["soni"] or 1
+        narx = round(ns / soni) if soni else ns
+        t_ns += ns; t_nds += nds; t_112 += s112
+        row = [i, x["faktura_nom"], mxik, "hizmat korsatish",
+               (int(soni) if soni == int(soni) else soni), narx, ns, nds, s112]
+        for j, v in enumerate(row, 1):
+            c = ws.cell(row=r, column=j, value=v); c.border = Bd
+            if j in (5, 6, 7, 8, 9): c.alignment = Alignment(horizontal="right")
+            if j == 3: c.alignment = Alignment(wrap_text=True, vertical="center")
+        r += 1
+    ws.cell(row=r, column=1, value="JAMI").font = Font(bold=True)
+    for col, v in [(7, t_ns), (8, t_nds), (9, t_112)]:
+        c = ws.cell(row=r, column=col, value=round(v)); c.font = Font(bold=True); c.alignment = Alignment(horizontal="right")
+    for c in range(1, 10):
+        ws.cell(row=r, column=c).fill = hf; ws.cell(row=r, column=c).border = Bd
+
+    W = {"A": 5, "B": 26, "C": 42, "D": 16, "E": 8, "F": 15, "G": 16, "H": 13, "I": 17}
+    for k, v in W.items(): ws.column_dimensions[k].width = v
+    bio = BytesIO(); wb.save(bio); bio.seek(0)
+    return bio
+
+
+def faktura_excel(mijoz_ism, dan, gacha, items, mxik, nomer=None):
+    """Rasmiy faktura (perechisleniya). items: [{faktura_nom, soni, jami(112%)}]."""
+    from openpyxl.styles import Font as _F, Alignment as _A, Border as _B, Side as _S, PatternFill as _P
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Faktura"
+    thin = _S(style="thin", color="808080")
+    BRD = _B(left=thin, right=thin, top=thin, bottom=thin)
+    HDR = _P("solid", fgColor="D9E1F2")
+    bold = _F(bold=True)
+    ctr = _A(horizontal="center", vertical="center", wrap_text=True)
+    rght = _A(horizontal="right", vertical="center")
+
+    ws.merge_cells("A1:I1")
+    ws["A1"] = f"HISOBVARAQ-FAKTURA{(' № ' + str(nomer)) if nomer else ''}"
+    ws["A1"].font = _F(bold=True, size=13)
+    ws["A1"].alignment = _A(horizontal="center")
+    ws.merge_cells("A2:I2")
+    ws["A2"] = f"Yetkazib beruvchi: TEMIRCHI   ·   Xaridor: {mijoz_ism}   ·   Davr: {_dmy(dan)} - {_dmy(gacha)}"
+    ws["A2"].alignment = _A(horizontal="center")
+    ws["A2"].font = _F(size=10, color="555555")
+
+    heads = ["№", "Mahsulot nomi", "MXIK kodi", "O'lchov birligi", "Soni",
+             "Narxi (NDSsiz)", "Summa (NDSsiz)", "NDS 12%", "Jami (NDS bilan)"]
+    r = 4
+    for i, h in enumerate(heads, 1):
+        c = ws.cell(row=r, column=i, value=h)
+        c.font = bold; c.fill = HDR; c.border = BRD; c.alignment = ctr
+
+    r = 5
+    t_ndssiz = t_nds = t_jami = 0
+    for i, it in enumerate(items, 1):
+        jami = it["jami"]                 # 112%
+        ndssiz = round(jami / 1.12)       # 100%
+        nds = jami - ndssiz               # 12%
+        soni = it["soni"] or 1
+        narx = round(ndssiz / soni) if soni else ndssiz
+        t_ndssiz += ndssiz; t_nds += nds; t_jami += jami
+        row = [i, it["faktura_nom"], mxik, "hizmat korsatish", soni, narx, ndssiz, nds, jami]
+        for j, v in enumerate(row, 1):
+            c = ws.cell(row=r, column=j, value=v); c.border = BRD
+            if j in (5, 6, 7, 8, 9):
+                c.alignment = rght
+            elif j == 3:
+                c.alignment = _A(wrap_text=True, vertical="center")
+            else:
+                c.alignment = _A(vertical="center")
+        r += 1
+    # JAMI
+    ws.cell(row=r, column=1, value="JAMI").font = bold
+    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=6)
+    for col, val in [(7, t_ndssiz), (8, t_nds), (9, t_jami)]:
+        c = ws.cell(row=r, column=col, value=val); c.font = bold; c.alignment = rght
+    for c in range(1, 10):
+        ws.cell(row=r, column=c).fill = HDR; ws.cell(row=r, column=c).border = BRD
+
+    for k, v in {"A": 5, "B": 26, "C": 42, "D": 16, "E": 8, "F": 15, "G": 16, "H": 13, "I": 17}.items():
+        ws.column_dimensions[k].width = v
+    ws.row_dimensions[4].height = 30
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    return bio
