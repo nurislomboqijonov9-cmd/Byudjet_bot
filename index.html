@@ -405,23 +405,20 @@
   window.BOLIM='ijara';
   try{ const b=localStorage.getItem('bolim'); if(b==='sotuv'||b==='ijara') window.BOLIM=b; }catch(e){}
   window.ARXIV=false;
-  window.PREDO=false;
-  window.predoTgl=function(){ window.PREDO=!window.PREDO; window.ARXIV=false; loadList(); };
   window.bolimTgl=function(b){
-    window.BOLIM=b; window.ARXIV=false; window.PREDO=false;
+    window.BOLIM=b; window.ARXIV=false;
     try{ localStorage.setItem('bolim',b); }catch(e){}
     loadList();
   };
   window.arxivTgl=function(){
-    window.ARXIV=!window.ARXIV; window.PREDO=false;
+    window.ARXIV=!window.ARXIV;
     loadList();
   };
   async function loadList(){
     window._lastMijoz=null;
     app.innerHTML='<div class="center"><div><div class="spin"></div>Yuklanmoqda…</div></div>';
     let d; try{const r=await fetch('/api/mijozlar?bolim='+(window.BOLIM||'ijara')+'&arxiv='+(window.ARXIV?'1':'0'),{headers:H});if(authXato(r))return;if(!r.ok)throw 0;d=await r.json();}catch(e){return errScreen();}
-    window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+Math.max(0,m.qolgan_qarz||0),0);
-    const predoJami=_ml.reduce((s,m)=>s+Math.max(0,-(m.qolgan_qarz||0)),0); const predoSoni=_ml.filter(m=>(m.qolgan_qarz||0)<0).length;
+    window._ml=d.mijozlar||[]; const jami=_ml.reduce((s,m)=>s+m.qolgan_qarz,0);
     window._pulKorsin=(d.pul_korsin!==false);
     window._canYoz=(d.can_yoz!==false);
     window._isAloqa=(d.is_aloqa===true);
@@ -436,10 +433,9 @@
       <div class="inrow" style="margin:0 0 12px">
         <button class="tabb ${(BOLIM==='ijara'&&!window.ARXIV)?'on':''}" onclick="bolimTgl('ijara')">🏗 Ijara</button>
         <button class="tabb ${(BOLIM==='sotuv'&&!window.ARXIV)?'on':''}" onclick="bolimTgl('sotuv')">🏷 Sotuv</button>
-        <button class="tabb ${window.PREDO?'on':''}" style="${window.PREDO?'background:#7A4FC0;border-color:#7A4FC0;color:#fff':'color:#7A4FC0;border-color:#B9A0E0'}" onclick="predoTgl()">💰 Predoplata</button>
         <button class="tabb ${window.ARXIV?'on':''}" onclick="arxivTgl()">📂 Arxiv</button></div>
-      <div class="hero"><div class="arc"></div><div class="lbl">${window.ARXIV?'Arxiv — yopilgan mijozlar':(window.PREDO?'Predoplata — biz qarzmiz':(window._isKoruvchi?'Mijozlar':'Umumiy qarz'))}</div>
-        <div class="amt num">${window.ARXIV?_ml.length:(window.PREDO?(window._pulKorsin?som(predoJami):'•••'):(window._isKoruvchi?_ml.length:(window._pulKorsin?som(jami):'•••')))} <small>${window.ARXIV?'ta':(window._isKoruvchi&&!window.PREDO?'ta mijoz':(window._pulKorsin?'so\'m':''))}</small></div>${window._isKoruvchi?'':`<div class="sub">${window.PREDO?predoSoni+' ta predoplatali':_ml.length+' ta mijoz'}</div>`}</div>
+      <div class="hero"><div class="arc"></div><div class="lbl">${window.ARXIV?'Arxiv — yopilgan mijozlar':(window._isKoruvchi?'Mijozlar':'Umumiy qarz')}</div>
+        <div class="amt num">${window.ARXIV?_ml.length:(window._isKoruvchi?_ml.length:(window._pulKorsin?som(jami):'•••'))} <small>${window.ARXIV?'ta':(window._isKoruvchi?'ta mijoz':(window._pulKorsin?'so\'m':''))}</small></div>${window._isKoruvchi?'':`<div class="sub">${_ml.length} ta mijoz</div>`}</div>
       <div id="newform"></div>
       <div class="search"><input id="qidir" placeholder="🔍 Ism, telefon yoki manzil..." oninput="renderCards(this.value)"></div>
       <div id="cards"></div>`;
@@ -450,8 +446,6 @@
   window.renderCards=function(q){
     q=(q||'').toLowerCase().trim();
     let list=(window._ml||[]).filter(m=>!q || (m.mijoz||'').toLowerCase().includes(q) || (m.telefon||'').includes(q) || (m.adres||'').toLowerCase().includes(q));
-    if(window.PREDO) list=list.filter(m=>(m.qolgan_qarz||0)<0);
-    else if(!window.ARXIV) list=list.filter(m=>(m.qolgan_qarz||0)>=0);
     let cards=list.map(m=>`<div class="card mcard st-${esc(m.status||'')}${m.tolov_turi==='perech'?' perech':''}"><div class="mijoz" onclick="window._listY=window.scrollY;loadMijoz(${m.id})">
         <div class="av"><span>${ini(m.mijoz)}</span></div>
         <div><div class="nm">${m.status&&STAT[m.status]?`<span class="stdot" style="background:${STAT[m.status].c}"></span>`:''}${esc(m.mijoz)}</div>
@@ -639,9 +633,9 @@
       <div class="hint" id="bhint">Boshqadan olib turib shu mijozga bergan tovar. <b>Mijozga hisoblanadi</b>, omborga ta'sir qilmaydi.</div></div>`;
     const smsBtn=`<button class="smsbtn" onclick="smsPick(${d.id})">📩 Qarz eslatmasi SMS</button><div id="smsbox" class="addbox" style="display:none"></div>`;
     const qolganCard=((d.qolganlar||[]).length)?`<div class="addbox"><div class="t">📦 Qolgan mahsulotlar (hozir mijozda)</div>${
-      (d.qolganlar||[]).map(q=>`<div class="retg-i" style="padding:6px 0;border-top:1px solid var(--faint)">
-        <span>${esc(q.mahsulot)}${q.manzillar&&q.manzillar.length?` <span style="color:var(--brand);font-size:12px">📍 ${esc(q.manzillar.join(', '))}</span>`:''}</span>
-        <b style="${q.qolgan<0?'color:var(--neg)':''}">${son(q.qolgan)} ${esc(q.birlik||'ta')}${q.qolgan<0?' ⚠️':''}</b></div>`).join('')}
+      (d.qolganlar||[]).map(q=>`<div class="retg-i" style="padding:6px 0;border-top:1px solid var(--faint)${q.qolgan<0?';background:#fdecea;border-radius:8px;padding:8px 10px;margin:2px 0':''}">
+        <span style="${q.qolgan<0?'color:#c0392b;font-weight:700':''}">${esc(q.mahsulot)}${q.qolgan<0?' — ortiqcha qaytdi':''}${q.manzillar&&q.manzillar.length?` <span style="color:var(--brand);font-size:12px">📍 ${esc(q.manzillar.join(', '))}</span>`:''}</span>
+        <b style="${q.qolgan<0?'color:#c0392b':''}">${q.qolgan<0?'⚠️ +'+son(Math.abs(q.qolgan)):son(q.qolgan)} ${esc(q.birlik||'ta')}</b></div>`).join('')}
       <div class="hint">Jami <b>${som((d.qolganlar||[]).reduce((s,x)=>s+x.qolgan,0))} dona</b> qaytarilmagan.</div></div>`:'';
     const manzilCard=((d.manzillar||[]).some(m=>m.manzil!=='Manzil belgilanmagan'))?`<div class="addbox"><div class="t">📍 Manzillar bo'yicha (qolgan)</div>${
       (d.manzillar||[]).map(m=>`<div class="mzg"><div class="mzg-h">📍 ${esc(m.manzil)} · <span class="num">${som(m.qolgan_dona)} dona</span></div>${
@@ -752,9 +746,6 @@
           <div class="brk"><span class="k">To'langan</span><b class="num" style="color:var(--pos)">${som(d.tolangan)} so'm</b></div>
           <div class="brk"><span class="k">${neg?'Ortiqcha (haqi)':'Qolgan qarz'}</span><b class="num" style="color:${neg?'var(--pos)':'var(--ink)'}">${som(Math.abs(d.qolgan_qarz))} so'm</b></div>
         </div>
-        ${(()=>{const ort=(d.qolganlar||[]).filter(q=>q.qolgan<0);return ort.length?`<div style="background:#fdecea;border:1px solid #e0674f;border-radius:14px;padding:14px 16px;margin-bottom:12px">
-          <div style="color:#c0392b;font-weight:800;font-size:15px;margin-bottom:8px">⚠️ Ortiqcha qaytarilgan (olingandan ko'p)</div>
-          ${ort.map(q=>`<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:14.5px"><span style="color:#a03828;font-weight:600">${esc(q.mahsulot)}</span><b style="color:#c0392b">${son(Math.abs(q.qolgan))} ${esc(q.birlik||'ta')} ortiqcha</b></div>`).join('')}</div>`:'';})()}
         ${smsBtn}
         <div class="addbox"><div class="t">💵 To'lov / predoplata (so'm)</div>
           <div class="inrow"><input class="f" id="paytext" inputmode="numeric" placeholder="Masalan: 1000000">

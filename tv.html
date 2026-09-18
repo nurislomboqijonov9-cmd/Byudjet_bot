@@ -137,6 +137,7 @@ function ekranUmumiy(d){
    +'<div class="kpi gold"><div class="ic">📅</div><div class="l">Bu oy tushum</div><div class="v">'+qisqa(d.oylik_tushum)+'</div><div class="u">so\'m</div></div>'
    +'<div class="kpi red"><div class="ic">📕</div><div class="l">Jami qarz (ijara)</div><div class="v">'+qisqa(d.jami_qarz)+'</div><div class="u">so\'m'+((d.sotuv_qarz||0)>0?(' · sotuv: '+qisqa(d.sotuv_qarz)):'')+'</div></div>'
    +'<div class="kpi"><div class="ic">👥</div><div class="l">Qarzdorlar</div><div class="v">'+(d.qarzdor_soni||0)+'</div><div class="u">'+(d.over_soni||0)+' ta chegaradan oshgan</div></div>'
+   +((d.predoplata_jami||0)>0?'<div class="kpi" style="grid-column:1/-1"><div class="ic">💰</div><div class="l" style="color:#8fb0e0">Predoplata — biz qarzmiz</div><div class="v" style="color:#8fb0e0">'+qisqa(d.predoplata_jami)+'</div><div class="u">som, '+(d.predoplata_soni||0)+' ta mijoz oldindan tolagan</div></div>':'')
    +'</div><div class="grid2">'
    +'<div class="panel"><div class="stitle" style="font-size:19px">📕 Eng katta qarzdorlar</div><div class="rows">'
    +(q.length? q.map((x,i)=>'<div class="row"><span class="rk">'+(i+1)+'</span><div class="nm">'+esc(x.ism)+'</div>'+(x.over?'<span class="tag">oshgan</span>':'')+'<div class="amt red">'+son(x.qarz)+'</div></div>').join('') : '<div class="empty">Qarzdor yo\'q 👍</div>')
