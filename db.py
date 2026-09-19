@@ -5001,8 +5001,8 @@ def faktura_nom(nom):
     return "Аренда " + (nom or "").strip()   # ro'yxatda yo'q -> "Аренда " + o'zi
 
 def faktura_data(mid, dan, gacha):
-    """[dan..gacha] davri uchun har partiya: kun-ba-kun (returnlarni hisobga olib) arenda.
-    Har qatorda: faktura_nom, soni, kun, jami(112%). Bir xil (nom+kun) jamlanadi."""
+    """[dan..gacha] davri. Kun-ba-kun: har kuni mijozda qolgan miqdor x narx.
+    Chiqqan kun VA joriy(oxirgi) kun sanalmaydi (bot _billable_days qoidasi)."""
     import datetime as _dt
     from collections import defaultdict
     try:
@@ -5015,12 +5015,12 @@ def faktura_data(mid, dan, gacha):
             issue = _pdate(p["chiqgan_sana"]); daily = p["kunlik_narx"] or 0
         except Exception:
             continue
-        start = issue if issue > dd else dd
-        if start > dg:
-            continue
+        boshi = issue if issue > dd else dd
         rets = returns_for(p["id"])
-        rent = 0.0; kun = 0; D = start
-        while D <= dg:
+        # sanab bo'ladigan kunlar: boshi+1 .. dg-1 (chiqqan kun va oxirgi kun sanalmaydi)
+        rent = 0.0; kun = 0
+        D = boshi + _dt.timedelta(days=1)
+        while D < dg:
             qaytgan = 0.0
             for r in rets:
                 try:
@@ -5034,10 +5034,11 @@ def faktura_data(mid, dan, gacha):
             D += _dt.timedelta(days=1)
         if rent <= 0:
             continue
+        # soni: davr boshida chiqib turgan miqdor
         q0 = 0.0
         for r in rets:
             try:
-                if _pdate(r["qaytgan_sana"]) <= start:
+                if _pdate(r["qaytgan_sana"]) <= boshi:
                     q0 += (r["miqdor"] or 0)
             except Exception:
                 pass
