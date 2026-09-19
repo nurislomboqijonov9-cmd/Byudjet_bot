@@ -424,7 +424,8 @@ def faktura_excel(mijoz_ism, dan, gacha, items, mxik, nomer=None):
         soni = it["soni"] or 1
         narx = round(ndssiz / soni) if soni else ndssiz
         t_ndssiz += ndssiz; t_nds += nds; t_jami += jami
-        row = [i, it["faktura_nom"], mxik, "hizmat korsatish", soni, narx, ndssiz, nds, jami]
+        _nomkun = it["faktura_nom"] + (" (за " + str(it.get("kun", 0)) + " дней)" if it.get("kun") else "")
+        row = [i, _nomkun, mxik, "hizmat korsatish", soni, narx, ndssiz, nds, jami]
         for j, v in enumerate(row, 1):
             c = ws.cell(row=r, column=j, value=v); c.border = BRD
             if j in (5, 6, 7, 8, 9):

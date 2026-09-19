@@ -4990,40 +4990,69 @@ def faktura_nom(nom):
     key = (nom or "").strip().lower()
     if key in _FAKTURA_NOMLAR:
         return _FAKTURA_NOMLAR[key]
-    m = _re.match(r'stoyka\s*([\d.,]+)\s*m', key)   # Stoyka X m -> Аренда Стойка X м
+    m = _re.match(r'stoyka\s*([\d.,]+)\s*m', key)   # Stoyka X m
     if m:
-        return f"Аренда Стойка {m.group(1)} м"
+        razmer = m.group(1).replace(",", ".")
+        if razmer in ("1.2", "1,2"):
+            return "Аренда Стойка 1.2 м"      # 1.2m alohida qoladi
+        return "Аренда Стойка"                 # 4/4.5/5/5.5... hammasi bitta "Стойка"
     if key.startswith("stoyka"):
         return "Аренда Стойка"
     return "Аренда " + (nom or "").strip()   # ro'yxatda yo'q -> "Аренда " + o'zi
 
 def faktura_data(mid, dan, gacha):
-    """Mijozning [dan..gacha] davri uchun har mahsulot: soni + jami(NDS bilan, 112%)."""
+    """[dan..gacha] davri uchun har partiya: kun-ba-kun (returnlarni hisobga olib) arenda.
+    Har qatorda: faktura_nom, soni, kun, jami(112%). Bir xil (nom+kun) jamlanadi."""
     import datetime as _dt
     from collections import defaultdict
     try:
-        dd = _dt.date.fromisoformat(str(dan)[:10])
-        dg = _dt.date.fromisoformat(str(gacha)[:10])
+        dd = _pdate(str(dan)[:10]); dg = _pdate(str(gacha)[:10])
     except Exception:
         return []
     agg = defaultdict(lambda: {"soni": 0.0, "summa": 0.0})
     for p in partiyalar_of(mid):
         try:
-            hg = partiya_hisob(p, today=dg)
-            hd = partiya_hisob(p, today=dd)
+            issue = _pdate(p["chiqgan_sana"]); daily = p["kunlik_narx"] or 0
         except Exception:
             continue
-        davr = (hg.get("narx", 0) or 0) - (hd.get("narx", 0) or 0)   # shu davrdagi arenda (112%)
-        if davr <= 0:
+        start = issue if issue > dd else dd
+        if start > dg:
             continue
-        nom = (p.get("mahsulot") if isinstance(p, dict) else None) or hg.get("mahsulot") or "?"
-        agg[nom]["summa"] += davr
-        agg[nom]["soni"] += (hg.get("miqdor", 0) or 0)
+        rets = returns_for(p["id"])
+        rent = 0.0; kun = 0; D = start
+        while D <= dg:
+            qaytgan = 0.0
+            for r in rets:
+                try:
+                    if _pdate(r["qaytgan_sana"]) <= D:
+                        qaytgan += (r["miqdor"] or 0)
+                except Exception:
+                    pass
+            qty = (p["miqdor"] or 0) - qaytgan
+            if qty > 0:
+                rent += qty * daily; kun += 1
+            D += _dt.timedelta(days=1)
+        if rent <= 0:
+            continue
+        q0 = 0.0
+        for r in rets:
+            try:
+                if _pdate(r["qaytgan_sana"]) <= start:
+                    q0 += (r["miqdor"] or 0)
+            except Exception:
+                pass
+        soni = (p["miqdor"] or 0) - q0
+        if soni <= 0:
+            soni = (p["miqdor"] or 0)
+        nom = (p.get("mahsulot") if isinstance(p, dict) else None) or "?"
+        fn = faktura_nom(nom)
+        agg[(fn, kun)]["soni"] += soni
+        agg[(fn, kun)]["summa"] += rent
     res = []
-    for nom, v in sorted(agg.items()):
+    for (fn, kun), v in sorted(agg.items(), key=lambda x: (x[0][0], -x[0][1])):
         if round(v["summa"]) <= 0:
             continue
-        res.append({"nom": nom, "faktura_nom": faktura_nom(nom),
+        res.append({"faktura_nom": fn, "kun": kun,
                     "soni": int(v["soni"]) if v["soni"] == int(v["soni"]) else round(v["soni"], 1),
                     "jami": round(v["summa"])})
     return res
