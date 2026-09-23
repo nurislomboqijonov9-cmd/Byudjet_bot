@@ -597,6 +597,10 @@ def make_web_app(bot_token):
                 d["predoplata_holati"] = db.predoplata_holati(mid)
         except Exception:
             d["predoplata"] = False
+        try:
+            d["brovchilar"] = db.brov_kimlar()
+        except Exception:
+            d["brovchilar"] = []
         return web.json_response(d)
 
     async def api_mijoz_excel(request):

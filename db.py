@@ -4606,23 +4606,23 @@ def mahsulot_harakati(nom, limit=800):
     res = []
     rows = con.execute("""
         SELECT p.id AS pid, p.partiya_raqam AS praqam, p.miqdor AS miqdor,
-               p.chiqgan_sana AS sana, m.id AS mid, m.ism AS mijoz
+               p.chiqgan_sana AS sana, p.brov_kim AS brov_kim, m.id AS mid, m.ism AS mijoz
         FROM partiyalar p LEFT JOIN mijozlar m ON p.mijoz_id=m.id
         WHERE p.mahsulot=?""", (nom,)).fetchall()
     for r in rows:
         res.append({"tur": "chiqdi", "sana": str(r["sana"])[:10], "miqdor": r["miqdor"],
-                    "mijoz": r["mijoz"] or "—", "mijoz_id": r["mid"],
+                    "mijoz": r["mijoz"] or "—", "mijoz_id": r["mid"], "brov_kim": r["brov_kim"],
                     "id": r["pid"], "ref": "partiya", "praqam": r["praqam"]})
     rows = con.execute("""
         SELECT q.id AS qid, q.miqdor AS miqdor, q.qaytgan_sana AS sana,
-               p.id AS pid, p.partiya_raqam AS praqam, m.id AS mid, m.ism AS mijoz
+               p.id AS pid, p.partiya_raqam AS praqam, p.brov_kim AS brov_kim, m.id AS mid, m.ism AS mijoz
         FROM qaytarishlar q
         JOIN partiyalar p ON q.partiya_id=p.id
         LEFT JOIN mijozlar m ON p.mijoz_id=m.id
         WHERE p.mahsulot=?""", (nom,)).fetchall()
     for r in rows:
         res.append({"tur": "qaytdi", "sana": str(r["sana"])[:10], "miqdor": r["miqdor"],
-                    "mijoz": r["mijoz"] or "—", "mijoz_id": r["mid"],
+                    "mijoz": r["mijoz"] or "—", "mijoz_id": r["mid"], "brov_kim": r["brov_kim"],
                     "id": r["qid"], "ref": "qaytarish", "pid": r["pid"], "praqam": r["praqam"]})
     con.close()
     # Ombor tarixidan: spisat (writeoff) + yangi qo'shilgan (add)
@@ -5001,9 +5001,8 @@ def faktura_nom(nom):
     return "Аренда " + (nom or "").strip()   # ro'yxatda yo'q -> "Аренда " + o'zi
 
 def faktura_data(mid, dan, gacha):
-    """[dan..gacha] davri. Kun-ba-kun: har kuni mijozda qolgan miqdor x narx.
-    Chiqqan kun VA joriy(oxirgi) kun sanalmaydi (bot _billable_days qoidasi)."""
-    import datetime as _dt
+    """[dan..gacha]. Har QAYTGAN partiya alohida (o'z kuni bilan), qolgan ham alohida.
+    Kun = _billable_days (chiqqan kun sanalmaydi). Bir xil (nom+kun) jamlanadi."""
     from collections import defaultdict
     try:
         dd = _pdate(str(dan)[:10]); dg = _pdate(str(gacha)[:10])
@@ -5013,42 +5012,42 @@ def faktura_data(mid, dan, gacha):
     for p in partiyalar_of(mid):
         try:
             issue = _pdate(p["chiqgan_sana"]); daily = p["kunlik_narx"] or 0
+            miqdor = p["miqdor"] or 0
         except Exception:
             continue
         boshi = issue if issue > dd else dd
-        rets = returns_for(p["id"])
-        # sanab bo'ladigan kunlar: boshi+1 .. dg-1 (chiqqan kun va oxirgi kun sanalmaydi)
-        rent = 0.0; kun = 0
-        D = boshi + _dt.timedelta(days=1)
-        while D < dg:
-            qaytgan = 0.0
-            for r in rets:
-                try:
-                    if _pdate(r["qaytgan_sana"]) <= D:
-                        qaytgan += (r["miqdor"] or 0)
-                except Exception:
-                    pass
-            qty = (p["miqdor"] or 0) - qaytgan
-            if qty > 0:
-                rent += qty * daily; kun += 1
-            D += _dt.timedelta(days=1)
-        if rent <= 0:
+        if boshi > dg:
             continue
-        # soni: davr boshida chiqib turgan miqdor
-        q0 = 0.0
+        nom = (p.get("mahsulot") if isinstance(p, dict) else None) or "?"
+        fn = faktura_nom(nom)
+        rets = sorted(returns_for(p["id"]), key=lambda r: str(r.get("qaytgan_sana"))[:10])
+        still = miqdor
+        # davr boshigacha qaytganlar — hisobga olinmaydi
         for r in rets:
             try:
                 if _pdate(r["qaytgan_sana"]) <= boshi:
-                    q0 += (r["miqdor"] or 0)
+                    still -= (r["miqdor"] or 0)
             except Exception:
                 pass
-        soni = (p["miqdor"] or 0) - q0
-        if soni <= 0:
-            soni = (p["miqdor"] or 0)
-        nom = (p.get("mahsulot") if isinstance(p, dict) else None) or "?"
-        fn = faktura_nom(nom)
-        agg[(fn, kun)]["soni"] += soni
-        agg[(fn, kun)]["summa"] += rent
+        # davr ichida qaytganlar — har biri ALOHIDA (o'z kuni)
+        for r in rets:
+            try:
+                rd = _pdate(r["qaytgan_sana"]); q = (r["miqdor"] or 0)
+            except Exception:
+                continue
+            if rd <= boshi or rd > dg or q <= 0:
+                continue
+            kun = _billable_days(boshi, rd)
+            if kun > 0:
+                agg[(fn, kun)]["summa"] += q * daily * kun
+                agg[(fn, kun)]["soni"] += q
+            still -= q
+        # hali chiqib turgan (yoki davrdan keyin qaytgan) — oxirgi sanagacha
+        if still > 0:
+            kun = _billable_days(boshi, dg)
+            if kun > 0:
+                agg[(fn, kun)]["summa"] += still * daily * kun
+                agg[(fn, kun)]["soni"] += still
     res = []
     for (fn, kun), v in sorted(agg.items(), key=lambda x: (x[0][0], -x[0][1])):
         if round(v["summa"]) <= 0:

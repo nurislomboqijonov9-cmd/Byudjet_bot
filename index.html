@@ -518,7 +518,7 @@
           <div class="inrow"><input class="f" id="e_miq${p.id}" value="${son(p.miqdor)}" inputmode="decimal" placeholder="Soni">
             <input class="f" id="e_narx${p.id}" value="${son(p.kunlik_narx)}" inputmode="numeric" placeholder="Kunlik narx"></div>
           <input class="f" id="e_manzil${p.id}" value="${esc(p.manzil||'')}" placeholder="📍 Manzil / ob'ekt" style="margin-top:8px">
-          <input class="f" id="e_bkim${p.id}" value="${esc(p.brov_kim||'')}" placeholder="🔁 Brovdan: kimdan (bo'sh qoldiring — o'zimizniki)" style="margin-top:8px">
+          <input class="f" id="e_bkim${p.id}" list="brovlist" value="${esc(p.brov_kim||'')}" placeholder="🔁 Brovdan: tanlang yoki yozing (bo'sh — o'zimizniki)" style="margin-top:8px"><datalist id="brovlist">${(d.brovchilar||[]).map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
           <input class="f" id="e_sana${p.id}" type="date" value="${p.chiqgan_sana}" style="margin-top:8px">
           <button class="send" onclick="savePartiya(${p.id},${d.id})">Saqlash</button>
           <button class="del" style="margin-top:8px" onclick="delPartiya(${p.id},${d.id})">🗑 Bu mahsulotni o'chirish</button></div>
@@ -1459,11 +1459,11 @@ window.yopHisobot=async function(id){
     var body=document.getElementById('ombbody');
     var nom=window._harNom, all=window._harData, f=window._harFilter;
     var jc=0,jq=0; all.forEach(function(x){ if(x.tur==='chiqdi')jc+=(+x.miqdor||0); else jq+=(+x.miqdor||0); });
-    var har = (f==='all')? all : all.filter(function(x){return x.tur===f;});
+    var har = (f==='all')? all : (f==='brov'? all.filter(function(x){return x.brov_kim;}) : all.filter(function(x){return x.tur===f;}));
     var h='<div class="omb-card" style="padding:10px 12px;margin-bottom:10px;cursor:pointer;background:#182636" onclick="loadOmborTarix()">&lsaquo; Mahsulotlar</div>';
     h+='<div style="color:#fff;font-size:17px;font-weight:800;margin-bottom:8px">'+esc(nom)+'</div>';
     function tb(id,txt,on){ return '<button onclick="harFiltr(\''+id+'\')" style="padding:8px 10px;border-radius:9px;border:none;font-size:12.5px;font-weight:700;cursor:pointer;background:'+(on?'#C8A24A':'#182636')+';color:'+(on?'#1a1a1a':'#8A9AA8')+'">'+txt+'</button>'; }
-    h+='<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">'+tb('all','Hammasi',f==='all')+tb('chiqdi','\ud83d\udd34 Chiqgan',f==='chiqdi')+tb('qaytdi','\ud83d\udfe2 Qaytgan',f==='qaytdi')+tb('spisat','\ud83d\uddd1 Spisat',f==='spisat')+tb('yangi','\u2795 Yangi',f==='yangi')+'</div>';
+    h+='<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">'+tb('all','Hammasi',f==='all')+tb('chiqdi','\ud83d\udd34 Chiqgan',f==='chiqdi')+tb('qaytdi','\ud83d\udfe2 Qaytgan',f==='qaytdi')+tb('spisat','\ud83d\uddd1 Spisat',f==='spisat')+tb('yangi','\u2795 Yangi',f==='yangi')+tb('brov','\ud83d\udd01 Brovdan',f==='brov')+'</div>';
     var jc=0,jq=0,js=0,jy=0;
     all.forEach(function(x){ if(x.tur==='chiqdi')jc+=(+x.miqdor||0); else if(x.tur==='qaytdi')jq+=(+x.miqdor||0); else if(x.tur==='spisat')js+=(+x.miqdor||0); else if(x.tur==='yangi')jy+=(+x.miqdor||0); });
     h+='<div class="omb-card" style="padding:11px 14px;margin-bottom:10px;background:#0f2233"><div style="color:#fff;font-size:13px;line-height:1.6">Chiqdi: <b>'+som(jc)+'</b> - Qaytdi: <b>'+som(jq)+'</b> - Tashqarida: <b>'+som(jc-jq)+'</b><br>\ud83d\uddd1 Spisat: <b>'+som(js)+'</b> - \u2795 Yangi: <b>'+som(jy)+'</b></div></div>';
@@ -1478,7 +1478,7 @@ window.yopHisobot=async function(id){
       if(x.tur==='spisat'||x.tur==='yangi'){
         pastki='<span style="color:#C9D6E2;font-size:13px">\ud83d\udcdd '+esc(x.izoh||x.mijoz||'-')+'</span><button class="li-btn" onclick="omborHarakatTahrir('+x.id+',\''+x.tur+'\','+x.miqdor+')" style="padding:3px 9px">&#9998;</button>';
       } else {
-        pastki='<span style="color:#C9D6E2;font-size:13px">'+esc(x.mijoz||'-')+(x.praqam?(' #'+x.praqam):'')+'</span><button class="li-btn" onclick="harakatTahrir(\''+x.ref+'\','+x.id+','+x.miqdor+',\''+x.sana+'\')" style="padding:3px 9px">&#9998;</button>';
+        pastki='<span style="color:#C9D6E2;font-size:13px">'+esc(x.mijoz||'-')+(x.praqam?(' #'+x.praqam):'')+(x.brov_kim?(' <span style=\'color:#E0A94A\'>\ud83d\udd01 '+esc(x.brov_kim)+'</span>'):'')+'</span><button class="li-btn" onclick="harakatTahrir(\''+x.ref+'\','+x.id+','+x.miqdor+',\''+x.sana+'\')" style="padding:3px 9px">&#9998;</button>';
       }
       h+='<div class="omb-card" style="padding:12px 14px;margin-bottom:7px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="color:'+rang+';font-weight:700;font-size:14px">'+belgi+' <b class="num">'+som(x.miqdor)+'</b> dona</span><span style="color:#8A9AA8;font-size:12px">'+dmy(x.sana)+'</span></div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">'+pastki+'</div></div>';
     });
