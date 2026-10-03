@@ -519,7 +519,8 @@ def make_web_app(bot_token):
                 return web.json_response({"ok": False, "xato": "Login yoki parol noto'g'ri"}, status=401)
             x = db.get_xodim(uid) or {}
             return web.json_response({"ok": True, "token": make_token(uid, bot_token),
-                                      "ism": x.get("ism") or "", "rol": x.get("rol") or "xodim"})
+                                      "ism": x.get("ism") or "", "rol": x.get("rol") or "xodim",
+                                      "is_perech": (x.get("rol") == "perech")})
         except Exception:
             return web.json_response({"ok": False, "xato": "Xato"}, status=400)
 
@@ -564,6 +565,8 @@ def make_web_app(bot_token):
         a = request.query.get("arxiv")
         arxiv = True if a == "1" else (False if a == "0" else None)
         _ml = db.mijozlar(bolim=bolim, arxiv=arxiv)
+        if db.is_perech(uid):
+            _ml = [m for m in _ml if m.get("tolov_turi") == "perech"]
         if db.is_koruvchi(uid):
             for _m in _ml:
                 try:
@@ -577,6 +580,7 @@ def make_web_app(bot_token):
                                   "can_yoz": (not db.faqat_korish(uid)),
                                   "is_aloqa": db.is_aloqa(uid),
                                   "is_koruvchi": db.is_koruvchi(uid),
+                                  "is_perech": db.is_perech(uid),
                                   "is_admin": db.is_bosh_admin(uid)})
 
     async def api_mijoz(request):
@@ -590,6 +594,8 @@ def make_web_app(bot_token):
         d = db.mijoz_detail(mid)
         if not d:
             return web.json_response({"xato": "topilmadi"}, status=404)
+        if db.is_perech(uid) and d.get("tolov_turi") != "perech":
+            return web.json_response({"xato": "Ruxsat yo'q"}, status=403)
         # Predoplata rejimi va holati
         try:
             d["predoplata"] = (mid in db.predoplata_idlar())

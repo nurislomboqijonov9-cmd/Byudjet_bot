@@ -4,7 +4,7 @@ import re
 import asyncio
 import logging
 from io import BytesIO
-from datetime import date, timedelta
+from datetime import date
 from dotenv import load_dotenv
 from aiohttp import web as aioweb
 from telegram import (
@@ -47,7 +47,7 @@ def _malumot_text(d):
     lines = [f"👤 *{d['mijoz']}*"]
     if d.get("kesim_sana"):
         k = d["kesim_sana"].split("-")
-        lines.append(f"📆 *Hisobot: boshidan {k[2]}.{k[1]}.{k[0]} gacha*")
+        lines.append(f"📆 _{k[2]}.{k[1]}.{k[0]} holatiga_")
     if d.get("telefon"):
         lines.append(f"📞 {d['telefon']}")
     if d.get("adres"):
@@ -93,56 +93,25 @@ def _haydovchi_matni(uid):
     return "\n".join(lines)
 
 
-async def _ruxsat_sorovi(ctx, user):
-    """Yangi (ruxsatsiz) odam kirsa — egaga tugmali xabar yuboradi (bir marta)."""
-    yangi = db.ruxsat_sorov_qosh(user.id, user.username, user.full_name)
-    if not yangi:
-        return
-    uname = f"@{user.username}" if user.username else "—"
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Xodim", callback_data=f"ruxx:{user.id}"),
-         InlineKeyboardButton("👑 Admin", callback_data=f"ruxa:{user.id}")],
-        [InlineKeyboardButton("🚚 Haydovchi", callback_data=f"ruxh:{user.id}"),
-         InlineKeyboardButton("❌ Rad", callback_data=f"ruxn:{user.id}")],
-    ])
-    try:
-        for _aid in db.BOSH_ADMINLAR:
-            try:
-                await ctx.bot.send_message(
-                    _aid,
-                    f"👤 *Yangi kirish so'rovi*\n\nIsm: {user.full_name}\nUsername: {uname}\n🆔 `{user.id}`\n\nRuxsat berilsinmi?",
-                    parse_mode="Markdown", reply_markup=kb)
-            except Exception:
-                pass
-    except Exception:
-        log.exception("ruxsat so'rovi yuborilmadi")
-
-
-async def guard(update: Update, ctx=None):
+async def guard(update: Update):
     uid = update.effective_user.id
     if not db.is_allowed(uid) and db.haydovchi_bormi(uid):
         await update.message.reply_text(_haydovchi_matni(uid), parse_mode="Markdown",
                                         disable_web_page_preview=True)
         return False
     if not db.is_allowed(uid):
-        if ctx is not None:
-            await _ruxsat_sorovi(ctx, update.effective_user)
-            await update.message.reply_text(
-                "🔒 Ruxsat hali yo'q.\n\nSo'rovingiz adminga yuborildi — "
-                "u tasdiqlaganidan keyin ishlata olasiz.")
-        else:
-            await update.message.reply_text(
-                "Kechirasiz, bu korxona boti. 🔒\n\n"
-                f"Sizning ID: `{uid}`\n"
-                "Bu raqamni adminga yuboring — u sizni qo'shadi.",
-                parse_mode="Markdown",
-            )
+        await update.message.reply_text(
+            "Kechirasiz, bu korxona boti. 🔒\n\n"
+            f"Sizning ID: `{uid}`\n"
+            "Bu raqamni adminga yuboring — u sizni qo'shadi.",
+            parse_mode="Markdown",
+        )
         return False
     return True
 
 
-async def admin_guard(update: Update, ctx=None):
-    if not await guard(update, ctx):
+async def admin_guard(update: Update):
+    if not await guard(update):
         return False
     if not db.is_admin(update.effective_user.id):
         await update.message.reply_text("Bu buyruq faqat adminlar uchun.")
@@ -226,17 +195,8 @@ class _T:
 
 
 def _disamb_kb(matches, allow_new=False, ism=None):
-    rows = []
-    for m in matches:
-        qtxt = ""
-        try:
-            q = (db.mijoz_detail(m["id"]) or {}).get("qolgan_qarz", 0)
-            if q:
-                qtxt = f" · {som(q)} qarz"
-        except Exception:
-            qtxt = ""
-        rows.append([InlineKeyboardButton(
-            f"{m['ism']} · {m['telefon'] or 'raqamsiz'}{qtxt}", callback_data=f"pick:{m['id']}")])
+    rows = [[InlineKeyboardButton(f"{m['ism']} · {m['telefon'] or 'raqamsiz'}", callback_data=f"pick:{m['id']}")]
+            for m in matches]
     if allow_new and ism:
         rows.append([InlineKeyboardButton(f"➕ Yangi mijoz: {ism}", callback_data="picknew")])
     return InlineKeyboardMarkup(rows)
@@ -244,121 +204,17 @@ def _disamb_kb(matches, allow_new=False, ism=None):
 
 async def _send_excel(message, detail):
     try:
-        bio = excel.mijoz_excel(detail, gacha=detail.get("kesim_sana"))
+        bio = excel.mijoz_excel(detail)
         nom = "".join(c for c in detail["mijoz"] if c.isalnum() or c in " _-").strip() or "mijoz"
         if detail.get("kesim_sana"):
             nom += "_" + detail["kesim_sana"]
         await message.reply_document(document=InputFile(bio, filename=f"{nom}.xlsx"))
     except Exception:
         log.exception("excel yuborishda xatolik")
-        try:
-            await message.reply_text("Excel yaratishda xatolik bo'ldi. Qaytadan urinib ko'ring yoki mijozni ilovadan oching.")
-        except Exception:
-            pass
-
-
-def _sana_parse(s):
-    """'04.09.26' / '04.09.2026' / '2026-09-04' -> date yoki None."""
-    import datetime as _dt
-    s = (s or "").strip()
-    m = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})$', s)
-    if m:
-        y, mo, d = m.groups()
-    else:
-        m = re.match(r'^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})$', s)
-        if m:
-            d, mo, y = m.groups()
-            y = int(y)
-            if y < 100:
-                y += 2000
-        else:
-            m = re.match(r'^(\d{1,2})[.\-/](\d{1,2})$', s)   # 31.08 -> joriy yil
-            if not m:
-                return None
-            d, mo = m.groups()
-            try:
-                y = today_tk().year
-            except Exception:
-                y = _dt.date.today().year
-    try:
-        return _dt.date(int(y), int(mo), int(d))
-    except Exception:
-        return None
-
-
-def _mijoz_qidir(query):
-    """Ism yoki tel bo'yicha mijoz qidirish (AI'siz)."""
-    q = (query or "").strip().lower()
-    if not q:
-        return []
-    raqam = "".join(ch for ch in q if ch.isdigit())
-    res = []
-    for m in db.mijozlar():
-        nom = (m.get("mijoz") or "").lower()
-        tel = "".join(ch for ch in (m.get("telefon") or "") if ch.isdigit())
-        if (q in nom) or (raqam and len(raqam) >= 4 and raqam in tel):
-            res.append({"id": m["id"], "ism": m.get("mijoz"), "telefon": m.get("telefon")})
-    return res
-
-
-async def _mijoz_excel_yubor(message, mid, sana=None):
-    d = db.mijoz_detail(mid, today=sana) if sana else db.mijoz_detail(mid)
-    if not d:
-        await message.reply_text("Topilmadi.")
-        return
-    if sana:
-        try:
-            await message.reply_text(f"\U0001F4C6 {sana} sanasiga proyeksiya (agar shu kungacha ishlatilsa):")
-        except Exception:
-            pass
-    await _send_excel(message, d)
-
-
-def _qidir_kb(matches, sana=None):
-    suf = f":{sana.isoformat()}" if sana else ""
-    rows = [[InlineKeyboardButton(f"{m['ism']} \u00b7 {m['telefon'] or 'raqamsiz'}", callback_data=f"xls:{m['id']}{suf}")]
-            for m in matches[:20]]
-    return InlineKeyboardMarkup(rows)
-
-
-async def mijoz_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
-        return
-    args = list(ctx.args or [])
-    sana = None
-    if args:
-        p = _sana_parse(args[-1])
-        if p:
-            sana = p; args = args[:-1]
-    query = " ".join(args).strip()
-    if not query:
-        await update.message.reply_text("Ism yoki tel yozing:\n/mijoz Ixtiyor\n\nKelajak sana bilan (proyeksiya):\n/mijoz Ixtiyor 04.09.2026")
-        return
-    matches = _mijoz_qidir(query)
-    if not matches:
-        await update.message.reply_text(f"'{query}' \u2014 topilmadi.")
-        return
-    if len(matches) == 1:
-        await _mijoz_excel_yubor(update.message, matches[0]["id"], sana=sana)
-        return
-    await update.message.reply_text("Kimning hisobotini chiqaray?", reply_markup=_qidir_kb(matches, sana=sana))
-
-
-def _audit_bot(uid, mijoz_id, res, manba="bot"):
-    try:
-        if not res or not res.get("ok"):
-            return
-        amal = res.get("amal")
-        if amal in (None, "malumot", "savol"):
-            return
-        db.audit_qosh(uid, db.audit_ism(uid), amal, (res.get("xabar") or "")[:200], mijoz_id, manba)
-    except Exception:
-        pass
 
 
 async def _finish(update: Update, mijoz_id, t):
     res = logic.apply(mijoz_id, t)
-    _audit_bot(update.effective_user.id, mijoz_id, res)
     text, kb = fmt(res)
     await update.effective_message.reply_text(text, parse_mode="Markdown", reply_markup=kb)
     if res.get("ok") and res.get("amal") == "malumot":
@@ -390,11 +246,6 @@ async def bajar(update: Update, ctx: ContextTypes.DEFAULT_TYPE, t):
             pass
 
     if not t.tushunildi or not t.amal or not t.mijoz:
-        _amal0 = getattr(t.amal, "value", t.amal) if t.amal else None
-        if _amal0 == "savol" or (not t.mijoz and _amal0 == "savol"):
-            savol = (getattr(t, "transkript", "") or "").strip()
-            if savol and db.is_admin(update.effective_user.id):
-                return await _agent_reply(update, ctx, savol)
         await update.effective_message.reply_text(f"Tushunolmadim 🤔 Qaytaring.\nEshitganim: «{t.transkript}»")
         return
 
@@ -437,17 +288,12 @@ async def bajar(update: Update, ctx: ContextTypes.DEFAULT_TYPE, t):
     if amal == "chiqish":
         await _finish(update, db.add_mijoz(t.mijoz, tel), t)
         return
-    # Mijoz deb o'ylagan, lekin topilmadi — bu tahliliy savol bo'lishi mumkin: agentga yo'naltiramiz
-    if amal == "malumot" and db.is_admin(update.effective_user.id):
-        savol = (getattr(t, "transkript", "") or "").strip()
-        if savol:
-            return await _agent_reply(update, ctx, savol)
     await update.effective_message.reply_text(f"«{t.mijoz}» topilmadi.")
 
 
 # ---------- Komandalar ----------
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     uid = update.effective_user.id
     url = webapp_url()
@@ -469,7 +315,7 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def mijozlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     ml = db.mijozlar()
     if not ml:
@@ -484,7 +330,7 @@ async def mijozlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def app_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     url = webapp_url()
     if not url:
@@ -499,7 +345,7 @@ async def app_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def ilova_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     url = webapp_url()
     if not url:
@@ -524,7 +370,7 @@ async def ilova_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def kunlik_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     k = db.kunlik()
     sana = k["sana"].split("-")
@@ -548,7 +394,7 @@ async def kunlik_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def xarajat_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     s = db.oylik_sarf()
     in_price = float(os.getenv("GEMINI_IN_USD", "0.30"))
@@ -573,7 +419,7 @@ async def xarajat_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ---------- Qarzdorlar / chegara ----------
 async def hisobot_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     ml = db.mijozlar()
     if not ml:
@@ -581,14 +427,7 @@ async def hisobot_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     jami_qarz = sum(m["qolgan_qarz"] for m in ml)
     try:
-        cols = [x["nom"] for x in db.umumiy_ostatka()]   # ustunlar (mahsulot nomlari)
-        for m in ml:
-            m["ostatka_map"] = {it["nom"]: it["qolgan"] for it in db.mijoz_ostatka(m["id"])}
-        brovdan = db.umumiy_brovdan()
-    except Exception:
-        cols = []; brovdan = None
-    try:
-        bio = excel.umumiy_excel(ml, sana=db.today_tk().isoformat(), mahsulotlar=cols, brovdan=brovdan)
+        bio = excel.umumiy_excel(ml, sana=db.today_tk().isoformat())
         await update.message.reply_document(
             document=InputFile(bio, filename="umumiy_hisobot.xlsx"),
             caption=f"📊 Umumiy hisobot · {len(ml)} ta mijoz · umumiy qarz {som(jami_qarz)} so'm")
@@ -598,7 +437,7 @@ async def hisobot_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def qarzdorlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     lst = db.qarzdorlar()
     if not lst:
@@ -630,7 +469,7 @@ async def qarzdorlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def sms_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     if not ctx.args or not ctx.args[0].lstrip("-").isdigit():
         await update.message.reply_text("Format: `/sms <mijoz_id>`\n(mijoz ID sini /qarzdorlar dagi tugmadan olish osonroq)", parse_mode="Markdown")
@@ -661,7 +500,7 @@ async def _sms_sorov(message, mid):
 
 
 async def shablon_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     if not sms.is_configured():
         await update.message.reply_text("📵 SMS sozlanmagan (ESKIZ kalitlari yo'q).")
@@ -679,7 +518,7 @@ async def shablon_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def shablonlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     if not sms.is_configured():
         await update.message.reply_text("📵 SMS sozlanmagan.")
@@ -704,7 +543,7 @@ async def shablonlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def yiguvchi_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     if ctx.args:
         a = ctx.args[0]
@@ -729,7 +568,7 @@ async def yiguvchi_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def brovdan_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     gr = db.brov_list()
     if not gr:
@@ -758,7 +597,7 @@ async def brovdan_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def nomlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     lst = db.partiya_nomlari()
     if not lst:
@@ -781,7 +620,7 @@ async def nomlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def nom_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     txt = " ".join(ctx.args or "")
     if "=" not in txt:
@@ -801,70 +640,8 @@ async def nom_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "Endi `/ombor_hisobla` bilan omborni qayta sanang.", parse_mode="Markdown")
 
 
-async def ostatka_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
-        return
-    try:
-        db.ombor_recalc()   # avval to'g'rilaymiz (o'chirilganlar omborga qaytadi)
-    except Exception:
-        pass
-    lst = db.ombor_list()
-    j_omb = j_ij = 0
-    satlar = []
-    for x in lst:
-        if (x["total"] or 0) == 0 and (x["out"] or 0) == 0:
-            continue
-        satlar.append(f"• {x['name']}: omborda *{som(x['omborda'])}* · ijarada {som(x['out'])} · jami {som(x['total'])}")
-        j_omb += x["omborda"]; j_ij += x["out"]
-    if not satlar:
-        await update.message.reply_text("📦 Ombor bo'sh.")
-        return
-    bosh = "📦 *OMBOR — ostatka*\n_(avtomat to'g'rilandi)_\n\n"
-    yakun = f"\n━━━━━━━━\nJami omborda: *{som(j_omb)}* · ijarada: *{som(j_ij)}*\n\n_Tuzatish:_ `/ostatka_tuzat <nom> <jami>`"
-    # uzun bo'lsa bo'lib yuboramiz (Telegram 4096 limit)
-    matn = bosh; birinchi = True
-    for s in satlar:
-        if len(matn) + len(s) > 3500:
-            await update.message.reply_text(matn, parse_mode="Markdown")
-            matn = ""
-        matn += s + "\n"
-    await update.message.reply_text(matn + yakun, parse_mode="Markdown")
-
-
-async def ostatka_tuzat_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
-        return
-    args = ctx.args or []
-    if len(args) < 2 or not args[-1].lstrip("-").isdigit():
-        await update.message.reply_text(
-            "✏️ *Ombor sonini qo'lda tuzatish*\n\n"
-            "`/ostatka_tuzat <nom> <jami>`\n\n"
-            "Masalan: `/ostatka_tuzat Lyulka 120`\n"
-            "_(jami = umumiy nechta bor. Ijarada soni avtomat hisoblanadi.)_",
-            parse_mode="Markdown")
-        return
-    jami = int(args[-1])
-    nom = " ".join(args[:-1]).strip()
-    pid = db.ombor_by_name(nom)
-    if not pid:
-        await update.message.reply_text(f"❌ «{nom}» ombordan topilmadi. `/ostatka` bilan nomlarni ko'ring.", parse_mode="Markdown")
-        return
-    db.ombor_set_total(pid, jami)
-    try:
-        db.ombor_recalc()
-    except Exception:
-        pass
-    for x in db.ombor_list():
-        if x["id"] == pid:
-            await update.message.reply_text(
-                f"✅ *{x['name']}* yangilandi:\nJami: *{som(x['total'])}* · ijarada: {som(x['out'])} · omborda: *{som(x['omborda'])}*",
-                parse_mode="Markdown")
-            return
-    await update.message.reply_text("✅ Yangilandi.")
-
-
 async def ombor_hisobla_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     await update.message.reply_text("⏳ Hisoblanyapti…")
     res = db.ombor_recalc()
@@ -886,7 +663,7 @@ async def ombor_hisobla_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def parol_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     a = ctx.args or []
     # Umumiy (hamma uchun bitta) login
@@ -919,6 +696,36 @@ async def parol_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"🌐 Havola:\n`{base}`\n\n"
             "_Hamma xodim shu login/parol bilan kiradi._\n"
             "Alohida loginlarni o'chirish: `/parol ochir hamma`",
+            parse_mode="Markdown", disable_web_page_preview=True)
+        return
+    # Perech (buxgalter — faqat perechisleniya mijozlar)
+    if a and a[0].lower() in ("perech", "buxgalter", "perechisleniya"):
+        if len(a) < 3:
+            p = db.get_xodim(db.PERECH_ID)
+            hozir = f"\n\nHozirgi: login `{p['login']}`" if (p and p.get("login")) else "\n\n_Hali qo'yilmagan._"
+            await update.message.reply_text(
+                "🏦 *Perech login (faqat perechisleniya mijozlar)*\n\n"
+                "Kirgan odam FAQAT perechisleniya mijozlarni ko'radi (o'zgartira olmaydi).\n\n"
+                "Qo'yish: `/parol perech <login> <parol>`\n"
+                "Masalan: `/parol perech buxgalter 2026`\n"
+                "O'chirish: `/parol perech ochir`" + hozir, parse_mode="Markdown")
+            return
+        if a[1].lower() == "ochir":
+            db.perech_ochir()
+            await update.message.reply_text("🗑 Perech login o'chirildi.")
+            return
+        login, parol = a[1], a[2]
+        res = db.set_perech_parol(login, parol)
+        if not res.get("ok"):
+            await update.message.reply_text(f"❌ {res.get('xato')}")
+            return
+        url = webapp_url() or ""
+        base = url.split("?")[0]
+        await update.message.reply_text(
+            f"✅ *Perech login tayyor (buxgalter)*\n\n"
+            f"🔑 Login: `{res['login']}`\n🔒 Parol: `{parol}`\n\n"
+            f"🌐 Havola:\n`{base}`\n\n"
+            "_Shu login bilan kirgan FAQAT perechisleniya mijozlarni ko'radi._",
             parse_mode="Markdown", disable_web_page_preview=True)
         return
     if len(a) == 2 and a[0].lower() == "ochir" and a[1].lower() in ("hamma", "hammasi", "all"):
@@ -996,7 +803,7 @@ async def parol_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def haydovchilar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     lst = db.haydovchilar()
     lines = [f"🚚 *Haydovchilar* ({len(lst)} ta)\n"] if lst else ["🚚 Hali haydovchi qo'shilmagan.\n"]
@@ -1010,7 +817,7 @@ async def haydovchilar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def haydovchi_qosh_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     uid, ism = _parse_id_ism(ctx.args)
     if not uid:
@@ -1025,7 +832,7 @@ async def haydovchi_qosh_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def haydovchi_ochir_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     uid, _ = _parse_id_ism(ctx.args)
     if not uid:
@@ -1036,7 +843,7 @@ async def haydovchi_ochir_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def tovarlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     txt = " ".join(ctx.args or "").strip()
     if txt:
@@ -1056,7 +863,7 @@ async def tovarlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def tekshir_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     if ctx.args and ctx.args[0].lower() in ("on", "off", "ha", "yoq", "1", "0"):
         on = ctx.args[0].lower() in ("on", "ha", "1")
@@ -1074,7 +881,7 @@ async def tekshir_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def limit_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     if ctx.args and ctx.args[0].lstrip("-").isdigit():
         n = int(ctx.args[0])
@@ -1104,7 +911,7 @@ def _parse_id_ism(args):
 
 
 async def xodimlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     xs = db.all_xodimlar()
     lines = ["👥 *Xodimlar:*\n"]
@@ -1123,7 +930,7 @@ async def xodimlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def xodim_qosh_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     uid, ism = _parse_id_ism(ctx.args)
     if not uid:
@@ -1134,7 +941,7 @@ async def xodim_qosh_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def admin_qosh_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     uid, ism = _parse_id_ism(ctx.args)
     if not uid:
@@ -1144,45 +951,8 @@ async def admin_qosh_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ 👑 Admin qo'shildi: *{ism or uid}*\n🆔 `{uid}`", parse_mode="Markdown")
 
 
-async def jurnal_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
-        return
-    rows = db.audit_royxat(30)
-    if not rows:
-        await update.message.reply_text("Jurnal hozircha bo'sh.")
-        return
-    lines = ["📋 *Oxirgi o'zgarishlar:*\n"]
-    for r in rows:
-        vaqt = (r.get("vaqt") or "")[:16].replace("T", " ")
-        manba = "📱" if r.get("manba") == "ilova" else "💬"
-        kim = r.get("ism") or str(r.get("uid"))
-        tf = r.get("tafsilot") or ""
-        lines.append(f"{manba} {vaqt} · *{kim}*\n   {r.get('amal')}: {tf}")
-    await update.message.reply_text("\n".join(lines)[:4000], parse_mode="Markdown")
-
-
-async def sorovlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
-        return
-    ss = db.ruxsat_sorovlar()
-    if not ss:
-        await update.message.reply_text("Kutayotgan kirish so'rovi yo'q.")
-        return
-    for s in ss[:20]:
-        uname = f"@{s['username']}" if s.get("username") else "—"
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Xodim", callback_data=f"ruxx:{s['uid']}"),
-             InlineKeyboardButton("👑 Admin", callback_data=f"ruxa:{s['uid']}")],
-            [InlineKeyboardButton("🚚 Haydovchi", callback_data=f"ruxh:{s['uid']}"),
-             InlineKeyboardButton("❌ Rad", callback_data=f"ruxn:{s['uid']}")],
-        ])
-        await update.message.reply_text(
-            f"👤 {s.get('ism') or '—'}\nUsername: {uname}\n🆔 `{s['uid']}`",
-            parse_mode="Markdown", reply_markup=kb)
-
-
 async def ochir_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await admin_guard(update, ctx):
+    if not await admin_guard(update):
         return
     uid, _ = _parse_id_ism(ctx.args)
     if not uid:
@@ -1212,18 +982,17 @@ def _amal_str(a):
 
 def _tasdiq_matni(actions):
     lines = ["🎙 *Tushundim — tasdiqlaysizmi?*\n"]
-    for i, a in enumerate(actions, 1):
+    for a in actions:
         am = _amal_str(a)
         mij = a.mijoz or "?"
         if am == "chiqish":
-            lines.append(f"{i}) 📤 {mij}: {son(a.miqdor or 0)} ta {a.mahsulot or '?'} · kuniga {som(a.kunlik_narx or 0)} so'm")
+            lines.append(f"📤 {mij}: {son(a.miqdor or 0)} ta {a.mahsulot or '?'} · kuniga {som(a.kunlik_narx or 0)} so'm")
         elif am == "qaytarish":
-            lines.append(f"{i}) 📥 {mij}: {son(a.miqdor or 0)} ta {a.mahsulot or ''} qaytdi")
+            lines.append(f"📥 {mij}: {son(a.miqdor or 0)} ta {a.mahsulot or ''} qaytdi")
         elif am == "tolov":
-            lines.append(f"{i}) 💵 {mij}: to'lov {som(a.summa or 0)} so'm")
+            lines.append(f"💵 {mij}: to'lov {som(a.summa or 0)} so'm")
         else:
-            lines.append(f"{i}) • {mij}: {am}")
-    lines.append(f"\n_Jami: {len(actions)} ta_")
+            lines.append(f"• {mij}: {am}")
     return "\n".join(lines)
 
 
@@ -1246,7 +1015,7 @@ async def _show_tasdiq(update: Update, ctx: ContextTypes.DEFAULT_TYPE, actions):
 
 
 async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     msg = await update.message.reply_text("🎧 Tinglayapman…")
     try:
@@ -1262,8 +1031,8 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not actions:
         await update.message.reply_text("Tushunolmadim 🤔 Qaytaring.")
         return
-    # Mol chiqishi yoki bir nechta amal bo'lsa — avval tasdiqlatamiz
-    if any(_amal_str(a) == "chiqish" for a in actions) or len(actions) > 1:
+    # Mol chiqishi bo'lsa — avval tasdiqlatamiz
+    if any(_amal_str(a) == "chiqish" for a in actions):
         await _show_tasdiq(update, ctx, actions)
     else:
         for a in actions:
@@ -1271,7 +1040,7 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     txt = update.message.text or ""
     if ctx.user_data.get("loc"):
@@ -1284,7 +1053,7 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             ctx.user_data.pop("loc", None)
     if ctx.user_data.pop("await_edit", False):
         try:
-            actions = await asyncio.to_thread(ai.from_text, txt)
+            actions = ai.from_text(txt)
         except Exception:
             log.exception("tahrir xatolik")
             await update.message.reply_text("Xatolik. Qaytadan urinib ko'ring.")
@@ -1296,41 +1065,11 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return await _show_tasdiq(update, ctx, actions)
     if _only_arrows(txt):
         return await _set_yonalish(update, ctx, _arrow_dir(txt))
-    # --- AI'dan OLDIN: oddiy ism/tel (ixtiyoriy kelajak sana) -> to'g'ridan hisobot ---
-    _t = txt.strip()
-    _sana = None
-    _boл = _t.split()
-    if len(_boл) >= 2:
-        _p = _sana_parse(_boл[-1])
-        if _p:
-            _sana = _p
-            _t = " ".join(_boл[:-1]).strip()
-    _raqam = "".join(c for c in _t if c.isdigit())
-    _lookup = bool(_t) and (
-        (not any(c.isdigit() for c in _t) and len(_t.split()) <= 4 and len(_t) <= 40)
-        or (len(_raqam) >= 7 and len(_t) <= 20)
-    )
-    if _lookup:
-        _mm = _mijoz_qidir(_t)
-        if len(_mm) == 1:
-            await _mijoz_excel_yubor(update.message, _mm[0]["id"], sana=_sana)
-            return
-        if len(_mm) > 1:
-            await update.message.reply_text("Kimning hisobotini chiqaray?", reply_markup=_qidir_kb(_mm, sana=_sana))
-            return
-        # topilmasa -> AI'ga o'tadi
     try:
-        actions = await asyncio.to_thread(ai.from_text, txt)
+        actions = ai.from_text(txt)
     except Exception:
         log.exception("text xatolik")
-        matches = _mijoz_qidir(txt)
-        if len(matches) == 1:
-            await _mijoz_excel_yubor(update.message, matches[0]["id"])
-            return
-        if len(matches) > 1:
-            await update.message.reply_text("Kimning hisobotini chiqaray?", reply_markup=_qidir_kb(matches))
-            return
-        await update.message.reply_text("Ism yoki tel bo'yicha topilmadi. Buyruq bo'lsa — qaytadan yozing.")
+        await update.message.reply_text("Xatolik yuz berdi. Qaytadan urinib ko'ring.")
         return
     actions = [a for a in actions if a.tushunildi and a.amal] or actions[:1]
     if not actions:
@@ -1356,7 +1095,7 @@ async def _set_yonalish(update: Update, ctx: ContextTypes.DEFAULT_TYPE, yon):
 
 
 async def handle_location(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     loc = update.message.location or (update.message.venue.location if update.message.venue else None)
     if not loc:
@@ -1400,7 +1139,7 @@ async def _loc_biriktir(update: Update, ctx: ContextTypes.DEFAULT_TYPE, ism):
 
 
 async def handle_sticker(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
+    if not await guard(update):
         return
     emoji = update.message.sticker.emoji if update.message.sticker else ""
     await _set_yonalish(update, ctx, _arrow_dir(emoji))
@@ -1410,44 +1149,6 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
     data = q.data
-    if data.startswith(("ruxx:", "ruxa:", "ruxh:", "ruxn:")):
-        if not db.can_admin_boshqar(q.from_user.id):
-            return
-        tuid = int(data.split(":")[1])
-        srov = db.ruxsat_sorov_get(tuid)
-        ism = (srov or {}).get("ism") or ""
-        if data.startswith("ruxn:"):
-            db.ruxsat_sorov_ochir(tuid)
-            await q.edit_message_text(f"❌ Rad etildi: {ism} (`{tuid}`)", parse_mode="Markdown")
-        elif data.startswith("ruxh:"):
-            db.haydovchi_qosh(tuid, ism)
-            db.ruxsat_sorov_ochir(tuid)
-            await q.edit_message_text(f"✅ Ruxsat berildi (🚚 Haydovchi): {ism} (`{tuid}`)", parse_mode="Markdown")
-            try:
-                await ctx.bot.send_message(tuid, "✅ Sizga haydovchi sifatida ruxsat berildi! /start bosing.")
-            except Exception:
-                pass
-        else:
-            rol = "admin" if data.startswith("ruxa:") else "xodim"
-            db.add_xodim(tuid, ism, rol, q.from_user.id)
-            db.ruxsat_sorov_ochir(tuid)
-            belgi = "👑 Admin" if rol == "admin" else "👷 Xodim"
-            await q.edit_message_text(f"✅ Ruxsat berildi ({belgi}): {ism} (`{tuid}`)", parse_mode="Markdown")
-            try:
-                await ctx.bot.send_message(tuid, "✅ Sizga ruxsat berildi! Endi botdan foydalanishingiz mumkin — /start bosing.")
-            except Exception:
-                pass
-        return
-    if data.startswith("xls:"):
-        try:
-            await q.answer()
-        except Exception:
-            pass
-        parts = data.split(":")
-        mid = int(parts[1])
-        sana = _sana_parse(parts[2]) if len(parts) > 2 else None
-        await _mijoz_excel_yubor(q.message, mid, sana=sana)
-        return
     if data.startswith("pick:"):
         mijoz_id = int(data.split(":")[1])
         pending = ctx.user_data.pop("pending", None)
@@ -1455,7 +1156,6 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await q.edit_message_text("Amal eskirdi. Qaytadan yuboring.")
             return
         res = logic.apply(mijoz_id, _T(pending))
-        _audit_bot(q.from_user.id, mijoz_id, res)
         text, kb = fmt(res)
         await q.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
         if res.get("ok") and res.get("amal") == "malumot":
@@ -1467,26 +1167,21 @@ async def on_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return
         mijoz_id = db.add_mijoz(pending["mijoz"], pending.get("telefon"))
         res = logic.apply(mijoz_id, _T(pending))
-        _audit_bot(q.from_user.id, mijoz_id, res)
         text, kb = fmt(res)
         await q.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
     elif data.startswith("delp:"):
         db.delete_partiya(int(data.split(":")[1]))
-        db.audit_qosh(q.from_user.id, db.audit_ism(q.from_user.id), "o'chirish", "partiya bekor qilindi", None, "bot")
         await q.edit_message_text("🗑 Partiya bekor qilindi.")
     elif data.startswith("delr:"):
         for x in data.split(":", 1)[1].split(","):
             if x.strip().isdigit():
                 db.delete_return(int(x))
-        db.audit_qosh(q.from_user.id, db.audit_ism(q.from_user.id), "o'chirish", "qaytarish bekor qilindi", None, "bot")
         await q.edit_message_text("🗑 Qaytarish bekor qilindi.")
     elif data.startswith("delt:"):
         db.delete_tolov(int(data.split(":")[1]))
-        db.audit_qosh(q.from_user.id, db.audit_ism(q.from_user.id), "o'chirish", "to'lov bekor qilindi", None, "bot")
         await q.edit_message_text("🗑 To'lov bekor qilindi.")
     elif data.startswith("dele:"):
         db.delete_eslatma(int(data.split(":")[1]))
-        db.audit_qosh(q.from_user.id, db.audit_ism(q.from_user.id), "o'chirish", "eslatma bekor qilindi", None, "bot")
         await q.edit_message_text("🗑 Eslatma bekor qilindi.")
     elif data == "tasdiq:ok":
         pending = ctx.user_data.pop("tasdiq", None)
@@ -1659,348 +1354,6 @@ async def _set_commands(app):
         log.exception("buyruq menyusini o'rnatishda xatolik")
 
 
-# ==========================================================================
-# SAVOL-JAVOB AGENTI (faqat admin) — savol -> SQL SELECT -> javob
-# Xavfsizlik: faqat SELECT + so'rov bir martalik XOTIRA-NUSXAda bajariladi
-# (real bazaga umuman tegilmaydi).
-# ==========================================================================
-import sqlite3 as _sqlite3
-
-_YOZISH_RE = re.compile(
-    r"\b(insert|update|delete|drop|alter|create|replace|attach|detach|pragma|vacuum|reindex|truncate|grant|revoke)\b",
-    re.IGNORECASE)
-
-
-def _sql_tozala(sql):
-    s = (sql or "").strip()
-    if s.startswith("```"):
-        s = re.sub(r"^```[a-zA-Z]*", "", s).strip()
-        if s.endswith("```"):
-            s = s[:-3].strip()
-    return s.strip().rstrip(";").strip()
-
-
-def _sql_xavfsizmi(sql):
-    s = _sql_tozala(sql)
-    if not s:
-        return False
-    low = s.lower()
-    if not (low.startswith("select") or low.startswith("with")):
-        return False
-    if ";" in s:                       # bitta so'rovgina
-        return False
-    if _YOZISH_RE.search(s):           # yozuv so'zlari yo'q
-        return False
-    return True
-
-
-def _db_sxema():
-    con = _sqlite3.connect(f"file:{db.DB_PATH}?mode=ro", uri=True)
-    parts = []
-    for name, sql in con.execute(
-            "SELECT name, sql FROM sqlite_master WHERE type='table' "
-            "AND name NOT LIKE 'sqlite_%' AND name NOT IN ('api_usage','sozlamalar') ORDER BY name"):
-        if sql:
-            parts.append(sql.strip())
-    con.close()
-    return "\n\n".join(parts)
-
-
-def _agent_baza():
-    """Bir martalik xotira-nusxa + hisoblangan v_mijoz_qarz jadvali."""
-    src = _sqlite3.connect(f"file:{db.DB_PATH}?mode=ro", uri=True)
-    mem = _sqlite3.connect(":memory:")
-    src.backup(mem)
-    src.close()
-    mem.row_factory = _sqlite3.Row
-    try:
-        mem.execute("CREATE TABLE v_mijoz_qarz (mijoz_id INTEGER, ism TEXT, telefon TEXT, "
-                    "bolim TEXT, status TEXT, qolgan_qarz REAL, jami_qolgan REAL)")
-        for b in ("ijara", "sotuv"):
-            try:
-                for m in db.mijozlar(bolim=b):
-                    mem.execute("INSERT INTO v_mijoz_qarz VALUES (?,?,?,?,?,?,?)",
-                                (m.get("id"), m.get("mijoz") or m.get("ism"), m.get("telefon"),
-                                 b, m.get("status"), m.get("qolgan_qarz") or 0, m.get("jami_qolgan") or 0))
-            except Exception:
-                pass
-        mem.commit()
-    except Exception:
-        log.exception("v_mijoz_qarz yaratish")
-    return mem
-
-
-def _jadval_matn(cols, rows):
-    if not rows:
-        return "(bo'sh)"
-    satrlar = [" | ".join(cols)]
-    for r in rows:
-        satrlar.append(" | ".join("" if v is None else str(v) for v in r))
-    return "\n".join(satrlar)
-
-
-def _sql_bajar(sql, limit=50):
-    mem = _agent_baza()
-    try:
-        cur = mem.execute(sql)
-        cols = [d[0] for d in cur.description] if cur.description else []
-        rows = [list(r) for r in cur.fetchmany(limit)]
-        return cols, rows
-    finally:
-        mem.close()
-
-
-def agent_javob(savol, sql_korsat=False):
-    """Savol -> SQL -> bajarish -> o'zbekcha javob. 1 marta retry."""
-    try:
-        sxema = _db_sxema()
-    except Exception:
-        log.exception("sxema"); return "Baza sxemasini o'qishda xatolik."
-    xato = None
-    for _ in range(2):
-        try:
-            sql = ai.savol_sql(savol, sxema, xato)
-        except Exception:
-            log.exception("savol_sql"); return "AI bilan bog'lanishda xatolik."
-        if not _sql_xavfsizmi(sql):
-            xato = "Faqat SELECT ruxsat etiladi (yozuv so'rovlari mumkin emas)."
-            continue
-        sql = _sql_tozala(sql)
-        try:
-            cols, rows = _sql_bajar(sql)
-        except Exception as e:
-            xato = str(e); continue
-        try:
-            javob = ai.natija_javob(savol, _jadval_matn(cols, rows))
-        except Exception:
-            log.exception("natija_javob"); javob = _jadval_matn(cols, rows)
-        javob = javob or "Ma'lumot topilmadi."
-        if sql_korsat:
-            javob += f"\n\n<code>{sql}</code>"
-        return javob
-    return "Savolga javob topolmadim 🤔 Boshqacharoq so'rab ko'ring."
-
-
-async def _agent_reply(update, ctx, savol, sql_korsat=False):
-    kutish = await update.effective_message.reply_text("⏳ O'ylayapman…")
-    try:
-        loop = asyncio.get_event_loop()
-        javob = await loop.run_in_executor(None, agent_javob, savol, sql_korsat)
-    except Exception:
-        log.exception("agent xatolik"); javob = "Xatolik yuz berdi."
-    try:
-        await ctx.bot.delete_message(update.effective_chat.id, kutish.message_id)
-    except Exception:
-        pass
-    await update.effective_message.reply_text(javob, parse_mode="HTML", disable_web_page_preview=True)
-
-
-async def savol_cmd(update, ctx):
-    if not await admin_guard(update, ctx):
-        return
-    savol = " ".join(ctx.args).strip() if ctx.args else ""
-    if not savol:
-        await update.message.reply_text("Savol yozing. Masalan:\n/savol bu oy qancha to'lov kirdi")
-        return
-    await _agent_reply(update, ctx, savol, sql_korsat=False)
-
-
-async def sql_cmd(update, ctx):
-    if not await admin_guard(update, ctx):
-        return
-    savol = " ".join(ctx.args).strip() if ctx.args else ""
-    if not savol:
-        await update.message.reply_text("/sql <savol> — javob + ishlatilgan SQL")
-        return
-    await _agent_reply(update, ctx, savol, sql_korsat=True)
-
-
-BACKUP_HOUR = int(os.getenv("BACKUP_HOUR", "3"))
-
-
-def _backup_bytes():
-    """Bazaning izchil (consistent) nusxasini bytes ko'rinishida qaytaradi."""
-    import sqlite3
-    import tempfile
-    src = sqlite3.connect(f"file:{db.DB_PATH}?mode=ro", uri=True)
-    tf = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-    tf.close()
-    try:
-        dst = sqlite3.connect(tf.name)
-        with dst:
-            src.backup(dst)
-        dst.close()
-        with open(tf.name, "rb") as f:
-            return f.read()
-    finally:
-        src.close()
-        try:
-            os.unlink(tf.name)
-        except Exception:
-            pass
-
-
-def _backup_fayl_nomi():
-    return f"temirchi_backup_{db.now_tk().strftime('%Y-%m-%d')}.db"
-
-
-async def _backup_yubor(app, chat_ids=None):
-    if chat_ids is None:
-        chat_ids = [x["id"] for x in db.all_xodimlar() if x.get("rol") == "admin"]
-        extra = os.getenv("BACKUP_CHAT_ID")
-        if extra:
-            try:
-                if int(extra) not in chat_ids:
-                    chat_ids.append(int(extra))
-            except Exception:
-                pass
-    if not chat_ids:
-        log.warning("backup: admin topilmadi")
-        return
-    data = _backup_bytes()
-    nomi = _backup_fayl_nomi()
-    cap = f"🗄 Avtomat backup · {db.now_tk().strftime('%Y-%m-%d %H:%M')}"
-    for cid in chat_ids:
-        try:
-            await app.bot.send_document(chat_id=cid, document=InputFile(BytesIO(data), filename=nomi), caption=cap)
-        except Exception:
-            log.exception("backup yuborish xatolik (%s)", cid)
-
-
-async def backup_loop(app):
-    while True:
-        try:
-            now = db.now_tk()
-            target = now.replace(hour=BACKUP_HOUR, minute=0, second=0, microsecond=0)
-            if target <= now:
-                target += timedelta(days=1)
-            await asyncio.sleep(max(30, (target - now).total_seconds()))
-            await _backup_yubor(app)
-        except Exception:
-            log.exception("backup_loop xatolik")
-            await asyncio.sleep(300)
-
-
-async def backup_cmd(update, ctx):
-    if not await admin_guard(update, ctx):
-        return
-    kutish = await update.message.reply_text("⏳ Backup tayyorlanmoqda…")
-    try:
-        data = _backup_bytes()
-        await update.message.reply_document(
-            document=InputFile(BytesIO(data), filename=_backup_fayl_nomi()),
-            caption=f"🗄 Baza zaxira nusxasi · {db.now_tk().strftime('%Y-%m-%d %H:%M')}")
-        try:
-            await ctx.bot.delete_message(update.effective_chat.id, kutish.message_id)
-        except Exception:
-            pass
-    except Exception:
-        log.exception("backup_cmd xatolik")
-        await update.message.reply_text("Backup yaratishda xatolik.")
-
-
-async def _pp_sms(app, x, bosqich):
-    """Mijozga predoplata SMS (1=1 kun qoldi, 0=tugadi)."""
-    try:
-        if not sms.is_configured():
-            return
-        tel = sms.normalize_phone(x.get("telefon"))
-        if not tel:
-            return
-        if bosqich == 1:
-            matn = ("Hurmatli mijoz! TEMIRCHI ijara xizmatidan foydalanganingiz uchun rahmat. "
-                    "Oldindan to'lovingiz muddati tugashiga 1 kun qoldi. "
-                    "Iltimos, to'lovni o'z vaqtida yangilang.")
-        else:
-            matn = ("TEMIRCHI: Hurmatli mijoz, oldindan to'lov muddatingiz tugadi. "
-                    "Iltimos, bugun to'lovni amalga oshiring, aks holda "
-                    "mahsulotlarni qaytarib olishga majbur bo'lamiz.")
-        await sms.send_sms(x.get("telefon"), matn)
-    except Exception:
-        log.exception("predoplata sms")
-
-
-async def _predoplata_check(app):
-    """Kuniga bir marta (YIGISH_SOAT dan keyin): predoplata tugash nazorati."""
-    now = db.now_tk()
-    if now.hour < YIGISH_SOAT:
-        return
-    kun = now.date().isoformat()
-    if db.get_sozlama("pp_oxirgi_kun") == kun:
-        return
-    db.set_sozlama("pp_oxirgi_kun", kun)
-
-    lst = db.predoplata_royxati()
-    ikki, tugadi = [], []
-    for x in lst:
-        k = x["qolgan_kun"]
-        mid = x["id"]
-        if k <= 0:
-            b = "0"
-        elif k <= 1:
-            b = "1"
-        elif k <= 2:
-            b = "2"
-        else:
-            b = ""
-        oldingi = db.get_sozlama(f"pp_bosqich_{mid}") or ""
-        if b == "":
-            if oldingi:
-                db.set_sozlama(f"pp_bosqich_{mid}", "")   # to'ldirildi -> reset
-            continue
-        if b == oldingi:
-            continue
-        db.set_sozlama(f"pp_bosqich_{mid}", b)
-        if b == "2":
-            ikki.append(x)
-        elif b == "1":
-            await _pp_sms(app, x, 1)
-        elif b == "0":
-            tugadi.append(x)
-            await _pp_sms(app, x, 0)
-
-    if ikki or tugadi:
-        satlar = ["💳 *PREDOPLATA — nazorat*\n"]
-        if tugadi:
-            satlar.append("🔴 *Tugadi — pul olish kerak:*")
-            for x in tugadi:
-                tel = f" · {x['telefon']}" if x.get("telefon") else ""
-                satlar.append(f"• *{x['mijoz']}*{tel} — kuniga {som(x['kunlik'])} so'm")
-        if ikki:
-            satlar.append("\n🟡 *2 kun ichida tugaydi:*")
-            for x in ikki:
-                tel = f" · {x['telefon']}" if x.get("telefon") else ""
-                satlar.append(f"• *{x['mijoz']}*{tel} — {x['tugash']} gacha")
-        matn = "\n".join(satlar)
-        for uid in _yig_recipients():
-            try:
-                await app.bot.send_message(uid, matn, parse_mode="Markdown")
-            except Exception:
-                pass
-
-
-async def predoplata_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not await guard(update, ctx):
-        return
-    lst = db.predoplata_royxati()
-    if not lst:
-        await update.message.reply_text(
-            "💳 Oldindan to'lov (predoplata) mijozlari yo'q.\n\n"
-            "_Mijoz ijara summasidan ko'proq to'lasa — 'krediti' hisoblanadi va shu yerda kuzatiladi._",
-            parse_mode="Markdown")
-        return
-    satlar = ["💳 *Oldindan to'lov — mijozlar*\n"]
-    for x in lst:
-        k = x["qolgan_kun"]
-        bel = "🔴" if k <= 0 else ("🟡" if k <= 2 else "🟢")
-        kunmatn = "bugun tugadi" if k <= 0 else f"~{int(round(k))} kun qoldi"
-        tel = f" · {x['telefon']}" if x.get("telefon") else ""
-        satlar.append(f"{bel} *{x['mijoz']}*{tel}\n    {kunmatn} · kredit {som(x['qoldiq'])} so'm · {x['tugash']}")
-    matn = "\n".join(satlar)
-    for i in range(0, len(matn), 3500):
-        await update.message.reply_text(matn[i:i+3500], parse_mode="Markdown")
-
-
 async def reminder_loop(app):
     while True:
         try:
@@ -2008,7 +1361,6 @@ async def reminder_loop(app):
                 await _send_eslatma(app, r)
                 db.mark_eslatma_sent(r["id"])
             await _daily_report(app)
-            await _predoplata_check(app)
         except Exception:
             log.exception("eslatma tekshiruvi xatolik")
         await asyncio.sleep(60)
@@ -2025,17 +1377,13 @@ async def run():
     app.add_handler(CommandHandler("kunlik", kunlik_cmd))
     app.add_handler(CommandHandler("xarajat", xarajat_cmd))
     app.add_handler(CommandHandler("qarzdorlar", qarzdorlar_cmd))
-    app.add_handler(CommandHandler("predoplata", predoplata_cmd))
     app.add_handler(CommandHandler("hisobot", hisobot_cmd))
-    app.add_handler(CommandHandler("mijoz", mijoz_cmd))
     app.add_handler(CommandHandler("limit", limit_cmd))
     app.add_handler(CommandHandler("yiguvchi", yiguvchi_cmd))
     app.add_handler(CommandHandler("brovdan", brovdan_cmd))
     app.add_handler(CommandHandler("nomlar", nomlar_cmd))
     app.add_handler(CommandHandler("nom", nom_cmd))
     app.add_handler(CommandHandler("ombor_hisobla", ombor_hisobla_cmd))
-    app.add_handler(CommandHandler("ostatka", ostatka_cmd))
-    app.add_handler(CommandHandler("ostatka_tuzat", ostatka_tuzat_cmd))
     app.add_handler(CommandHandler("parol", parol_cmd))
     app.add_handler(CommandHandler("haydovchilar", haydovchilar_cmd))
     app.add_handler(CommandHandler("haydovchi_qosh", haydovchi_qosh_cmd))
@@ -2049,12 +1397,7 @@ async def run():
     app.add_handler(CommandHandler("xodim_qosh", xodim_qosh_cmd))
     app.add_handler(CommandHandler("admin_qosh", admin_qosh_cmd))
     app.add_handler(CommandHandler("ochir", ochir_cmd))
-    app.add_handler(CommandHandler("backup", backup_cmd))
-    app.add_handler(CommandHandler("sorovlar", sorovlar_cmd))
-    app.add_handler(CommandHandler("jurnal", jurnal_cmd))
-    app.add_handler(CommandHandler("savol", savol_cmd))
-    app.add_handler(CommandHandler("sql", sql_cmd))
-    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(ruxx:|ruxa:|ruxh:|ruxn:|xls:|pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:|sms:|smsok:|smsno|loc:)"))
+    app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:|sms:|smsok:|smsno|loc:)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.LOCATION | filters.VENUE, handle_location))
     app.add_handler(MessageHandler(filters.Sticker.ALL, handle_sticker))
@@ -2079,7 +1422,6 @@ async def run():
 
     await app.updater.start_polling()
     asyncio.create_task(reminder_loop(app))
-    asyncio.create_task(backup_loop(app))
     await _set_commands(app)
     log.info("Ijara boti + Mini App ishga tushdi (port %s).", port)
     await asyncio.Event().wait()

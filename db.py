@@ -424,7 +424,7 @@ def get_xodim(uid):
 
 def add_xodim(uid, ism=None, rol="xodim", qoshgan_id=None):
     """Yangi xodim/admin qo'shadi yoki mavjudini yangilaydi (rol/ism)."""
-    if rol not in ("xodim", "admin", "aloqa", "koruvchi"):
+    if rol not in ("xodim", "admin", "aloqa", "koruvchi", "perech"):
         rol = "xodim"
     con = _con()
     ex = con.execute("SELECT id FROM xodimlar WHERE id = ?", (uid,)).fetchone()
@@ -2150,7 +2150,7 @@ def get_xodim(uid):
 
 def add_xodim(uid, ism=None, rol="xodim", qoshgan_id=None):
     """Yangi xodim/admin qo'shadi yoki mavjudini yangilaydi (rol/ism)."""
-    if rol not in ("xodim", "admin", "aloqa", "koruvchi"):
+    if rol not in ("xodim", "admin", "aloqa", "koruvchi", "perech"):
         rol = "xodim"
     con = _con()
     ex = con.execute("SELECT id FROM xodimlar WHERE id = ?", (uid,)).fetchone()
@@ -2727,6 +2727,8 @@ def mijozlar(today=None, bolim=None, arxiv=None):
     for mid in ids:
         d = mijoz_detail(mid, today)
         _arxiv = (d["qolgan_qarz"] == 0 and d["jami_qolgan"] == 0)
+        _kesimlar = [str(p.get("kesim_sana"))[:10] for p in d["partiyalar"]
+                     if p.get("kesim_sana") and (p.get("qolgan") or 0) > 0]
         res.append({
             "id": mid, "mijoz": d["mijoz"], "telefon": d["telefon"], "status": d["status"],
             "adres": d.get("adres"), "tolov_turi": d.get("tolov_turi"),
@@ -2734,6 +2736,8 @@ def mijozlar(today=None, bolim=None, arxiv=None):
             "jami_qolgan": d["jami_qolgan"],
             "partiya_soni": len(d["partiyalar"]),
             "arxiv": _arxiv,
+            "yopilgan": bool(_kesimlar),
+            "kesim_sana": (min(_kesimlar) if _kesimlar else None),
         })
     if arxiv is True:
         res = [x for x in res if x["arxiv"]]
@@ -3500,6 +3504,42 @@ def set_umumiy_parol(login, parol, rol="xodim"):
 def umumiy_ochir():
     con = _con()
     con.execute("DELETE FROM xodimlar WHERE id=?", (UMUMIY_ID,))
+    con.commit()
+    con.close()
+    return {"ok": True}
+
+
+# ---------- PERECH (buxgalter — faqat perechisleniya mijozlar) ----------
+PERECH_ID = 2   # maxsus "perech kirish" hisobi (Telegram ID emas)
+
+
+def set_perech_parol(login, parol):
+    """Buxgalter logini: kirsa faqat perechisleniya mijozlar ko'rinadi."""
+    login = (login or "").strip().lower()
+    if not login or not parol:
+        return {"ok": False, "xato": "Login va parol kerak"}
+    con = _con()
+    band = con.execute("SELECT id FROM xodimlar WHERE LOWER(login)=? AND id<>?", (login, PERECH_ID)).fetchone()
+    if band:
+        con.close()
+        return {"ok": False, "xato": "Bu login boshqa xodimda band"}
+    bor = con.execute("SELECT id FROM xodimlar WHERE id=?", (PERECH_ID,)).fetchone()
+    if bor:
+        con.execute("UPDATE xodimlar SET ism=?, rol='perech', login=?, parol_hash=? WHERE id=?",
+                    ("Buxgalter (perech)", login, _parol_hash(parol), PERECH_ID))
+    else:
+        con.execute("INSERT INTO xodimlar (id, ism, rol, qoshgan_id, yaratilgan, login, parol_hash) "
+                    "VALUES (?,?,?,?,?,?,?)",
+                    (PERECH_ID, "Buxgalter (perech)", "perech", OWNER_ID, now_tk().isoformat(),
+                     login, _parol_hash(parol)))
+    con.commit()
+    con.close()
+    return {"ok": True, "login": login}
+
+
+def perech_ochir():
+    con = _con()
+    con.execute("DELETE FROM xodimlar WHERE id=?", (PERECH_ID,))
     con.commit()
     con.close()
     return {"ok": True}
@@ -4900,9 +4940,13 @@ def is_koruvchi(uid):
     """Faqat ko'ruvchi — hech nima o'zgartira olmaydi (faqat klient+ombor ko'radi)."""
     return rol_of(uid) == "koruvchi"
 
+def is_perech(uid):
+    """Buxgalter — faqat perechisleniya mijozlarni ko'radi (yozish yo'q)."""
+    return rol_of(uid) == "perech"
+
 def faqat_korish(uid):
-    """Yozish/o'zgartirishga ruxsatsiz rollar (aloqa + koruvchi)."""
-    return rol_of(uid) in ("aloqa", "koruvchi")
+    """Yozish/o'zgartirishga ruxsatsiz rollar (aloqa + koruvchi + perech)."""
+    return rol_of(uid) in ("aloqa", "koruvchi", "perech")
 
 def pul_korsin(uid):
     """Umumiy pul (jami banner) faqat bosh adminlarga ko'rinadi."""
