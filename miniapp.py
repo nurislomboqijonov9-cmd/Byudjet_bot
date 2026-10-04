@@ -111,9 +111,11 @@ class _BrovWrap:
 def make_web_app(bot_token):
 
     def check(request):
-        uid = validate_init_data(request.headers.get("X-Init-Data", ""), bot_token)
+        # Avval TOKEN (odam ataylab login/parol kiritgan — perech ham shu bilan kiradi).
+        # initData (Telegram ID) faqat token yo'q/eskirgan bo'lsa zahira sifatida.
+        uid = read_token(request.headers.get("X-Token", ""), bot_token)
         if uid is None:
-            uid = read_token(request.headers.get("X-Token", ""), bot_token)
+            uid = validate_init_data(request.headers.get("X-Init-Data", ""), bot_token)
         if uid is None:
             dbg = os.getenv("DEBUG_USER_ID")
             uid = int(dbg) if dbg else None
