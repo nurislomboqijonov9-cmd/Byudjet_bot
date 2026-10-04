@@ -427,7 +427,7 @@
     window._isKoruvchi=(d.is_koruvchi===true);
     window._isPerech=(d.is_perech===true);
     setTimeout(()=>{const b=document.getElementById('fsb');if(b)b.textContent=document.body.classList.contains('wide')?'⤡':'⛶';tunSync();tickClock();},0);
-    app.innerHTML=`<header><div><div class="eyebrow">${window._isPerech?'🏦 Perechisleniya':(BOLIM==='sotuv'?'Sotuv hisobi':'Ijara hisobi')}${window.ARXIV?' · 📂 Arxiv':''}</div><h1>Mijozlar</h1></div>
+    app.innerHTML=`<header><div><div class="eyebrow">${BOLIM==='sotuv'?'Sotuv hisobi':'Ijara hisobi'}${window.ARXIV?' · 📂 Arxiv':''}</div><h1>Mijozlar</h1></div>
         ${(window._isAloqa||window._isPerech)?'':'<button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>'}
         <button class="fsbtn" id="fsb" onclick="wideTgl()">⛶</button>
         <button class="tunbtn" id="tunb" onclick="tunTgl()">🌙</button>
@@ -437,7 +437,7 @@
         <button class="tabb ${(BOLIM==='ijara'&&!window.ARXIV)?'on':''}" onclick="bolimTgl('ijara')">🏗 Ijara</button>
         <button class="tabb ${(BOLIM==='sotuv'&&!window.ARXIV)?'on':''}" onclick="bolimTgl('sotuv')">🏷 Sotuv</button>
         <button class="tabb ${window.ARXIV?'on':''}" onclick="arxivTgl()">📂 Arxiv</button></div>`}
-      <div class="hero"><div class="arc"></div><div class="lbl">${window.ARXIV?'Arxiv — yopilgan mijozlar':(window._isPerech?'🏦 Perechisleniya mijozlar':(window._isKoruvchi?'Mijozlar':'Umumiy qarz'))}</div>
+      <div class="hero"><div class="arc"></div><div class="lbl">${window.ARXIV?'Arxiv — yopilgan mijozlar':((window._isPerech||window._isKoruvchi)?'Mijozlar':'Umumiy qarz')}</div>
         <div class="amt num">${window.ARXIV?_ml.length:((window._isKoruvchi||window._isPerech)?_ml.length:(window._pulKorsin?som(jami):'•••'))} <small>${window.ARXIV?'ta':((window._isKoruvchi||window._isPerech)?'ta mijoz':(window._pulKorsin?'so\'m':''))}</small></div>${(window._isKoruvchi||window._isPerech)?'':`<div class="sub">${_ml.length} ta mijoz</div>`}</div>
       <div id="newform"></div>
       <div class="search"><input id="qidir" placeholder="🔍 Ism, telefon yoki manzil..." oninput="renderCards(this.value)"></div>
@@ -2139,7 +2139,7 @@ window.yopHisobot=async function(id){
     }catch(e){ toast('Havolani qo\'lda nusxalang'); }
   };
   window.chiqish=function(){ tokenSet(''); loginEkran(); };
-  window.APPV='106';   // yuklangan versiya (nosozlikni aniqlash uchun)
+  window.APPV='107';   // yuklangan versiya (nosozlikni aniqlash uchun)
 
   // ↑ Tepaga qaytaruvchi tugma (ro'yxatda pastga tushganda ko'rinadi)
   (function(){
