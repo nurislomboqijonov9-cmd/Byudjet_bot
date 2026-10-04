@@ -324,9 +324,11 @@
 <script>
   const tg = window.Telegram && window.Telegram.WebApp;
   if (tg){ try{ tg.ready(); tg.expand(); tg.setHeaderColor('#1F4B45'); tg.setBackgroundColor('#F3F5F4'); }catch(e){} }
-  function tokenGet(){ try{ return localStorage.getItem('tok')||''; }catch(e){ return ''; } }
-  const H = { 'X-Init-Data': (tg && tg.initData) || '', 'X-Token': tokenGet() };
-  function tokenSet(t){ try{ localStorage.setItem('tok',t||''); }catch(e){} H['X-Token']=t||''; }
+  try{ localStorage.removeItem('tok'); }catch(e){}   // eski saqlangan tokenni o'chiramiz
+  let _tok='';   // token faqat shu seans (reload/qayta ochish -> parol)
+  function tokenGet(){ return _tok; }
+  const H = { 'X-Init-Data': (tg && tg.initData) || '', 'X-Token': '' };
+  function tokenSet(t){ _tok=t||''; H['X-Token']=_tok; }
   // Keng rejim (noutbuk / kompyuterda katta ekran)
   if(!(tg && tg.initData)) document.body.classList.add('app');   // ilova rejimi (Telegramdan tashqarida)
   const PLAT = ((tg && tg.platform) || '').toLowerCase();
@@ -2137,7 +2139,7 @@ window.yopHisobot=async function(id){
     }catch(e){ toast('Havolani qo\'lda nusxalang'); }
   };
   window.chiqish=function(){ tokenSet(''); loginEkran(); };
-  window.APPV='105';   // yuklangan versiya (nosozlikni aniqlash uchun)
+  window.APPV='106';   // yuklangan versiya (nosozlikni aniqlash uchun)
 
   // ↑ Tepaga qaytaruvchi tugma (ro'yxatda pastga tushganda ko'rinadi)
   (function(){
@@ -2149,8 +2151,10 @@ window.yopHisobot=async function(id){
   })();
 
   // Telegram ichida bo'lsa — to'g'ridan-to'g'ri, aks holda token / login
-  if ((tg && tg.initData) || tokenGet()) { loadList(); } else { loginEkran(); }
-  if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('/sw.js'); }catch(e){} }
+  loginEkran();   // xavfsizlik: har ochilganda doim parol so'raladi
+  // Service worker + keshni butunlay o'chiramiz (eski versiya yopishib qolmasin)
+  if('serviceWorker' in navigator){ try{ navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}); }catch(e){} }
+  try{ if(window.caches&&caches.keys){ caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});}); } }catch(e){}
 </script>
 </body>
 </html>
