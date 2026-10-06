@@ -5244,3 +5244,30 @@ def mgps_tozala(kun=14):
     con.execute("DELETE FROM mgps_hodisa WHERE sana < ?", (chegara,))
     con.commit()
     con.close()
+
+
+def mgps_kun_statlar(sana=None):
+    """Barcha mashinalar uchun bir kunlik qisqa stat: {vid: {km, max_tezlik, harakat_min}}."""
+    sana = str(sana or today_tk().isoformat())[:10]
+    con = _con()
+    _mgps_init(con)
+    rows = con.execute(
+        "SELECT vid,lat,lon,vaqt,tezlik FROM mgps_nuqta WHERE sana=? ORDER BY vid,vaqt",
+        (sana,)).fetchall()
+    con.close()
+    byvid = {}
+    for r in rows:
+        byvid.setdefault(r["vid"], []).append(dict(r))
+    res = {}
+    for vid, pts in byvid.items():
+        dist = 0.0
+        harakat = 0.0
+        for k in range(1, len(pts)):
+            dist += _gps_dist_m(pts[k - 1], pts[k])
+            dm = _gps_min(pts[k - 1]["vaqt"], pts[k]["vaqt"])
+            ot = ((pts[k - 1].get("tezlik") or 0) + (pts[k].get("tezlik") or 0)) / 2.0
+            if ot > 3 and dm <= 10:
+                harakat += dm
+        mx = max((p.get("tezlik") or 0) for p in pts) if pts else 0
+        res[vid] = {"km": round(dist / 1000, 1), "max_tezlik": round(mx), "harakat_min": round(harakat)}
+    return res

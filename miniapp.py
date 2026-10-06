@@ -293,6 +293,15 @@ def make_web_app(bot_token):
             data = await gogps_monitoring()
             ml = gogps_tayyorla(data)
             try:
+                statlar = db.mgps_kun_statlar()    # bugungi km/max/harakat (har mashina)
+                for m in ml:
+                    s = statlar.get(m.get("id"))
+                    m["km"] = s["km"] if s else 0
+                    m["max_tezlik"] = s["max_tezlik"] if s else 0
+                    m["harakat_min"] = s["harakat_min"] if s else 0
+            except Exception:
+                pass
+            try:
                 hod = db.mgps_hodisalar()      # bugungi tezlik buzilishlari (hamma mashina)
             except Exception:
                 hod = []
