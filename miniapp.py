@@ -250,7 +250,7 @@ def make_web_app(bot_token):
         except Exception as e:
             return web.json_response({"xato": str(e)}, status=500)
 
-    async def api_gps(request):
+    async def api_tv_gps(request):
         # Mashinalar jonli joylashuvi (GoGPS). TV PIN bilan himoyalangan.
         kalit = db.get_sozlama("tv_pin") or os.environ.get("TV_KEY")
         if kalit and request.query.get("k") != kalit:
@@ -1462,7 +1462,7 @@ def make_web_app(bot_token):
     app.router.add_get("/tv", tv_sahifa)
     app.router.add_get("/logo.png", tv_logo)
     app.router.add_get("/api/dashboard", api_dashboard)
-    app.router.add_get("/api/gps", api_gps)
+    app.router.add_get("/api/tv_gps", api_tv_gps)
     app.router.add_post("/api/tv_pin_ozgartir", api_tv_pin_ozgartir)
     app.router.add_post("/api/login", api_login)
     app.router.add_get("/m/{token}", mijoz_sahifa)

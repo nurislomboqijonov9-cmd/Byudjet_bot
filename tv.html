@@ -288,7 +288,7 @@ async function yukla(){
 }
 async function carsYukla(){
   try{
-    const r=await fetch('/api/gps'+(K?('?k='+encodeURIComponent(K)):''));
+    const r=await fetch('/api/tv_gps'+(K?('?k='+encodeURIComponent(K)):''));
     const d=await r.json(); if(d && d.mashinalar) CARS=d.mashinalar;
     if(dmap && !DETAIL) yangilaMarkerlar();
   }catch(e){}
