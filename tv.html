@@ -103,8 +103,6 @@ body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0e13
 <div id="dmap"></div>
 <div id="dbar">
   <div class="dn" id="dbar_nom">—</div>
-  <button id="btn_kunlik" onclick="setMode('kunlik')">🗺 Kunlik yo'l</button>
-  <button id="btn_jonli" onclick="setMode('jonli')">📍 Jonli</button>
   <button class="x" onclick="orqaga()">✕ Orqaga</button>
 </div>
 <div class="ctrl">
@@ -115,10 +113,9 @@ body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0e13
 <div class="foot"><span class="dot"></span>Jonli — avtomat aylanadi</div>
 <script>
 let K=new URLSearchParams(location.search).get('k')||'';  // har yuklanishda bo'sh -> PIN so'raladi
-const GPS_URL="https://web-production-a8c5f.up.railway.app";  // GPS server manzili
 const DAVOMAT_URL="https://web-production-07267.up.railway.app";  // Davomat server manzili
 const $=id=>document.getElementById(id);
-let DATA=null, DRIVERS=null, DAVOMAT=null, views=[], cur=0;
+let DATA=null, CARS=null, DAVOMAT=null, views=[], cur=0;
 let dmap=null, dlayer=null;
 const HAR_SONIYA=14;
 function son(n){ n=Math.round(n||0); return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g," "); }
@@ -159,16 +156,16 @@ function ekranlarQarzdor(d){
   }
   return res;
 }
-function ekranHaydRoyxat(drs){
-  const on=drs.filter(d=>d.online).length;
-  return {nom:"Haydovchilar — ro'yxat", kind:"text", html:
-    '<div class="stitle">🚚 Haydovchilar <span class="cnt">'+on+' faol · '+(drs.length-on)+' aloqa yo\'q</span></div>'
+function ekranMashinaRoyxat(cars){
+  const on=cars.filter(c=>c.harakat).length;
+  return {nom:"Mashinalar — ro'yxat", kind:"text", html:
+    '<div class="stitle">🚗 Mashinalar <span class="cnt">'+on+' harakatda · '+(cars.length-on)+' to\'xtagan</span></div>'
     +'<div class="cols" style="column-count:2">'
-    +drs.map(d=>{
-      const st=d.online?'on':'off';
-      const holat=d.online?'🟢 yo\'lda':(d.last_daq!=null?('🔴 '+d.last_daq+' daq'):'—');
-      return '<div class="hd" style="cursor:pointer" onclick="ochHaydovchi('+(d.id||-1)+')"><span class="st '+st+'"></span><div class="nm">'+esc(d.ism)+'</div>'
-        +'<div class="km">'+son(d.km||0)+' km</div><div class="tg">'+holat+(d.vaqt?(' · '+esc(d.vaqt)):'')+'</div></div>';
+    +cars.map(c=>{
+      const st=c.harakat?'on':'off';
+      const holat=c.harakat?('🟢 '+(c.tezlik||0)+' km/soat'):(c.last_daq!=null?('⚪️ '+c.last_daq+' daq oldin'):'—');
+      return '<div class="hd" style="cursor:pointer" onclick="ochMashina('+(c.id||-1)+')"><span class="st '+st+'"></span><div class="nm">'+esc(c.nom)+'</div>'
+        +'<div class="tg">'+holat+'</div></div>';
     }).join('')+'</div>'};
 }
 function initDmap(){
@@ -178,14 +175,15 @@ function initDmap(){
   dlayer=L.layerGroup().addTo(dmap);
 }
 function yangilaMarkerlar(){
-  if(!dmap||!DRIVERS) return;
+  if(!dmap||!CARS) return;
   dlayer.clearLayers(); const pts=[];
-  DRIVERS.forEach(d=>{
-    if(d.lat==null||d.lon==null) return;
-    const ic=L.divIcon({className:'',html:'<div class="mk '+(d.online?'':'off')+'"></div>',iconSize:[16,16],iconAnchor:[8,8]});
-    const m=L.marker([d.lat,d.lon],{icon:ic}).addTo(dlayer);
-    m.bindTooltip(esc(d.ism)+(d.online?' 🟢':' 🔴'),{permanent:true,direction:'top',offset:[0,-8],className:'tip'});
-    pts.push([d.lat,d.lon]);
+  CARS.forEach(c=>{
+    if(c.lat==null||c.lon==null) return;
+    const ic=L.divIcon({className:'',html:'<div class="mk '+(c.harakat?'':'off')+'"></div>',iconSize:[16,16],iconAnchor:[8,8]});
+    const m=L.marker([c.lat,c.lon],{icon:ic}).addTo(dlayer);
+    const lbl=esc(c.nom)+(c.harakat?(' 🟢 '+(c.tezlik||0)+' km/s'):' ⚪️');
+    m.bindTooltip(lbl,{permanent:true,direction:'top',offset:[0,-8],className:'tip'});
+    pts.push([c.lat,c.lon]);
   });
   if(pts.length){ try{ dmap.fitBounds(pts,{padding:[60,60],maxZoom:14}); }catch(e){} }
 }
@@ -227,9 +225,9 @@ function ekranlarOmbor(d){
 function qurViews(){
   views=[]; if(DATA){ views.push(ekranUmumiy(DATA)); ekranlarOmbor(DATA).forEach(v=>views.push(v)); ekranlarQarzdor(DATA).forEach(v=>views.push(v)); }
   if(DAVOMAT) views.push(ekranDavomat(DAVOMAT));
-  if(DRIVERS && DRIVERS.length){
-    views.push(ekranHaydRoyxat(DRIVERS));
-    views.push({nom:"Haydovchilar — jonli xarita", kind:"dmap", html:""});
+  if(CARS && CARS.length){
+    views.push(ekranMashinaRoyxat(CARS));
+    views.push({nom:"Mashinalar — jonli xarita", kind:"dmap", html:""});
   }
   $('dots').innerHTML=views.map((_,i)=>'<i class="'+(i===cur?'on':'')+'"></i>').join('');
 }
@@ -250,7 +248,7 @@ function koarsat(i){
 }
 function keyingi(){ if(views.length && !DETAIL) koarsat(cur+1); }
 
-let PAUSED=false, rotTimer=null, DETAIL=false, detailId=null, detailMode='kunlik';
+let PAUSED=false, rotTimer=null, DETAIL=false, detailId=null;
 function startRot(){ stopRot(); rotTimer=setInterval(()=>{ if(!PAUSED && !DETAIL) keyingi(); }, HAR_SONIYA*1000); }
 function stopRot(){ if(rotTimer) clearInterval(rotTimer); rotTimer=null; }
 function qol(d){ if(DETAIL) return; koarsat(cur+d); startRot(); }
@@ -262,50 +260,20 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='Escape'){ if(DETAIL) orqaga(); }
 });
 
-async function ochHaydovchi(id){
-  if(id<0 || !DRIVERS) return;
-  const d=DRIVERS.find(x=>x.id===id); if(!d) return;
-  DETAIL=true; detailId=id; detailMode='kunlik';
-  $('scr_nom').textContent="Haydovchi: "+d.ism;
+async function ochMashina(id){
+  if(id<0 || !CARS) return;
+  const c=CARS.find(x=>x.id===id); if(!c || c.lat==null) return;
+  DETAIL=true; detailId=id;
+  $('scr_nom').textContent="Mashina: "+c.nom;
   $('stage').innerHTML=""; $('dmap').style.display="block";
-  $('dbar_nom').textContent=d.ism; $('dbar').style.display="flex";
-  initDmap(); setTimeout(()=>{ if(dmap) dmap.invalidateSize(); },60);
-  setMode('kunlik');
-}
-function setMode(m){
-  detailMode=m;
-  $('btn_kunlik').classList.toggle('act',m==='kunlik');
-  $('btn_jonli').classList.toggle('act',m==='jonli');
-  chizMarshrut();
-}
-async function chizMarshrut(){
-  if(!dmap||detailId==null) return;
-  try{
-    const r=await fetch(GPS_URL+'/api/tv_marshrut?id='+detailId+(K?('&k='+encodeURIComponent(K)):''));
-    const x=await r.json();
-    dlayer.clearLayers();
-    if(detailMode==='jonli'){
-      const h=x.hozir;
-      if(h && h.lat!=null){
-        const ic=L.divIcon({className:'',html:'<div class="mk"></div>',iconSize:[16,16],iconAnchor:[8,8]});
-        L.marker([h.lat,h.lon],{icon:ic}).bindTooltip('🟢 Hozir'+(h.vaqt?(' '+h.vaqt):''),{permanent:true,direction:'top',offset:[0,-8],className:'tip'}).addTo(dlayer);
-        dmap.setView([h.lat,h.lon],15);
-      }
-      return;
-    }
-    const pts=(x.nuqtalar||[]).map(p=>[p.lat,p.lon]);
-    if(pts.length){
-      L.polyline(pts,{color:'#06233d',weight:8,opacity:.6}).addTo(dlayer);
-      L.polyline(pts,{color:'#ffffff',weight:4,opacity:.95}).addTo(dlayer);
-      L.circleMarker(pts[0],{radius:7,color:'#fff',fillColor:'#2ecc71',fillOpacity:1}).addTo(dlayer);
-      L.circleMarker(pts[pts.length-1],{radius:7,color:'#fff',fillColor:'#e74c3c',fillOpacity:1}).addTo(dlayer);
-      (x.toxtashlar||[]).forEach(s=>{
-        L.circleMarker([s.lat,s.lon],{radius:5,color:'#fff',fillColor:'#c0392b',fillOpacity:1})
-          .bindTooltip(s.daqiqa+' daq',{permanent:true,direction:'top',offset:[0,-6],className:'tip'}).addTo(dlayer);
-      });
-      try{ dmap.fitBounds(pts,{padding:[50,50]}); }catch(e){}
-    }
-  }catch(e){}
+  $('dbar_nom').textContent=c.nom+(c.harakat?(' · 🟢 '+(c.tezlik||0)+' km/soat'):' · ⚪️ to\'xtagan'+(c.last_daq!=null?(' ('+c.last_daq+' daq)'):''));
+  $('dbar').style.display="flex";
+  initDmap();
+  setTimeout(()=>{ if(dmap){ dmap.invalidateSize(); dlayer.clearLayers();
+    const ic=L.divIcon({className:'',html:'<div class="mk '+(c.harakat?'':'off')+'"></div>',iconSize:[16,16],iconAnchor:[8,8]});
+    L.marker([c.lat,c.lon],{icon:ic}).bindTooltip(esc(c.nom)+(c.harakat?(' 🟢 '+(c.tezlik||0)+' km/s'):' ⚪️'),{permanent:true,direction:'top',offset:[0,-8],className:'tip'}).addTo(dlayer);
+    dmap.setView([c.lat,c.lon],15);
+  } },60);
 }
 function orqaga(){
   DETAIL=false; detailId=null; $('dbar').style.display="none"; $('dmap').style.display="none";
@@ -318,11 +286,11 @@ async function yukla(){
     const d=await r.json(); if(!d.xato) DATA=d;
   }catch(e){}
 }
-async function haydYukla(){
+async function carsYukla(){
   try{
-    const r=await fetch(GPS_URL+'/api/tv'+(K?('?k='+encodeURIComponent(K)):''));
-    const d=await r.json(); if(d && d.haydovchilar) DRIVERS=d.haydovchilar;
-    if(dmap) yangilaMarkerlar();
+    const r=await fetch('/api/gps'+(K?('?k='+encodeURIComponent(K)):''));
+    const d=await r.json(); if(d && d.mashinalar) CARS=d.mashinalar;
+    if(dmap && !DETAIL) yangilaMarkerlar();
   }catch(e){}
 }
 async function davomatYukla(){
@@ -333,7 +301,7 @@ async function davomatYukla(){
 }
 async function hammasi(){
   const eski=views.length;
-  await Promise.all([yukla(), haydYukla(), davomatYukla()]);
+  await Promise.all([yukla(), carsYukla(), davomatYukla()]);
   qurViews();
   if(!eski && views.length) koarsat(0);
   else if(cur>=views.length) koarsat(0);
@@ -377,6 +345,7 @@ window.pinKirit=async function(){
 };
 async function ishga(){
   hammasi(); setInterval(hammasi,30000);
+  setInterval(function(){ if(K) carsYukla(); }, 12000);  // mashinalar xaritasi tezroq yangilansin
   startRot();
   // Sozlama (PIN o'zgartirish) tugmasi — burchakda
   if(!document.getElementById('tvgear')){

@@ -108,6 +108,88 @@ class _BrovWrap:
         object.__getattribute__(self, "_own")[k] = v
 
 
+# ================= GoGPS (GlonassSoft) — mashinalar jonli joylashuvi =================
+GOGPS_BASE = os.environ.get("GOGPS_BASE", "https://geo.gogps.uz")
+# Xavfsizlik: login/parol Railway o'zgaruvchilaridan o'qiladi (public repoda turmaydi),
+# xuddi TELEGRAM_TOKEN kabi. Railway -> Variables: GOGPS_LOGIN, GOGPS_PAROL
+GOGPS_LOGIN = os.environ.get("GOGPS_LOGIN", "")
+GOGPS_PAROL = os.environ.get("GOGPS_PAROL", "")
+_gps_tok = {"t": None}
+
+
+async def gogps_login():
+    import aiohttp as _ah
+    if not GOGPS_LOGIN or not GOGPS_PAROL:
+        return None
+    async with _ah.ClientSession() as ss:
+        async with ss.post(f"{GOGPS_BASE}/api/v3/auth/login",
+                           json={"login": GOGPS_LOGIN, "password": GOGPS_PAROL},
+                           timeout=_ah.ClientTimeout(total=20)) as r:
+            d = await r.json()
+            return d.get("AuthId")
+
+
+async def gogps_monitoring():
+    """GoGPS'dan barcha mashinalarning oxirgi holatini oladi (token eskirsa qayta kiradi)."""
+    import aiohttp as _ah
+
+    async def _fetch(tok):
+        async with _ah.ClientSession() as ss:
+            async with ss.get(f"{GOGPS_BASE}/api/monitoringVehicles",
+                              headers={"X-Auth": tok},
+                              timeout=_ah.ClientTimeout(total=20)) as r:
+                if r.status == 200:
+                    return 200, await r.json()
+                return r.status, None
+
+    tok = _gps_tok["t"]
+    if not tok:
+        tok = await gogps_login()
+        _gps_tok["t"] = tok
+    if not tok:
+        return None
+    st, data = await _fetch(tok)
+    if st == 401:                      # token eskirgan — qayta login
+        tok = await gogps_login()
+        _gps_tok["t"] = tok
+        st, data = await _fetch(tok)
+    return data
+
+
+def gogps_tayyorla(data):
+    """monitoringVehicles javobini dashboard uchun toza ro'yxatga aylantiradi."""
+    from datetime import datetime, timezone
+    if not data:
+        return []
+    nomlar = {v.get("vehicleId"): v for v in data.get("vehicles", [])}
+    now = datetime.now(timezone.utc)
+    out = []
+    for p in data.get("points", []):
+        v = nomlar.get(p.get("VehicleID"), {})
+        rt = p.get("RecordTime")
+        last_daq = None
+        try:
+            dt = datetime.fromisoformat(str(rt).replace("Z", "+00:00"))
+            last_daq = int((now - dt).total_seconds() // 60)
+        except Exception:
+            pass
+        speed = p.get("Speed") or 0
+        harakat = bool(p.get("Ign")) or (speed and speed > 0)
+        out.append({
+            "id": p.get("VehicleID"),
+            "nom": v.get("number") or v.get("name") or str(p.get("VehicleID")),
+            "imei": v.get("imei"),
+            "lat": p.get("Latitude"), "lon": p.get("Longitude"),
+            "tezlik": int(round(speed)),
+            "yonalish": p.get("Course"),
+            "harakat": bool(harakat),
+            "online": (last_daq is not None and last_daq <= 60),
+            "last_daq": last_daq,
+        })
+    out.sort(key=lambda x: (not x["harakat"], x["nom"]))
+    return out
+
+
 def make_web_app(bot_token):
 
     def check(request):
@@ -167,6 +249,17 @@ def make_web_app(bot_token):
             return web.json_response(db.dashboard_stats())
         except Exception as e:
             return web.json_response({"xato": str(e)}, status=500)
+
+    async def api_gps(request):
+        # Mashinalar jonli joylashuvi (GoGPS). TV PIN bilan himoyalangan.
+        kalit = db.get_sozlama("tv_pin") or os.environ.get("TV_KEY")
+        if kalit and request.query.get("k") != kalit:
+            return web.json_response({"xato": "ruxsat yo'q"}, status=403)
+        try:
+            data = await gogps_monitoring()
+            return web.json_response({"mashinalar": gogps_tayyorla(data)})
+        except Exception as e:
+            return web.json_response({"mashinalar": [], "xato": type(e).__name__})
 
     async def api_tv_pin_ozgartir(request):
         # Faqat joriy PIN to'g'ri bo'lsa — yangi PIN o'rnatiladi
@@ -1369,6 +1462,7 @@ def make_web_app(bot_token):
     app.router.add_get("/tv", tv_sahifa)
     app.router.add_get("/logo.png", tv_logo)
     app.router.add_get("/api/dashboard", api_dashboard)
+    app.router.add_get("/api/gps", api_gps)
     app.router.add_post("/api/tv_pin_ozgartir", api_tv_pin_ozgartir)
     app.router.add_post("/api/login", api_login)
     app.router.add_get("/m/{token}", mijoz_sahifa)
