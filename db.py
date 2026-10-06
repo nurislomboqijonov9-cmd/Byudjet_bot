@@ -3548,7 +3548,7 @@ def perech_ochir():
 def barcha_parollarni_ochir(umumiydan_tashqari=True):
     con = _con()
     if umumiydan_tashqari:
-        con.execute("UPDATE xodimlar SET login=NULL, parol_hash=NULL WHERE id<>?", (UMUMIY_ID,))
+        con.execute("UPDATE xodimlar SET login=NULL, parol_hash=NULL WHERE id NOT IN (?,?)", (UMUMIY_ID, PERECH_ID))
     else:
         con.execute("UPDATE xodimlar SET login=NULL, parol_hash=NULL")
     con.commit()
@@ -5100,3 +5100,147 @@ def faktura_data(mid, dan, gacha):
                     "soni": int(v["soni"]) if v["soni"] == int(v["soni"]) else round(v["soni"], 1),
                     "jami": round(v["summa"])})
     return res
+
+
+# ================= MASHINA GPS (GoGPS) — o'z tariximiz =================
+def _mgps_init(con):
+    con.execute("""CREATE TABLE IF NOT EXISTS mgps_nuqta(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vid INTEGER, nom TEXT, lat REAL, lon REAL,
+        tezlik REAL, course INTEGER, ign INTEGER,
+        vaqt TEXT, sana TEXT)""")
+    con.execute("CREATE INDEX IF NOT EXISTS ix_mgps_vid_sana ON mgps_nuqta(vid,sana)")
+    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_mgps_vid_vaqt ON mgps_nuqta(vid,vaqt)")
+    con.execute("""CREATE TABLE IF NOT EXISTS mgps_hodisa(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vid INTEGER, nom TEXT, tur TEXT,
+        tezlik REAL, lat REAL, lon REAL,
+        vaqt TEXT, sana TEXT, created TEXT)""")
+
+
+def _mgps_local(vaqt):
+    """GoGPS RecordTime (UTC) -> Toshkent vaqti (datetime). +5 soat."""
+    from datetime import datetime, timedelta
+    try:
+        dt = datetime.fromisoformat(str(vaqt).replace("Z", "")[:19])
+        return dt + timedelta(hours=5)
+    except Exception:
+        return None
+
+
+def mgps_nuqta_saqla(items):
+    """items: [{vid,nom,lat,lon,tezlik,course,ign,vaqt(UTC RecordTime)}].
+    Vaqt Toshkent vaqtiga o'tkazilib saqlanadi; (vid,vaqt) bo'yicha takror yozilmaydi."""
+    if not items:
+        return 0
+    con = _con()
+    _mgps_init(con)
+    n = 0
+    for p in items:
+        if p.get("lat") is None or p.get("lon") is None or not p.get("vaqt"):
+            continue
+        loc = _mgps_local(p["vaqt"])
+        if not loc:
+            continue
+        vaqt = loc.isoformat()[:19]
+        sana = loc.date().isoformat()
+        try:
+            cur = con.execute(
+                "INSERT OR IGNORE INTO mgps_nuqta(vid,nom,lat,lon,tezlik,course,ign,vaqt,sana) "
+                "VALUES(?,?,?,?,?,?,?,?,?)",
+                (int(p["vid"]), p.get("nom"), float(p["lat"]), float(p["lon"]),
+                 float(p.get("tezlik") or 0), int(p.get("course") or 0),
+                 1 if p.get("ign") else 0, vaqt, sana))
+            if cur.rowcount:
+                n += 1
+        except Exception:
+            pass
+    con.commit()
+    con.close()
+    return n
+
+
+def mgps_kun(vid, sana):
+    """Bir mashinaning bir kunlik nuqtalari (vaqt bo'yicha)."""
+    con = _con()
+    _mgps_init(con)
+    rows = con.execute(
+        "SELECT lat,lon,vaqt,tezlik,ign FROM mgps_nuqta WHERE vid=? AND sana=? ORDER BY vaqt",
+        (int(vid), str(sana)[:10])).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def mgps_kunlik_xulosa(vid, sana):
+    """Kunlik: nuqtalar + to'xtashlar + km + max/o'rtacha tezlik + harakat vaqti (daqiqa)."""
+    pts = mgps_kun(vid, sana)
+    stops = gps_stops(pts, min_daq=5, radius_m=60)
+    dist = 0.0
+    harakat_min = 0.0
+    tezliklar = []
+    for k in range(1, len(pts)):
+        d = _gps_dist_m(pts[k - 1], pts[k])
+        dist += d
+        dm = _gps_min(pts[k - 1]["vaqt"], pts[k]["vaqt"])
+        # harakat: tezlik > 3 km/soat (ikki nuqtaning o'rtachasi), katta tanaffuslar hisobga olinmaydi
+        o_tez = ((pts[k - 1].get("tezlik") or 0) + (pts[k].get("tezlik") or 0)) / 2.0
+        if o_tez > 3 and dm <= 10:
+            harakat_min += dm
+    for p in pts:
+        if (p.get("tezlik") or 0) > 3:
+            tezliklar.append(p["tezlik"])
+    max_tez = round(max((p.get("tezlik") or 0) for p in pts)) if pts else 0
+    ort_tez = round(sum(tezliklar) / len(tezliklar)) if tezliklar else 0
+    return {
+        "nuqtalar": pts,
+        "toxtashlar": stops,
+        "km": round(dist / 1000, 1),
+        "max_tezlik": max_tez,
+        "ort_tezlik": ort_tez,
+        "harakat_min": round(harakat_min),
+        "soni": len(pts),
+    }
+
+
+def mgps_hodisa_qosh(vid, nom, tur, tezlik, lat, lon, vaqt):
+    """Tezlik buzilishi va boshqa hodisalarni saqlaydi (vaqt — UTC RecordTime)."""
+    con = _con()
+    _mgps_init(con)
+    loc = _mgps_local(vaqt)
+    v = loc.isoformat()[:19] if loc else str(vaqt)[:19]
+    sana = loc.date().isoformat() if loc else today_tk().isoformat()
+    con.execute(
+        "INSERT INTO mgps_hodisa(vid,nom,tur,tezlik,lat,lon,vaqt,sana,created) "
+        "VALUES(?,?,?,?,?,?,?,?,?)",
+        (int(vid), nom, tur, float(tezlik or 0), float(lat), float(lon),
+         v, sana, now_tk().isoformat()))
+    con.commit()
+    con.close()
+
+
+def mgps_hodisalar(sana=None, vid=None):
+    """Hodisalar ro'yxati (bir kun, ixtiyoriy bitta mashina)."""
+    con = _con()
+    _mgps_init(con)
+    sana = str(sana or today_tk().isoformat())[:10]
+    if vid is not None:
+        rows = con.execute(
+            "SELECT * FROM mgps_hodisa WHERE sana=? AND vid=? ORDER BY vaqt DESC",
+            (sana, int(vid))).fetchall()
+    else:
+        rows = con.execute(
+            "SELECT * FROM mgps_hodisa WHERE sana=? ORDER BY vaqt DESC", (sana,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+def mgps_tozala(kun=14):
+    """Eski nuqtalarni o'chiradi (bazani cheklab turish uchun)."""
+    from datetime import timedelta
+    chegara = (today_tk() - timedelta(days=int(kun))).isoformat()
+    con = _con()
+    _mgps_init(con)
+    con.execute("DELETE FROM mgps_nuqta WHERE sana < ?", (chegara,))
+    con.execute("DELETE FROM mgps_hodisa WHERE sana < ?", (chegara,))
+    con.commit()
+    con.close()

@@ -115,7 +115,9 @@ body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0e13
 let K=new URLSearchParams(location.search).get('k')||'';  // har yuklanishda bo'sh -> PIN so'raladi
 const DAVOMAT_URL="https://web-production-07267.up.railway.app";  // Davomat server manzili
 const $=id=>document.getElementById(id);
-let DATA=null, CARS=null, DAVOMAT=null, views=[], cur=0;
+let DATA=null, CARS=null, DAVOMAT=null, EVENTS=null, views=[], cur=0;
+function hhmm(t){ t=(''+(t||'')); const m=t.match(/T(\d{2}:\d{2})/)||t.match(/(\d{2}:\d{2})/); return m?m[1]:''; }
+function soatdaq(m){ m=Math.round(m||0); const h=Math.floor(m/60), d=m%60; return (h?(h+' soat '):'')+d+' daq'; }
 let dmap=null, dlayer=null;
 const HAR_SONIYA=14;
 function son(n){ n=Math.round(n||0); return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g," "); }
@@ -155,6 +157,15 @@ function ekranlarQarzdor(d){
       +'<div class="cols">'+bet.map((x,j)=>'<div class="qc '+(x.over?'over':'')+'"><span class="rk">'+(bosh+j+1)+'</span><div class="nm">'+esc(x.ism)+'</div><div class="amt">'+son(x.qarz)+'</div></div>').join('')+'</div>'});
   }
   return res;
+}
+function ekranHodisa(evs){
+  return {nom:"Tezlik buzilishlari", kind:"text", html:
+    '<div class="stitle">🚨 Bugungi tezlik buzilishlari <span class="cnt">'+evs.length+' ta</span></div>'
+    +'<div class="cols" style="column-count:2">'
+    +evs.map(h=>'<div class="hd"><span class="st off"></span>'
+       +'<div class="nm">'+esc(h.nom)+' — <b style="color:var(--rd)">'+Math.round(h.tezlik)+' km/s</b></div>'
+       +'<div class="tg" style="width:auto">'+hhmm(h.vaqt)+(h.joy?(' · '+esc(h.joy)):'')+'</div></div>').join('')
+    +'</div>'};
 }
 function ekranMashinaRoyxat(cars){
   const on=cars.filter(c=>c.harakat).length;
@@ -229,6 +240,7 @@ function qurViews(){
     views.push(ekranMashinaRoyxat(CARS));
     views.push({nom:"Mashinalar — jonli xarita", kind:"dmap", html:""});
   }
+  if(EVENTS && EVENTS.length){ views.push(ekranHodisa(EVENTS)); }
   $('dots').innerHTML=views.map((_,i)=>'<i class="'+(i===cur?'on':'')+'"></i>').join('');
 }
 function koarsat(i){
@@ -262,18 +274,48 @@ document.addEventListener('keydown',e=>{
 
 async function ochMashina(id){
   if(id<0 || !CARS) return;
-  const c=CARS.find(x=>x.id===id); if(!c || c.lat==null) return;
+  const c=CARS.find(x=>x.id===id); if(!c) return;
   DETAIL=true; detailId=id;
   $('scr_nom').textContent="Mashina: "+c.nom;
   $('stage').innerHTML=""; $('dmap').style.display="block";
-  $('dbar_nom').textContent=c.nom+(c.harakat?(' · 🟢 '+(c.tezlik||0)+' km/soat'):' · ⚪️ to\'xtagan'+(c.last_daq!=null?(' ('+c.last_daq+' daq)'):''));
+  $('dbar_nom').textContent=c.nom;
   $('dbar').style.display="flex";
   initDmap();
-  setTimeout(()=>{ if(dmap){ dmap.invalidateSize(); dlayer.clearLayers();
-    const ic=L.divIcon({className:'',html:'<div class="mk '+(c.harakat?'':'off')+'"></div>',iconSize:[16,16],iconAnchor:[8,8]});
-    L.marker([c.lat,c.lon],{icon:ic}).bindTooltip(esc(c.nom)+(c.harakat?(' 🟢 '+(c.tezlik||0)+' km/s'):' ⚪️'),{permanent:true,direction:'top',offset:[0,-8],className:'tip'}).addTo(dlayer);
-    dmap.setView([c.lat,c.lon],15);
-  } },60);
+  setTimeout(()=>{ if(dmap) dmap.invalidateSize(); },60);
+  setTimeout(()=>{ chizKun(id,c); },120);
+}
+async function chizKun(id,c){
+  try{
+    const r=await fetch('/api/tv_gps_kun?id='+id+(K?('&k='+encodeURIComponent(K)):''));
+    const x=await r.json();
+    if(!dmap||!DETAIL) return;
+    dlayer.clearLayers();
+    const pts=(x.nuqtalar||[]).map(p=>[p.lat,p.lon]);
+    if(pts.length>1){
+      L.polyline(pts,{color:'#06233d',weight:8,opacity:.5}).addTo(dlayer);
+      L.polyline(pts,{color:'#c2a878',weight:4,opacity:.95}).addTo(dlayer);
+      L.circleMarker(pts[0],{radius:7,color:'#fff',fillColor:'#5aa588',fillOpacity:1})
+        .bindTooltip('🚩 boshi',{direction:'top',className:'tip'}).addTo(dlayer);
+    }
+    const lat=(c&&c.lat!=null)?c.lat:(pts.length?pts[pts.length-1][0]:null);
+    const lon=(c&&c.lon!=null)?c.lon:(pts.length?pts[pts.length-1][1]:null);
+    if(lat!=null){
+      const ic=L.divIcon({className:'',html:'<div class="mk '+(c&&c.harakat?'':'off')+'"></div>',iconSize:[16,16],iconAnchor:[8,8]});
+      L.marker([lat,lon],{icon:ic}).bindTooltip(esc(c?c.nom:'')+(c&&c.harakat?(' 🟢 '+(c.tezlik||0)+' km/s'):' ⚪️'),{permanent:true,direction:'top',offset:[0,-8],className:'tip'}).addTo(dlayer);
+    }
+    (x.toxtashlar||[]).forEach(s=>{
+      L.circleMarker([s.lat,s.lon],{radius:6,color:'#fff',fillColor:'#c47a7a',fillOpacity:1})
+        .bindTooltip('🅿️ '+hhmm(s.boshlanish)+'–'+hhmm(s.tugash)+' ('+s.daqiqa+' daq)'+(s.joy?(' · '+esc(s.joy)):''),{direction:'top',className:'tip'}).addTo(dlayer);
+    });
+    (x.hodisalar||[]).forEach(h=>{
+      L.marker([h.lat,h.lon],{icon:L.divIcon({className:'',html:'<div style="background:#c0392b;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:800;border:2px solid #fff;font-size:12px">!</div>',iconSize:[22,22],iconAnchor:[11,11]})})
+        .bindTooltip('🚨 '+Math.round(h.tezlik)+' km/s · '+hhmm(h.vaqt)+(h.joy?(' · '+esc(h.joy)):''),{permanent:true,direction:'top',offset:[0,-10],className:'tip'}).addTo(dlayer);
+    });
+    if(pts.length){ try{ dmap.fitBounds(pts,{padding:[50,50],maxZoom:15}); }catch(e){} }
+    else if(lat!=null){ dmap.setView([lat,lon],15); }
+    const st=(x.km!=null)?('📍 '+x.km+' km · ⏱ '+soatdaq(x.harakat_min)+' harakat · ⚡ max '+(x.max_tezlik||0)+' · o\'rt '+(x.ort_tezlik||0)+' km/s'):'';
+    $('dbar_nom').innerHTML=esc(c?c.nom:'')+(st?('<span style="color:#8ea0b6;font-weight:500;font-size:14px"> — '+st+'</span>'):'');
+  }catch(e){}
 }
 function orqaga(){
   DETAIL=false; detailId=null; $('dbar').style.display="none"; $('dmap').style.display="none";
@@ -290,6 +332,7 @@ async function carsYukla(){
   try{
     const r=await fetch('/api/tv_gps'+(K?('?k='+encodeURIComponent(K)):''));
     const d=await r.json(); if(d && d.mashinalar) CARS=d.mashinalar;
+    if(d) EVENTS=d.hodisalar||[];
     if(dmap && !DETAIL) yangilaMarkerlar();
   }catch(e){}
 }

@@ -736,6 +736,8 @@ async def parol_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         import random
         yaratildi, bor = [], []
         for x in db.all_xodimlar():
+            if x["id"] in (db.UMUMIY_ID, db.PERECH_ID):
+                continue  # maxsus hisoblar (umumiy/perech) — bu yerda emas
             if x.get("login"):
                 bor.append(x)
                 continue
@@ -1366,6 +1368,68 @@ async def reminder_loop(app):
         await asyncio.sleep(60)
 
 
+# ============ MASHINA GPS — fon loggeri + tezlik ogohlantirish ============
+GPS_TEZLIK_CHEGARA = int(os.getenv("GPS_TEZLIK_CHEGARA", "65"))
+# Nazorat qilinadigan mashinalar (davlat raqami ichidagi bo'lak, vergul bilan)
+GPS_NAZORAT = [s.strip() for s in os.getenv("GPS_NAZORAT", "067,240,562").split(",") if s.strip()]
+_gps_oxirgi_ogoh = {}   # vid -> datetime (takror ogohlantirmaslik uchun)
+
+
+def _gps_nazoratdami(nom):
+    n = (nom or "").replace(" ", "")
+    return any(x and x in n for x in GPS_NAZORAT)
+
+
+async def gps_logger_loop(app):
+    """Har ~25s GoGPS'dan mashinalar holatini olib bazaga yozadi + tezlikni nazorat qiladi."""
+    from miniapp import gogps_monitoring, gogps_tayyorla
+    oxirgi_tozalash = None
+    while True:
+        try:
+            data = await gogps_monitoring()
+            mashinalar = gogps_tayyorla(data) if data else []
+            items = [{"vid": m["id"], "nom": m["nom"], "lat": m["lat"], "lon": m["lon"],
+                      "tezlik": m["tezlik"], "course": m.get("yonalish"),
+                      "ign": m.get("ign"), "vaqt": m.get("vaqt")}
+                     for m in mashinalar if m.get("lat") is not None]
+            if items:
+                db.mgps_nuqta_saqla(items)
+            now = db.now_tk()
+            for m in mashinalar:
+                if (m.get("tezlik") or 0) > GPS_TEZLIK_CHEGARA and _gps_nazoratdami(m.get("nom")):
+                    vid = m["id"]
+                    oxv = _gps_oxirgi_ogoh.get(vid)
+                    if oxv and (now - oxv).total_seconds() < 300:   # 5 daqiqa debounce
+                        continue
+                    _gps_oxirgi_ogoh[vid] = now
+                    try:
+                        db.mgps_hodisa_qosh(vid, m.get("nom"), "tezlik", m["tezlik"],
+                                            m["lat"], m["lon"], m.get("vaqt"))
+                    except Exception:
+                        log.exception("tezlik hodisasini saqlashda xato")
+                    loc = db._mgps_local(m.get("vaqt"))
+                    vaqt_s = loc.strftime("%H:%M") if loc else now.strftime("%H:%M")
+                    harita = f"https://yandex.uz/maps/?pt={m['lon']},{m['lat']}&z=16&l=map"
+                    matn = (f"🚨 *TEZLIK OSHDI* — {m.get('nom')}\n"
+                            f"⚡ {int(m['tezlik'])} km/soat  (chegara {GPS_TEZLIK_CHEGARA})\n"
+                            f"🕐 {vaqt_s}\n📍 {harita}")
+                    try:
+                        await app.bot.send_message(chat_id=db.OWNER_ID, text=matn,
+                                                   parse_mode="Markdown", disable_web_page_preview=True)
+                    except Exception:
+                        log.exception("tezlik ogohlantirishni yuborishda xato")
+            bugun = db.today_tk().isoformat()
+            if oxirgi_tozalash != bugun:
+                oxirgi_tozalash = bugun
+                try:
+                    db.mgps_tozala(14)
+                except Exception:
+                    pass
+        except Exception:
+            log.exception("gps logger xatolik")
+        await asyncio.sleep(25)
+
+
 async def run():
     token = os.environ["TELEGRAM_TOKEN"]
     db.init_db()
@@ -1422,6 +1486,7 @@ async def run():
 
     await app.updater.start_polling()
     asyncio.create_task(reminder_loop(app))
+    asyncio.create_task(gps_logger_loop(app))
     await _set_commands(app)
     log.info("Ijara boti + Mini App ishga tushdi (port %s).", port)
     await asyncio.Event().wait()

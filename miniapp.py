@@ -182,12 +182,46 @@ def gogps_tayyorla(data):
             "lat": p.get("Latitude"), "lon": p.get("Longitude"),
             "tezlik": int(round(speed)),
             "yonalish": p.get("Course"),
+            "ign": bool(p.get("Ign")),
+            "vaqt": rt,
             "harakat": bool(harakat),
             "online": (last_daq is not None and last_daq <= 60),
             "last_daq": last_daq,
         })
     out.sort(key=lambda x: (not x["harakat"], x["nom"]))
     return out
+
+
+_joy_cache = {}
+
+
+async def joy_nomi(lat, lon):
+    """lat/lon -> ko'cha/mahalla nomi (OpenStreetMap, keshlanadi). Best-effort."""
+    if lat is None or lon is None:
+        return ""
+    key = f"{round(float(lat), 4)},{round(float(lon), 4)}"
+    if key in _joy_cache:
+        return _joy_cache[key]
+    import aiohttp as _ah
+    nom = ""
+    try:
+        url = (f"https://nominatim.openstreetmap.org/reverse?format=jsonv2"
+               f"&lat={lat}&lon={lon}&zoom=16&accept-language=uz")
+        async with _ah.ClientSession() as ss:
+            async with ss.get(url, headers={"User-Agent": "temirchi-dashboard/1.0"},
+                              timeout=_ah.ClientTimeout(total=6)) as r:
+                if r.status == 200:
+                    d = await r.json()
+                    a = d.get("address", {})
+                    parts = [a.get("road") or a.get("neighbourhood") or a.get("suburb"),
+                             a.get("city_district") or a.get("city") or a.get("town")]
+                    nom = ", ".join([x for x in parts if x])
+                    if not nom:
+                        nom = (d.get("display_name", "") or "").split(",")[0]
+    except Exception:
+        nom = ""
+    _joy_cache[key] = nom
+    return nom
 
 
 def make_web_app(bot_token):
@@ -257,9 +291,36 @@ def make_web_app(bot_token):
             return web.json_response({"xato": "ruxsat yo'q"}, status=403)
         try:
             data = await gogps_monitoring()
-            return web.json_response({"mashinalar": gogps_tayyorla(data)})
+            ml = gogps_tayyorla(data)
+            try:
+                hod = db.mgps_hodisalar()      # bugungi tezlik buzilishlari (hamma mashina)
+            except Exception:
+                hod = []
+            return web.json_response({"mashinalar": ml, "hodisalar": hod})
         except Exception as e:
-            return web.json_response({"mashinalar": [], "xato": type(e).__name__})
+            return web.json_response({"mashinalar": [], "hodisalar": [], "xato": type(e).__name__})
+
+    async def api_tv_gps_kun(request):
+        # Bir mashinaning kunlik marshruti + to'xtashlari + statistikasi + hodisalari
+        kalit = db.get_sozlama("tv_pin") or os.environ.get("TV_KEY")
+        if kalit and request.query.get("k") != kalit:
+            return web.json_response({"xato": "ruxsat yo'q"}, status=403)
+        try:
+            vid = int(request.query.get("id"))
+        except Exception:
+            return web.json_response({"xato": "id kerak"}, status=400)
+        sana = (request.query.get("sana") or db.today_tk().isoformat())[:10]
+        try:
+            x = db.mgps_kunlik_xulosa(vid, sana)
+            hod = db.mgps_hodisalar(sana, vid)
+            for s in x.get("toxtashlar", []):
+                s["joy"] = await joy_nomi(s.get("lat"), s.get("lon"))
+            for h in hod:
+                h["joy"] = await joy_nomi(h.get("lat"), h.get("lon"))
+            x["hodisalar"] = hod
+            return web.json_response(x)
+        except Exception as e:
+            return web.json_response({"xato": type(e).__name__}, status=200)
 
     async def api_tv_pin_ozgartir(request):
         # Faqat joriy PIN to'g'ri bo'lsa — yangi PIN o'rnatiladi
@@ -1463,6 +1524,7 @@ def make_web_app(bot_token):
     app.router.add_get("/logo.png", tv_logo)
     app.router.add_get("/api/dashboard", api_dashboard)
     app.router.add_get("/api/tv_gps", api_tv_gps)
+    app.router.add_get("/api/tv_gps_kun", api_tv_gps_kun)
     app.router.add_post("/api/tv_pin_ozgartir", api_tv_pin_ozgartir)
     app.router.add_post("/api/login", api_login)
     app.router.add_get("/m/{token}", mijoz_sahifa)
