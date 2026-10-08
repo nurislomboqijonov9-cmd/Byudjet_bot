@@ -389,9 +389,9 @@ function ekranUmumiy(d){
     `<div class="kpi c-gold"><div class="kt">${ic('cal')}Bu oy tushum</div><div class="kv">${qH(d.oylik_tushum)}</div>
       <div class="kvis"><div class="seg"><i style="width:${kun/30*100}%;background:var(--gold)"></i></div>
       <div class="kf"><span>Kunlik o'rtacha</span><b>${qisqa(ort)} so'm</b></div></div></div>`,
-    `<div class="kpi c-ro"><div class="kt">${ic('debt')}Jami qarz</div><div class="kv" style="color:var(--ro)">${qH(ijq)}</div>
-      <div class="kvis"><div class="seg"><i style="width:${ijq/qj*100}%;background:var(--ro)"></i>${stq?'<i style="width:'+stq/qj*100+'%;background:var(--am)"></i>':''}</div>
-      <div class="kf"><span>Ijara</span>${stq?'<span>Sotuv: <b>'+qisqa(stq)+'</b></span>':'<span>so\'m</span>'}</div></div></div>`,
+    `<div class="kpi c-ro"><div class="kt">${ic('debt')}Jami qarz</div><div class="kv" style="color:var(--ro)">${qH(ijq+stq)}</div>
+      <div class="kvis"><div class="seg"><i style="width:${ijq/qj*100}%;background:var(--ro)"></i>${stq?'<i style="width:'+stq/qj*100+'%;background:var(--gold)"></i>':''}</div>
+      <div class="kf"><span>Ijara <b>${qisqa(ijq)}</b></span>${stq?'<span>Sotuv <b style="color:var(--gold)">'+qisqa(stq)+'</b></span>':'<span>so\'m</span>'}</div></div></div>`,
     `<div class="kpi c-vi"><div class="kt">${ic('users')}Qarzdorlar</div><div class="kv">${son(qs)}<small>ta</small></div>
       <div class="kvis"><div class="seg"><i style="width:${qs?os/qs*100:0}%;background:var(--ro)"></i><i style="flex:1;background:rgba(167,139,250,.5)"></i></div>
       <div class="kf">${os?'<span style="color:var(--ro)"><b style="color:var(--ro)">'+os+'</b> ta chegaradan oshgan</span>':'<span style="color:var(--em)">Hammasi chegarada</span>'}</div></div></div>`
@@ -441,6 +441,29 @@ function ekranlarQarzdor(d){
       <div class="bars" style="grid-template-columns:1fr 1fr;grid-template-rows:repeat(${rows},minmax(0,3.6rem));grid-auto-flow:column;align-content:start">
       ${p.bet.map((x,j)=>{ const n=p.bosh+j+1; return `<div class="br ${x.over?'over':''} ${n<=3?'top3':''}"><span class="rk">${n}</span><span class="bn">${esc(x.ism)}${x.over?'<span class="badge ro">oshgan</span>':''}</span><span class="bt"><i style="width:${Math.max(1.5,(x.qarz||0)/mx*100)}%"></i></span><span class="ba">${son(x.qarz)}</span></div>`; }).join('')}
       </div></div>`}; });
+}
+function ekranlarSotuv(d){
+  const all=d.barcha_qarzdor_sotuv||[]; if(!all.length) return [];
+  const mx=Math.max(1,...all.map(x=>x.qarz||0));
+  return sahifa(all,30).map(p=>{ const rows=Math.min(15,Math.ceil(p.bet.length/2));
+    return {nom:"Sotuv qarzdorlari", pg:p.j>1?(p.s+'/'+p.j):'', ic:'wallet', kind:"text", html:
+    stats([['vi','users','Mijozlar',son(all.length)+'<small>ta</small>'],['gold','wallet','Sotuv qarzi',qH(d.sotuv_qarz)],['gold','trend','O\'rtacha',qH((d.sotuv_qarz||0)/Math.max(1,all.length))]])
+    +`<div class="card" style="flex:1"><div class="ch"><h3>Sotuv — mijozlar qarzi</h3><span class="hint">ehtimoliy sotib oluvchilar</span></div>
+      <div class="bars" style="grid-template-columns:1fr 1fr;grid-template-rows:repeat(${rows},minmax(0,3.6rem));grid-auto-flow:column;align-content:start">
+      ${p.bet.map((x,j)=>{ const n=p.bosh+j+1; return `<div class="br ${n<=3?'top3':''}"><span class="rk">${n}</span><span class="bn">${esc(x.ism)}</span><span class="bt"><i style="width:${Math.max(1.5,(x.qarz||0)/mx*100)}%;background:linear-gradient(90deg,rgba(232,185,100,.35),var(--gold))"></i></span><span class="ba" style="color:var(--gold)">${son(x.qarz)}</span></div>`; }).join('')}
+      </div></div>`}; });
+}
+function ekranBandlik(d){
+  const oyl=d.jihoz_oylik||[]; const ij=d.jihoz_ijarada||0, jm=d.jihoz_jami||0, bugun=jm>0?Math.round(ij/jm*100):0;
+  const OY=["yan","fev","mar","apr","may","iyn","iyl","avg","sen","okt","noy","dek"];
+  const nomla=m=>{const s=(''+m).split('-'); return (OY[(+s[1]||1)-1]||'')+" "+(s[0]||'').slice(2);};
+  const mx=Math.max(100,...oyl.map(x=>x.foiz||0));
+  return {nom:"Jihozlar bandligi", ic:'box', kind:"text", html:
+    stats([['gold','box','Bugun ijarada',bugun+'<small>%</small>'],['em','trend','Ijarada',son(ij)+'<small> dona</small>'],['sky','home','Jami jihoz',son(jm)+'<small> dona</small>']])
+    +`<div class="card" style="flex:1"><div class="ch"><h3>Oyma-oy o'rtacha bandlik</h3><span class="hint">jihozlarning necha % ijarada bo'lgani</span></div>`
+    +(oyl.length?`<div class="bars" style="grid-template-columns:1fr;grid-auto-rows:minmax(0,3.2rem);align-content:start">
+      ${oyl.map(x=>`<div class="br" style="grid-template-columns:5.5rem 1fr 4rem"><span class="bn" style="font-weight:700">${nomla(x.oy)}</span><span class="bt"><i style="width:${Math.max(2,(x.foiz||0)/mx*100)}%;background:linear-gradient(90deg,rgba(52,211,153,.35),var(--em))"></i></span><span class="ba" style="color:var(--em)">${x.foiz}<small style="color:var(--mut)">%</small></span></div>`).join('')}
+      </div>`:bo('box','Ma\'lumot to\'planmoqda'))+`</div>`};
 }
 function ekranlarOmbor(d){
   const all=(d.ombor||[]).filter(x=>(x.total||0)>0 || (x.out||0)>0).slice().sort((a,b)=>((b.out||0)/(b.total||1))-((a.out||0)/(a.total||1)));
@@ -530,13 +553,12 @@ function yangilaMarkerlar(){
 
 /* ===== Aylanish ===== */
 function qurViews(){
-  views=[]; if(DATA){ views.push(ekranUmumiy(DATA)); ekranlarOmbor(DATA).forEach(v=>views.push(v)); ekranlarQarzdor(DATA).forEach(v=>views.push(v)); }
+  views=[]; if(DATA){ views.push(ekranUmumiy(DATA)); ekranlarOmbor(DATA).forEach(v=>views.push(v)); views.push(ekranBandlik(DATA)); ekranlarQarzdor(DATA).forEach(v=>views.push(v)); ekranlarSotuv(DATA).forEach(v=>views.push(v)); }
   if(DAVOMAT) ekranlarDavomat(DAVOMAT).forEach(v=>views.push(v));
   if(CARS && CARS.length){
     ekranlarMashina(CARS).forEach(v=>views.push(v));
     views.push({nom:"Jonli xarita", ic:'map', kind:"dmap", html:""});
   }
-  if(EVENTS && EVENTS.length){ views.push(ekranHodisa(EVENTS)); }
   const prog=$('prog')||Object.assign(document.createElement('i'),{id:'prog'});
   $('nav').innerHTML=views.map((v,i)=>'<div class="nv'+(i===cur?' on':'')+'" onclick="borga('+i+')">'+ic(v.ic)+'<span class="nt">'+v.nom+'</span>'+(v.pg?'<span class="np">'+v.pg+'</span>':'')+'<span class="trk"></span></div>').join('');
   const a=$('nav').querySelector('.nv.on .trk'); if(a) a.appendChild(prog); else document.body.appendChild(prog);
@@ -733,8 +755,10 @@ window.pinOzgartir=function(){
 function demoYukla(){
   const ism=["Do'smatov Davron","Karimov Bek","Sardorbek Toshmatov","Jahongir aka","Oybek Qurilish","Zafar Construction","Bahodir aka","Nodir qurilish","Ulug'bek","Rustam Xolmatov","Shoxrux Usta","Akmal Builders","Farhod aka","Sanjar Mirzayev","Islom qurilish","Murod Karimov","Elyor Tosh.","Bobur aka","Dilshod Yusupov","Anvar Monolit","Sherzod aka","Jasur Beton","Otabek Rahimov","Qodir usta","Lazizbek","Abdulla aka","Timur Stroy","Hasan Qurilish"];
   const qarz=ism.map((n,i)=>({ism:n,qarz:Math.round((14500000*Math.pow(.86,i))/1000)*1000,over:[0,3,6,11,15,20].includes(i)}));
-  DATA={bugun_tushum:12850000,oylik_tushum:94000000,jami_qarz:152400000,sotuv_qarz:12300000,qarzdor_soni:28,over_soni:6,
+  DATA={bugun_tushum:12850000,oylik_tushum:94000000,jami_qarz:1400000000,sotuv_qarz:700000000,qarzdor_soni:28,over_soni:6,
     predoplata_jami:31200000,predoplata_soni:12,jihoz_ijarada:3420,jihoz_jami:5000,
+    jihoz_oylik:[{oy:"2026-05",foiz:71},{oy:"2026-06",foiz:75},{oy:"2026-07",foiz:78},{oy:"2026-08",foiz:89},{oy:"2026-09",foiz:84},{oy:"2026-10",foiz:68}],
+    barcha_qarzdor_sotuv:[["Alisher qurilish",185000000],["Bek Stroy",142000000],["Zafar aka",96000000],["Nodir MCHJ",74000000],["Sardor qurilish",58000000],["Oybek aka",43000000],["Jahongir",31000000],["Murod aka",22000000]].map(a=>({ism:a[0],qarz:a[1],over:false})),
     top_qarzdor:qarz.slice(0,10),barcha_qarzdor:qarz,
     oxirgi_tolov:[["Karimov Bek",3000000,"11:52"],["Sardorbek Toshmatov",2500000,"11:20"],["Zafar Construction",2200000,"10:47"],["Jahongir aka",1500000,"10:05"],["Nodir qurilish",1350000,"09:44"],["Bahodir aka",1000000,"09:31"],["Akmal Builders",800000,"08:58"],["Ulug'bek",500000,"08:22"]].map(a=>({ism:a[0],summa:a[1],vaqt:a[2]})),
     ombor:[["Lyulka",500,420],["Stoyka 2m",2000,1200],["Stoyka 3m",1200,880],["Balka 3m",400,300],["Balka 4m",350,140],["Taxta",1000,450],["Xomut",1100,1050],["Opalubka",600,380],["Domkrat",300,210],["Tagkursi",450,160],["Shchit 1x2",280,250],["Truba 6m",900,330]]

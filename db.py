@@ -4529,6 +4529,15 @@ def dashboard_stats(today=None):
         _v = _c2.execute("SELECT COALESCE(SUM(summa),0) FROM tolovlar WHERE substr(sana,1,10)=?", (str(_dd)[:10],)).fetchone()[0]
         _hafta.append({"kun": _kunlar[_dd.weekday()], "summa": int(_v or 0)})
     _c2.close()
+    _ij = int(sum((x.get("out") or 0) for x in omb))
+    _jm = int(sum((x.get("total") or 0) for x in omb))
+    try:
+        jihoz_backfill_kunlik()
+        jihoz_kunlik_saqla(_ij, _jm, sana=d10)
+        _oylik = jihoz_oylik_foiz(6)
+    except Exception:
+        _oylik = []
+    _sotuv_sorted = sorted(qd_sotuv, key=lambda x: -(x.get("qarz") or 0))
     return {
         "sana": d10,
         "predoplata_jami": predoplata_jami,
@@ -4545,8 +4554,11 @@ def dashboard_stats(today=None):
         "top_qarzdor": [{"ism": x["ism"], "qarz": int(x["qarz"]), "over": bool(x.get("over"))} for x in qd_katta[:7]],
         "barcha_qarzdor": [{"ism": x["ism"], "tel": x.get("telefon"), "qarz": int(x["qarz"]),
                             "over": bool(x.get("over"))} for x in qd_katta],
-        "jihoz_ijarada": int(sum((x.get("out") or 0) for x in omb)),
-        "jihoz_jami": int(sum((x.get("total") or 0) for x in omb)),
+        "barcha_qarzdor_sotuv": [{"ism": x["ism"], "qarz": int(x["qarz"]),
+                                  "over": bool(x.get("over"))} for x in _sotuv_sorted],
+        "jihoz_oylik": _oylik,
+        "jihoz_ijarada": _ij,
+        "jihoz_jami": _jm,
         "ombor": [{"name": x["name"], "out": int(x.get("out") or 0),
                    "omborda": int(x.get("omborda") or 0), "total": int(x.get("total") or 0)} for x in omb],
         "oxirgi_tolov": [{"ism": (r["ism"] or "—"), "summa": int(r["s"] or 0),
@@ -5271,3 +5283,78 @@ def mgps_kun_statlar(sana=None):
         mx = max((p.get("tezlik") or 0) for p in pts) if pts else 0
         res[vid] = {"km": round(dist / 1000, 1), "max_tezlik": round(mx), "harakat_min": round(harakat)}
     return res
+
+
+# ============ JIHOZ BANDLIGI — kunlik snapshot + oylik foiz ============
+def _jk_init(con):
+    con.execute("""CREATE TABLE IF NOT EXISTS jihoz_kunlik(
+        sana TEXT PRIMARY KEY, ijarada INTEGER, jami INTEGER)""")
+
+
+def jihoz_kunlik_saqla(ijarada, jami, sana=None):
+    sana = str(sana or today_tk().isoformat())[:10]
+    con = _con(); _jk_init(con)
+    con.execute("INSERT OR REPLACE INTO jihoz_kunlik(sana,ijarada,jami) VALUES(?,?,?)",
+                (sana, int(ijarada or 0), int(jami or 0)))
+    con.commit(); con.close()
+
+
+def jihoz_backfill_kunlik():
+    """ombor_tarix dan o'tgan kunlardagi 'ijarada' ni tiklab jihoz_kunlik ga yozadi (bir marta)."""
+    try:
+        if get_sozlama("jihoz_bf_v1") == "1":
+            return
+    except Exception:
+        pass
+    from datetime import date, timedelta
+    con = _con(); _jk_init(con)
+    try:
+        try:
+            prods = con.execute("SELECT id,total FROM ombor_mahsulot WHERE bolim='ijara'").fetchall()
+        except Exception:
+            prods = con.execute("SELECT id,total FROM ombor_mahsulot").fetchall()
+        totals = {p["id"]: (p["total"] or 0) for p in prods}
+        jami = sum(totals.values())
+        if jami <= 0:
+            con.close(); return
+        try:
+            rows = con.execute("SELECT mahsulot_id,ombor_after,ts FROM ombor_tarix WHERE bolim='ijara' ORDER BY ts").fetchall()
+        except Exception:
+            rows = con.execute("SELECT mahsulot_id,ombor_after,ts FROM ombor_tarix ORDER BY ts").fetchall()
+        if not rows:
+            con.close(); return
+        have = set(r[0] for r in con.execute("SELECT sana FROM jihoz_kunlik").fetchall())
+        per_out = {pid: 0 for pid in totals}
+        n = len(rows); ri = 0
+        start = date.fromisoformat(str(rows[0]["ts"])[:10])
+        end = today_tk() - timedelta(days=1)
+        d = start
+        while d <= end:
+            ds = d.isoformat()
+            while ri < n and str(rows[ri]["ts"])[:10] <= ds:
+                r = rows[ri]; pid = r["mahsulot_id"]
+                if pid in totals:
+                    per_out[pid] = max(0, totals[pid] - (r["ombor_after"] or 0))
+                ri += 1
+            if ds not in have:
+                con.execute("INSERT OR IGNORE INTO jihoz_kunlik(sana,ijarada,jami) VALUES(?,?,?)",
+                            (ds, int(sum(per_out.values())), int(jami)))
+            d += timedelta(days=1)
+        con.commit()
+    finally:
+        con.close()
+    try:
+        set_sozlama("jihoz_bf_v1", "1")
+    except Exception:
+        pass
+
+
+def jihoz_oylik_foiz(oylar=6):
+    con = _con(); _jk_init(con)
+    rows = con.execute(
+        "SELECT substr(sana,1,7) AS oy, "
+        "AVG(CASE WHEN jami>0 THEN ijarada*100.0/jami ELSE 0 END) AS f "
+        "FROM jihoz_kunlik GROUP BY oy ORDER BY oy").fetchall()
+    con.close()
+    out = [{"oy": r["oy"], "foiz": int(round(r["f"] or 0))} for r in rows]
+    return out[-int(oylar):]
