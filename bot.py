@@ -426,8 +426,33 @@ async def hisobot_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Hozircha mijoz yo'q.")
         return
     jami_qarz = sum(m["qolgan_qarz"] for m in ml)
+    # Har mijozning arendadagi mahsulotlari — yonida ustun bo'lib ko'rinishi uchun
+    _seen = set()
+    for m in ml:
+        omap = {}
+        try:
+            for it in db.mijoz_ostatka(m.get("id")):
+                q = it.get("qolgan") or 0
+                if q:
+                    omap[it["nom"]] = q
+                    _seen.add(it["nom"])
+        except Exception:
+            pass
+        m["ostatka_map"] = omap
     try:
-        bio = excel.umumiy_excel(ml, sana=db.today_tk().isoformat())
+        mahsulotlar = [nom for nom in db.ombor_names("ijara") if nom in _seen]
+    except Exception:
+        mahsulotlar = []
+    for nom in _seen:
+        if nom not in mahsulotlar:
+            mahsulotlar.append(nom)
+    try:
+        brovdan = db.umumiy_brovdan("ijara")
+    except Exception:
+        brovdan = None
+    try:
+        bio = excel.umumiy_excel(ml, sana=db.today_tk().isoformat(),
+                                 mahsulotlar=mahsulotlar, brovdan=brovdan)
         await update.message.reply_document(
             document=InputFile(bio, filename="umumiy_hisobot.xlsx"),
             caption=f"📊 Umumiy hisobot · {len(ml)} ta mijoz · umumiy qarz {som(jami_qarz)} so'm")
