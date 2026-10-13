@@ -1094,9 +1094,14 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return await _set_yonalish(update, ctx, _arrow_dir(txt))
     try:
         actions = ai.from_text(txt)
-    except Exception:
+    except Exception as e:
         log.exception("text xatolik")
-        await update.message.reply_text("Xatolik yuz berdi. Qaytadan urinib ko'ring.")
+        _sabab = f"{type(e).__name__}: {e}"
+        await update.message.reply_text(
+            "⚠️ DIAGNOSTIKA (vaqtinchalik)\n"
+            "Xatolik yuz berdi. Sabab:\n\n"
+            f"`{_sabab[:600]}`\n\n"
+            "👆 Shu xabarni Claude'ga yuboring.", parse_mode="Markdown")
         return
     actions = [a for a in actions if a.tushunildi and a.amal] or actions[:1]
     if not actions:
