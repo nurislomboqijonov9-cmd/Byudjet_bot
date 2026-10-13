@@ -4171,14 +4171,17 @@ def partiya_hisob(p, today=None, kesim=False):
     issue = _pdate(p["chiqgan_sana"])
     daily = p["kunlik_narx"]
     # Yopish sanasi: normal hisobda ham amal qiladi — hisob shu kunda muzlaydi
+    # Yopish (kesim_sana) sanasi — har ikkala rejimda ham amal qiladi:
+    # rent shu kunda muzlaydi. (Avval faqat normal rejimda ishlardi; shuning uchun
+    # "sanadan-sanagacha" hisobotda yopilgan mijozning qarzi oshib ketardi.)
     cut = None
-    if not kesim:
-        ks = (p.get("kesim_sana") if isinstance(p, dict) else None)
-        if ks:
-            try:
-                cut = _pdate(ks)
-            except Exception:
-                cut = None
+    ks = (p.get("kesim_sana") if isinstance(p, dict) else None)
+    if ks:
+        try:
+            cut = _pdate(ks)
+        except Exception:
+            cut = None
+    # Tarixiy kesim (snapshot): yopish o'sha kundan keyin bo'lsa — hali amal qilmaydi.
     end = min(today, cut) if cut else today
     narx = 0.0
     qaytgan = 0.0
