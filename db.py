@@ -296,22 +296,28 @@ def phone_list(s):
     return [d for p in re.split(r"[,;\n/]+", str(s)) if (d := "".join(c for c in p if c.isdigit()))]
 
 
-def add_mijoz(ism, telefon=None, bolim="ijara"):
+def add_mijoz(ism, telefon=None, bolim="ijara", adres=None):
     bolim = "sotuv" if str(bolim or "").lower().startswith("sot") else "ijara"
     con = _con()
     import secrets as _sec
-    cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan, bolim, token) VALUES (?, ?, ?, ?, ?)",
-                      (ism.strip(), clean_phones(telefon), now_tk().isoformat(), bolim, _sec.token_urlsafe(9)))
+    cur = con.execute(
+        "INSERT INTO mijozlar (ism, telefon, adres, yaratilgan, bolim, token) VALUES (?, ?, ?, ?, ?, ?)",
+        (ism.strip(), clean_phones(telefon), (adres or "").strip() or None,
+         now_tk().isoformat(), bolim, _sec.token_urlsafe(9)))
     con.commit()
     mid = cur.lastrowid
     con.close()
     return mid
 
 
-def update_mijoz(mijoz_id, ism, telefon):
+def update_mijoz(mijoz_id, ism, telefon, adres=None):
     con = _con()
-    con.execute("UPDATE mijozlar SET ism = ?, telefon = ? WHERE id = ?",
-                (ism.strip(), clean_phones(telefon), mijoz_id))
+    if adres is None:
+        con.execute("UPDATE mijozlar SET ism = ?, telefon = ? WHERE id = ?",
+                    (ism.strip(), clean_phones(telefon), mijoz_id))
+    else:
+        con.execute("UPDATE mijozlar SET ism = ?, telefon = ?, adres = ? WHERE id = ?",
+                    (ism.strip(), clean_phones(telefon), (adres or "").strip() or None, mijoz_id))
     con.commit()
     con.close()
 
@@ -2022,22 +2028,28 @@ def phone_list(s):
     return [d for p in re.split(r"[,;\n/]+", str(s)) if (d := "".join(c for c in p if c.isdigit()))]
 
 
-def add_mijoz(ism, telefon=None, bolim="ijara"):
+def add_mijoz(ism, telefon=None, bolim="ijara", adres=None):
     bolim = "sotuv" if str(bolim or "").lower().startswith("sot") else "ijara"
     con = _con()
     import secrets as _sec
-    cur = con.execute("INSERT INTO mijozlar (ism, telefon, yaratilgan, bolim, token) VALUES (?, ?, ?, ?, ?)",
-                      (ism.strip(), clean_phones(telefon), now_tk().isoformat(), bolim, _sec.token_urlsafe(9)))
+    cur = con.execute(
+        "INSERT INTO mijozlar (ism, telefon, adres, yaratilgan, bolim, token) VALUES (?, ?, ?, ?, ?, ?)",
+        (ism.strip(), clean_phones(telefon), (adres or "").strip() or None,
+         now_tk().isoformat(), bolim, _sec.token_urlsafe(9)))
     con.commit()
     mid = cur.lastrowid
     con.close()
     return mid
 
 
-def update_mijoz(mijoz_id, ism, telefon):
+def update_mijoz(mijoz_id, ism, telefon, adres=None):
     con = _con()
-    con.execute("UPDATE mijozlar SET ism = ?, telefon = ? WHERE id = ?",
-                (ism.strip(), clean_phones(telefon), mijoz_id))
+    if adres is None:
+        con.execute("UPDATE mijozlar SET ism = ?, telefon = ? WHERE id = ?",
+                    (ism.strip(), clean_phones(telefon), mijoz_id))
+    else:
+        con.execute("UPDATE mijozlar SET ism = ?, telefon = ?, adres = ? WHERE id = ?",
+                    (ism.strip(), clean_phones(telefon), (adres or "").strip() or None, mijoz_id))
     con.commit()
     con.close()
 
@@ -5358,3 +5370,75 @@ def jihoz_oylik_foiz(oylar=6):
     con.close()
     out = [{"oy": r["oy"], "foiz": int(round(r["f"] or 0))} for r in rows]
     return out[-int(oylar):]
+
+
+def mijoz_davr(mijoz_id, dan, gacha):
+    """Davr (akt-sverka) hisoboti: boshlang'ich qarz (dan kunigacha),
+    [dan..gacha] oralig'idagi harakatlar (chiqish/qaytarish/to'lov/qo'shimcha),
+    va yakuniy qarz (gacha kunigacha)."""
+    import datetime as _dt
+    d1 = _dt.date.fromisoformat(str(dan)[:10])
+    d2 = _dt.date.fromisoformat(str(gacha)[:10])
+    if d2 < d1:
+        d1, d2 = d2, d1
+    oldin = d1 - _dt.timedelta(days=1)
+    bosh = mijoz_detail(mijoz_id, today=oldin, kesim=True)   # davr boshidagi holat
+    full = mijoz_detail(mijoz_id, today=d2, kesim=True)      # gacha kungacha barcha yozuvlar
+    if not full:
+        return None
+    lo, hi = d1.isoformat(), d2.isoformat()
+
+    def _in(s):
+        s = str(s)[:10]
+        return lo <= s <= hi
+
+    chiqishlar = []
+    for p in full.get("partiyalar", []):
+        if _in(p.get("chiqgan_sana")):
+            chiqishlar.append({
+                "sana": str(p["chiqgan_sana"])[:10],
+                "partiya_raqam": p.get("partiya_raqam"),
+                "mahsulot": p.get("mahsulot"),
+                "miqdor": p.get("miqdor"),
+                "birlik": p.get("birlik") or "ta",
+                "kunlik_narx": p.get("kunlik_narx"),
+                "manzil": p.get("manzil"),
+                "brov_kim": p.get("brov_kim"),
+            })
+    chiqishlar.sort(key=lambda x: x["sana"])
+
+    qaytarishlar = []
+    for p in full.get("partiyalar", []):
+        for r in p.get("qaytarishlar", []):
+            if _in(r.get("qaytgan_sana")):
+                qaytarishlar.append({
+                    "sana": str(r["qaytgan_sana"])[:10],
+                    "partiya_raqam": p.get("partiya_raqam"),
+                    "mahsulot": p.get("mahsulot"),
+                    "miqdor": r.get("miqdor"),
+                    "birlik": p.get("birlik") or "ta",
+                    "brov_kim": p.get("brov_kim"),
+                })
+    qaytarishlar.sort(key=lambda x: x["sana"])
+
+    tolovlar = [{"sana": str(t["sana"])[:10], "summa": t["summa"], "izoh": t.get("izoh")}
+                for t in full.get("tolovlar", []) if _in(t.get("sana"))]
+    tolovlar.sort(key=lambda x: x["sana"])
+
+    qoshimcha = [{"sana": str(q["sana"])[:10], "tur": q["tur"], "summa": q["summa"]}
+                 for q in full.get("qoshimcha", []) if _in(q.get("sana"))]
+    qoshimcha.sort(key=lambda x: x["sana"])
+
+    return {
+        "mijoz": full.get("mijoz"),
+        "telefon": full.get("telefon"),
+        "adres": full.get("adres"),
+        "dan": lo, "gacha": hi,
+        "boshlang_qarz": round((bosh or {}).get("qolgan_qarz", 0) or 0),
+        "oxirgi_qarz": round(full.get("qolgan_qarz", 0) or 0),
+        "chiqishlar": chiqishlar,
+        "qaytarishlar": qaytarishlar,
+        "tolovlar": tolovlar,
+        "qoshimcha": qoshimcha,
+        "tolangan_davr": round(sum(t["summa"] for t in tolovlar)),
+    }

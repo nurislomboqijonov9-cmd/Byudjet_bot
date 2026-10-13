@@ -782,6 +782,26 @@ def make_web_app(bot_token):
             mid = int(request.query.get("id", ""))
         except Exception:
             return web.json_response({"xato": "id kerak"}, status=400)
+        dan = request.query.get("dan") or None
+        gacha = request.query.get("gacha") or None
+        # Ikkala sana ham berilgan bo'lsa — DAVR (akt-sverka) hisoboti
+        if dan and gacha:
+            try:
+                dv = db.mijoz_davr(mid, dan, gacha)
+                if not dv:
+                    return web.Response(status=404)
+                data = excel.davr_excel(dv).getvalue()
+            except Exception:
+                import logging
+                logging.getLogger("miniapp").exception("davr excel xatolik")
+                return web.json_response({"xato": "excel yaratilmadi"}, status=500)
+            import urllib.parse
+            nom = f"{dv.get('mijoz') or 'mijoz'} ({excel._dmy(dan)}-{excel._dmy(gacha)})"
+            fn = urllib.parse.quote(f"{nom}.xlsx")
+            return web.Response(
+                body=data,
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fn}"})
         d = db.mijoz_detail(mid)
         kungacha = request.query.get("kungacha") or None
         if kungacha:
@@ -793,8 +813,6 @@ def make_web_app(bot_token):
                 pass
         if not d:
             return web.Response(status=404)
-        dan = request.query.get("dan") or None
-        gacha = request.query.get("gacha") or None
         try:
             bio = excel.mijoz_excel(d, dan, gacha)
             data = bio.getvalue()
@@ -822,11 +840,25 @@ def make_web_app(bot_token):
             mid = int(request.query.get("id", ""))
         except Exception:
             return web.json_response({"xato": "id kerak"}, status=400)
+        dan = request.query.get("dan") or None
+        gacha = request.query.get("gacha") or None
+        if dan and gacha:
+            try:
+                dv = db.mijoz_davr(mid, dan, gacha)
+                if not dv:
+                    return web.json_response({"xato": "topilmadi"}, status=404)
+                data = excel.davr_excel(dv).getvalue()
+            except Exception:
+                import logging
+                logging.getLogger("miniapp").exception("davr excel xatolik")
+                return web.json_response({"xato": "excel yaratilmadi"}, status=500)
+            nom = dv.get("mijoz") or "mijoz"
+            davr = f" ({excel._dmy(dan)}–{excel._dmy(gacha)})"
+            ok = await tg_document(uid, data, f"{nom}{davr}.xlsx", caption=f"📊 {nom} — davr hisoboti{davr}")
+            return web.json_response({"ok": bool(ok)})
         d = db.mijoz_detail(mid)
         if not d:
             return web.json_response({"xato": "topilmadi"}, status=404)
-        dan = request.query.get("dan") or None
-        gacha = request.query.get("gacha") or None
         try:
             data = excel.mijoz_excel(d, dan, gacha).getvalue()
         except Exception:
@@ -914,7 +946,8 @@ def make_web_app(bot_token):
         ism = (body.get("ism") or "").strip()
         if not ism:
             return web.json_response({"xato": "ism kerak"}, status=400)
-        mid = db.add_mijoz(ism, body.get("telefon"), bolim=(body.get("bolim") or "ijara"))
+        mid = db.add_mijoz(ism, body.get("telefon"), bolim=(body.get("bolim") or "ijara"),
+                           adres=body.get("adres"))
         _audit(uid, "mijoz qo'shish", ism, mid)
         return web.json_response({"ok": True, "id": mid})
 

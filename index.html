@@ -465,13 +465,15 @@
     f.innerHTML=`<div class="addbox form"><div class="t">➕ Yangi mijoz</div>
       <input class="f" id="n_ism" placeholder="Ism (masalan Abbos)">
       <input class="f" id="n_tel" placeholder="Telefon (bir nechta bo'lsa probel yoki vergul bilan)" inputmode="tel">
+      <input class="f" id="n_adres" placeholder="📍 Manzil (masalan: Chilonzor 5-kvartal)">
       <button class="send" onclick="saveNew()">Saqlash</button></div>`;
   };
   window.saveNew=async function(){
     const ism=document.getElementById('n_ism').value.trim();
     const tel=document.getElementById('n_tel').value.trim();
+    const adres=((document.getElementById('n_adres')||{}).value||'').trim();
     if(!ism){toast('Ism kiriting');return;}
-    try{const r=await fetch('/api/mijoz_qosh',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({ism,telefon:tel,bolim:(window.BOLIM||'ijara')})});
+    try{const r=await fetch('/api/mijoz_qosh',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({ism,telefon:tel,adres,bolim:(window.BOLIM||'ijara')})});
       const d=await r.json(); if(d.ok){toast('Mijoz qo\'shildi');loadMijoz(d.id);} else toast(d.xato||'Xato');}catch(e){toast('Xato');}
   };
 

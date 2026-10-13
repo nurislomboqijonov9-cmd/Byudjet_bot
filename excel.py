@@ -450,3 +450,111 @@ def faktura_excel(mijoz_ism, dan, gacha, items, mxik, nomer=None):
     wb.save(bio)
     bio.seek(0)
     return bio
+
+
+def davr_excel(dv):
+    """Davr (akt-sverka) hisoboti: boshlang'ich qarz, davrdagi harakatlar, yakuniy qarz."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Davr hisoboti"
+    ws.column_dimensions["A"].width = 12
+    for c in "BCDEFGH":
+        ws.column_dimensions[c].width = 15
+    ws.column_dimensions["C"].width = 22
+
+    r = 1
+    _banner(ws, f"MIJOZ: {dv.get('mijoz','')}   —   {_dmy(dv.get('dan'))} – {_dmy(dv.get('gacha'))} DAVR HISOBOTI", r, span=8)
+    r += 1
+    for lbl, val in [("Telefon", dv.get("telefon") or "-"), ("Manzil", dv.get("adres") or "-")]:
+        ws.cell(row=r, column=1, value=lbl).font = Font(bold=True)
+        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=8)
+        ws.cell(row=r, column=2, value=val)
+        r += 1
+    r += 1
+
+    def _pul_satr(lbl, val, kuchli=True):
+        nonlocal r
+        c1 = ws.cell(row=r, column=1, value=lbl)
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
+        c1.font = Font(bold=kuchli, size=12 if kuchli else 11)
+        c3 = ws.cell(row=r, column=3, value=f"{_som(val)} so'm")
+        c3.font = Font(bold=kuchli, size=12 if kuchli else 11)
+        c3.alignment = Alignment(horizontal="right")
+        if kuchli:
+            for col in (1, 2, 3):
+                ws.cell(row=r, column=col).fill = PatternFill("solid", fgColor=LIGHT)
+        r += 1
+
+    # Boshlang'ich qarz
+    _pul_satr(f"BOSHLANG'ICH QARZ ({_dmy(dv.get('dan'))} ga)", dv.get("boshlang_qarz", 0))
+    r += 1
+
+    # CHIQISH (ijaraga berilgan)
+    _banner(ws, "➕ CHIQISH (ijaraga berilgan)", r, span=8); r += 1
+    if dv.get("chiqishlar"):
+        _header_row(ws, r, ["Sana", "Partiya", "Mahsulot", "Soni", "Birlik", "Kunlik narx", "Manzil", "Brovdan"]); r += 1
+        for x in dv["chiqishlar"]:
+            row = [_dmy(x["sana"]), x.get("partiya_raqam"), x.get("mahsulot"), x.get("miqdor"),
+                   x.get("birlik") or "ta", x.get("kunlik_narx"), x.get("manzil") or "—", x.get("brov_kim") or "—"]
+            for i, v in enumerate(row, 1):
+                c = ws.cell(row=r, column=i, value=v); c.border = BORDER
+                if i in (4, 6):
+                    c.alignment = Alignment(horizontal="right")
+            r += 1
+    else:
+        ws.cell(row=r, column=1, value="— bu davrda chiqish bo'lmagan"); r += 1
+    r += 1
+
+    # QAYTARISH
+    _banner(ws, "📥 QAYTARISH", r, span=8); r += 1
+    if dv.get("qaytarishlar"):
+        _header_row(ws, r, ["Sana", "Partiya", "Mahsulot", "Soni", "Birlik", "Brovdan"]); r += 1
+        for x in dv["qaytarishlar"]:
+            row = [_dmy(x["sana"]), x.get("partiya_raqam"), x.get("mahsulot"), x.get("miqdor"),
+                   x.get("birlik") or "ta", x.get("brov_kim") or "—"]
+            for i, v in enumerate(row, 1):
+                c = ws.cell(row=r, column=i, value=v); c.border = BORDER
+                if i == 4:
+                    c.alignment = Alignment(horizontal="right")
+            r += 1
+    else:
+        ws.cell(row=r, column=1, value="— bu davrda qaytarish bo'lmagan"); r += 1
+    r += 1
+
+    # TO'LOVLAR
+    _banner(ws, "💵 TO'LOVLAR (kirim)", r, span=8); r += 1
+    if dv.get("tolovlar"):
+        _header_row(ws, r, ["Sana", "Izoh", "Summa (so'm)"]); r += 1
+        for x in dv["tolovlar"]:
+            ws.cell(row=r, column=1, value=_dmy(x["sana"])).border = BORDER
+            ws.cell(row=r, column=2, value=x.get("izoh") or "to'lov").border = BORDER
+            c = ws.cell(row=r, column=3, value=round(x.get("summa") or 0)); c.border = BORDER
+            c.alignment = Alignment(horizontal="right")
+            r += 1
+        ws.cell(row=r, column=2, value="Davr jami to'lov").font = Font(bold=True)
+        c = ws.cell(row=r, column=3, value=round(dv.get("tolangan_davr") or 0))
+        c.font = Font(bold=True); c.alignment = Alignment(horizontal="right")
+        r += 1
+    else:
+        ws.cell(row=r, column=1, value="— bu davrda to'lov bo'lmagan"); r += 1
+    r += 1
+
+    # QO'SHIMCHA
+    if dv.get("qoshimcha"):
+        _banner(ws, "QO'SHIMCHA (yo'lkira / remont)", r, span=8); r += 1
+        _header_row(ws, r, ["Sana", "Tur", "Summa (so'm)"]); r += 1
+        for x in dv["qoshimcha"]:
+            ws.cell(row=r, column=1, value=_dmy(x["sana"])).border = BORDER
+            ws.cell(row=r, column=2, value=("Yo'lkira" if x["tur"] == "yolkira" else "Remont")).border = BORDER
+            c = ws.cell(row=r, column=3, value=round(x.get("summa") or 0)); c.border = BORDER
+            c.alignment = Alignment(horizontal="right")
+            r += 1
+        r += 1
+
+    # YAKUNIY QARZ
+    _pul_satr(f"YAKUNIY QARZ ({_dmy(dv.get('gacha'))} ga)", dv.get("oxirgi_qarz", 0))
+
+    bio = BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+    return bio
