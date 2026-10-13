@@ -5,7 +5,18 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
 
-MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+# Google modellarni almashtirib turadi (eski model o'chirilsa — API xato beradi).
+# Shuning uchun bir nechta modelni navbat bilan sinaymiz: ishlagani eslab qolinadi.
+_FALLBACK_MODELS = [
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+    "gemini-2.5-flash",
+    "gemini-3.5-flash-lite",
+]
+_env_model = os.getenv("GEMINI_MODEL")
+MODELS = ([_env_model] if _env_model else []) + [m for m in _FALLBACK_MODELS if m != _env_model]
+MODEL = MODELS[0]          # birinchi tanlov (log uchun)
+_ishlagan_model = None     # muvaffaqiyatli model keshi
 _client = None
 
 
@@ -88,13 +99,14 @@ class Javob(BaseModel):
     amallar: list[IjaraAmal] = Field(default_factory=list, description="Bir yoki bir nechta amal")
 
 
-def _extract(parts):
+def _bir_model(model, parts):
+    """Bitta modelda so'rov. Vaqtinchalik xatoda qayta urinadi; aks holda xatoni ko'taradi."""
     import time as _time
     oxirgi = None
     for urinish in range(3):
         try:
             resp = client().models.generate_content(
-                model=MODEL,
+                model=model,
                 contents=parts,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
@@ -110,10 +122,39 @@ def _extract(parts):
             return list(Javob(**json.loads(resp.text)).amallar)
         except Exception as e:
             oxirgi = e
+            if _model_yoq(e):
+                raise                       # model mavjud emas — boshqasiga o'tamiz
             if urinish < 2:
                 _time.sleep(0.6 * (urinish + 1))  # vaqtinchalik xato -> qayta urinish
                 continue
             raise oxirgi
+
+
+def _model_yoq(e):
+    """Xato 'model topilmadi / qo'llab-quvvatlanmaydi' turidami?"""
+    s = f"{getattr(e, 'code', '')} {getattr(e, 'status', '')} {e}".lower()
+    return any(k in s for k in ("not found", "404", "not supported",
+                                "is not found", "unsupported", "does not exist",
+                                "has been deprecated", "no longer available"))
+
+
+def _extract(parts):
+    global _ishlagan_model
+    # Ilgari ishlagan model bo'lsa — avval o'shani sinaymiz.
+    tartib = ([_ishlagan_model] if _ishlagan_model else []) + \
+             [m for m in MODELS if m != _ishlagan_model]
+    oxirgi = None
+    for model in tartib:
+        try:
+            natija = _bir_model(model, parts)
+            _ishlagan_model = model     # keshga yozamiz
+            return natija
+        except Exception as e:
+            oxirgi = e
+            if _model_yoq(e):
+                continue                # keyingi modelga o'tamiz
+            raise                        # boshqa (kalit/kvota) xato — darhol ko'taramiz
+    raise oxirgi if oxirgi else RuntimeError("Hech qaysi model ishlamadi")
 
 
 def _log_usage(resp):
