@@ -1096,12 +1096,13 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         actions = ai.from_text(txt)
     except Exception as e:
         log.exception("text xatolik")
-        _sabab = f"{type(e).__name__}: {e}"
-        await update.message.reply_text(
-            "⚠️ DIAGNOSTIKA (vaqtinchalik)\n"
-            "Xatolik yuz berdi. Sabab:\n\n"
-            f"`{_sabab[:600]}`\n\n"
-            "👆 Shu xabarni Claude'ga yuboring.", parse_mode="Markdown")
+        s = str(e).lower()
+        if any(k in s for k in ("503", "unavailable", "high demand", "overloaded",
+                                "429", "quota", "resource_exhausted", "rate limit")):
+            await update.message.reply_text(
+                "🕐 Tizim hozir band. Biroz kutib (10-20 soniya) qaytadan yuboring.")
+        else:
+            await update.message.reply_text("Xatolik yuz berdi. Qaytadan urinib ko'ring.")
         return
     actions = [a for a in actions if a.tushunildi and a.amal] or actions[:1]
     if not actions:

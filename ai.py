@@ -100,61 +100,72 @@ class Javob(BaseModel):
 
 
 def _bir_model(model, parts):
-    """Bitta modelda so'rov. Vaqtinchalik xatoda qayta urinadi; aks holda xatoni ko'taradi."""
-    import time as _time
-    oxirgi = None
-    for urinish in range(3):
-        try:
-            resp = client().models.generate_content(
-                model=model,
-                contents=parts,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=Javob,
-                    system_instruction=PROMPT,
-                ),
-            )
-            if getattr(resp, "parsed", None) is not None:
-                _log_usage(resp)
-                return list(resp.parsed.amallar)
-            import json
-            _log_usage(resp)
-            return list(Javob(**json.loads(resp.text)).amallar)
-        except Exception as e:
-            oxirgi = e
-            if _model_yoq(e):
-                raise                       # model mavjud emas — boshqasiga o'tamiz
-            if urinish < 2:
-                _time.sleep(0.6 * (urinish + 1))  # vaqtinchalik xato -> qayta urinish
-                continue
-            raise oxirgi
+    """Bitta modelda bitta so'rov. Xatoni ko'taradi (qayta urinish _extract'da)."""
+    resp = client().models.generate_content(
+        model=model,
+        contents=parts,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=Javob,
+            system_instruction=PROMPT,
+        ),
+    )
+    if getattr(resp, "parsed", None) is not None:
+        _log_usage(resp)
+        return list(resp.parsed.amallar)
+    import json
+    _log_usage(resp)
+    return list(Javob(**json.loads(resp.text)).amallar)
 
 
 def _model_yoq(e):
-    """Xato 'model topilmadi / qo'llab-quvvatlanmaydi' turidami?"""
+    """Xato 'model topilmadi / qo'llab-quvvatlanmaydi' turidami? (butunlay o'tkazamiz)"""
     s = f"{getattr(e, 'code', '')} {getattr(e, 'status', '')} {e}".lower()
     return any(k in s for k in ("not found", "404", "not supported",
                                 "is not found", "unsupported", "does not exist",
                                 "has been deprecated", "no longer available"))
 
 
+def _vaqtinchalik(e):
+    """Vaqtinchalik xatomi (band/503/429/limit/timeout)? Keyingi modelga o'tib qayta urinamiz."""
+    s = f"{getattr(e, 'code', '')} {getattr(e, 'status', '')} {e}".lower()
+    return any(k in s for k in ("503", "unavailable", "overloaded", "high demand",
+                                "429", "resource_exhausted", "rate limit", "quota",
+                                "500", "internal", "deadline", "timeout", "unknown"))
+
+
 def _extract(parts):
+    """Modellar bo'ylab navbat bilan sinaymiz. Band bo'lsa (503) — boshqa modelga o'tamiz.
+    Bir model o'chirilgan bo'lsa — butunlay o'tkazib yuboramiz. Ishlagani keshlanadi."""
+    import time as _time
     global _ishlagan_model
-    # Ilgari ishlagan model bo'lsa — avval o'shani sinaymiz.
     tartib = ([_ishlagan_model] if _ishlagan_model else []) + \
              [m for m in MODELS if m != _ishlagan_model]
+
     oxirgi = None
-    for model in tartib:
-        try:
-            natija = _bir_model(model, parts)
-            _ishlagan_model = model     # keshga yozamiz
-            return natija
-        except Exception as e:
-            oxirgi = e
-            if _model_yoq(e):
-                continue                # keyingi modelga o'tamiz
-            raise                        # boshqa (kalit/kvota) xato — darhol ko'taramiz
-    raise oxirgi if oxirgi else RuntimeError("Hech qaysi model ishlamadi")
+    tashlanadi = set()   # bu chaqiriqda butunlay o'chirilgan (yo'q) modellar
+    for rawund in range(3):                      # bir necha marta aylanamiz
+        urindi = False
+        for model in tartib:
+            if model in tashlanadi:
+                continue
+            urindi = True
+            try:
+                natija = _bir_model(model, parts)
+                _ishlagan_model = model          # keshga yozamiz
+                return natija
+            except Exception as e:
+                oxirgi = e
+                if _model_yoq(e):
+                    tashlanadi.add(model)        # bu model yo'q — boshqa sinamaymiz
+                    continue
+                if _vaqtinchalik(e):
+                    continue                     # band — keyingi modelni sinaymiz
+                raise                            # kalit/noto'g'ri so'rov — darhol to'xtaymiz
+        if not urindi:
+            break
+        _time.sleep(0.8 * (rawund + 1))          # hammasi band edi — biroz kutib qaytaramiz
+    raise oxirgi if oxirgi else RuntimeError("Hech qaysi model javob bermadi")
 
 
 def _log_usage(resp):
