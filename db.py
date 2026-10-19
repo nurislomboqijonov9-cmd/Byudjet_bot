@@ -361,19 +361,45 @@ def all_customers():
 
 
 def similar_mijozlar(ism, threshold=0.8):
-    """Imloviy o'xshash (masalan Fathulla ~ Fatxulla) mijozlarni topadi."""
+    """O'xshash mijozlarni topadi: imlo (Fathulla~Fatxulla), ism ichidagi so'z
+    (Botir ~ 'Botir Lesachi') va qism (substring) bo'yicha."""
     from difflib import SequenceMatcher
-    a = (ism or "").strip().lower()
+    _HON = {"aka", "uka", "opa", "aya", "xon", "boy", "ota", "amaki", "amma", "jon"}
+
+    def _nrm(s):
+        s = (s or "").strip().lower()
+        for ch in "'ʻ`’‘":
+            s = s.replace(ch, "'")
+        return " ".join(s.split())
+
+    def _tok(s):
+        return [w for w in _nrm(s).split() if len(w) >= 2 and w not in _HON]
+
+    a = _nrm(ism)
     if not a:
         return []
+    atoks = _tok(ism)
+    a_first = atoks[0] if atoks else (a.split()[0] if a.split() else a)
     res = []
     for m in all_customers():
-        b = (m["ism"] or "").strip().lower()
-        if a == b:
+        b = _nrm(m["ism"])
+        if not b or a == b:
             continue  # aniq mos kelganlar alohida ishlanadi
-        r = SequenceMatcher(None, a, b).ratio()
-        if r >= threshold:
-            res.append((r, m))
+        btoks = _tok(m["ism"])
+        b_first = btoks[0] if btoks else (b.split()[0] if b.split() else b)
+        score = SequenceMatcher(None, a, b).ratio()
+        # Qism (so'z chegarasida): "botir" <-> "botir lesachi"
+        if len(a) >= 3 and (f" {a} " in f" {b} " or f" {b} " in f" {a} "):
+            score = max(score, 0.95)
+        # Birinchi ism mosligi
+        if len(a_first) >= 3 and (a_first == b_first or a_first in btoks or b_first in atoks):
+            score = max(score, 0.9)
+        else:
+            shared = set(atoks) & set(btoks)
+            if shared and max(len(w) for w in shared) >= 4:
+                score = max(score, 0.85)
+        if score >= threshold:
+            res.append((score, m))
     res.sort(key=lambda x: -x[0])
     return [m for _, m in res]
 
@@ -2093,19 +2119,45 @@ def all_customers():
 
 
 def similar_mijozlar(ism, threshold=0.8):
-    """Imloviy o'xshash (masalan Fathulla ~ Fatxulla) mijozlarni topadi."""
+    """O'xshash mijozlarni topadi: imlo (Fathulla~Fatxulla), ism ichidagi so'z
+    (Botir ~ 'Botir Lesachi') va qism (substring) bo'yicha."""
     from difflib import SequenceMatcher
-    a = (ism or "").strip().lower()
+    _HON = {"aka", "uka", "opa", "aya", "xon", "boy", "ota", "amaki", "amma", "jon"}
+
+    def _nrm(s):
+        s = (s or "").strip().lower()
+        for ch in "'ʻ`’‘":
+            s = s.replace(ch, "'")
+        return " ".join(s.split())
+
+    def _tok(s):
+        return [w for w in _nrm(s).split() if len(w) >= 2 and w not in _HON]
+
+    a = _nrm(ism)
     if not a:
         return []
+    atoks = _tok(ism)
+    a_first = atoks[0] if atoks else (a.split()[0] if a.split() else a)
     res = []
     for m in all_customers():
-        b = (m["ism"] or "").strip().lower()
-        if a == b:
+        b = _nrm(m["ism"])
+        if not b or a == b:
             continue  # aniq mos kelganlar alohida ishlanadi
-        r = SequenceMatcher(None, a, b).ratio()
-        if r >= threshold:
-            res.append((r, m))
+        btoks = _tok(m["ism"])
+        b_first = btoks[0] if btoks else (b.split()[0] if b.split() else b)
+        score = SequenceMatcher(None, a, b).ratio()
+        # Qism (so'z chegarasida): "botir" <-> "botir lesachi"
+        if len(a) >= 3 and (f" {a} " in f" {b} " or f" {b} " in f" {a} "):
+            score = max(score, 0.95)
+        # Birinchi ism mosligi
+        if len(a_first) >= 3 and (a_first == b_first or a_first in btoks or b_first in atoks):
+            score = max(score, 0.9)
+        else:
+            shared = set(atoks) & set(btoks)
+            if shared and max(len(w) for w in shared) >= 4:
+                score = max(score, 0.85)
+        if score >= threshold:
+            res.append((score, m))
     res.sort(key=lambda x: -x[0])
     return [m for _, m in res]
 
