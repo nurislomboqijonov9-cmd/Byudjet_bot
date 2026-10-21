@@ -319,6 +319,13 @@ def make_web_app(bot_token):
         except Exception:
             return web.json_response({"xato": "id kerak"}, status=400)
         sana = (request.query.get("sana") or db.today_tk().isoformat())[:10]
+        gacha = ((request.query.get("gacha") or "").strip())[:10] or None
+        # Oraliq (dan..gacha) — bir necha kunlik marshrut yig'indisi
+        if gacha and gacha != sana:
+            try:
+                return web.json_response(db.mgps_davr_xulosa(vid, sana, gacha))
+            except Exception as e:
+                return web.json_response({"xato": type(e).__name__}, status=200)
         try:
             x = db.mgps_kunlik_xulosa(vid, sana)
             hod = db.mgps_hodisalar(sana, vid)

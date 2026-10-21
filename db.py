@@ -5497,3 +5497,45 @@ def mijoz_davr(mijoz_id, dan, gacha):
         "qoshimcha": qoshimcha,
         "tolangan_davr": round(sum(t["summa"] for t in tolovlar)),
     }
+
+
+def mgps_davr_xulosa(vid, dan, gacha):
+    """Oraliq (dan..gacha) bo'yicha: har kun marshruti alohida segment,
+    jami km / harakat vaqti / max tezlik, va har kunning km taqsimoti."""
+    import datetime as _dt
+    d1 = _dt.date.fromisoformat(str(dan)[:10])
+    d2 = _dt.date.fromisoformat(str(gacha)[:10])
+    if d2 < d1:
+        d1, d2 = d2, d1
+    if (d2 - d1).days > 92:
+        d1 = d2 - _dt.timedelta(days=92)   # ko'pi bilan ~3 oy
+    segmentlar = []
+    kunlar = []
+    km = 0.0
+    hmin = 0.0
+    mx = 0
+    soni = 0
+    d = d1
+    while d <= d2:
+        s = d.isoformat()
+        x = mgps_kunlik_xulosa(vid, s)
+        kkm = x.get("km", 0) or 0
+        km += kkm
+        hmin += x.get("harakat_min", 0) or 0
+        mx = max(mx, x.get("max_tezlik", 0) or 0)
+        soni += x.get("soni", 0) or 0
+        pts = x.get("nuqtalar") or []
+        if len(pts) > 1:
+            segmentlar.append(pts)
+        kunlar.append({"sana": s, "km": round(kkm, 1)})
+        d += _dt.timedelta(days=1)
+    return {
+        "davr": True,
+        "dan": d1.isoformat(), "gacha": d2.isoformat(),
+        "km": round(km, 1),
+        "harakat_min": round(hmin),
+        "max_tezlik": mx,
+        "soni": soni,
+        "segmentlar": segmentlar,
+        "kunlar": kunlar,
+    }
