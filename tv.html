@@ -222,6 +222,10 @@ h1{font-size:2.3rem;font-weight:800;letter-spacing:-.03em;margin-top:.35rem;line
 .sg button .i,.btn .i{width:1rem;height:1rem}
 .sg button.act{background:var(--gold);color:#1a1205}
 .btn.x{background:rgba(251,113,133,.1);color:var(--ro);border:1px solid rgba(251,113,133,.25)}
+.dsana{display:flex;align-items:center;gap:.25rem;background:#080b0f;border:1px solid var(--ln);border-radius:.65rem;padding:.2rem .3rem}
+.dsana .ds-nav{background:transparent;border:0;color:var(--gold);font-size:1.35rem;font-weight:800;cursor:pointer;width:1.7rem;height:1.7rem;border-radius:.4rem;line-height:1;display:flex;align-items:center;justify-content:center}
+.dsana .ds-nav:hover{background:rgba(232,185,100,.15)}
+.dsana input[type=date]{background:transparent;border:0;color:#f1f5f9;font:700 .9rem Inter,sans-serif;color-scheme:dark;cursor:pointer;outline:none}
 
 /* Lock / modal */
 body.locked #nav,body.locked .ctrl,body.locked .navl,body.locked .upd{visibility:hidden}
@@ -289,6 +293,11 @@ body.locked #nav,body.locked .ctrl,body.locked .navl,body.locked .upd{visibility
     <div id="dbar">
       <div class="av on" id="dbar_av">—</div>
       <div class="dn" id="dbar_nom">—</div>
+      <div class="dsana" id="dsana">
+        <button class="ds-nav" onclick="sanaOzgar(-1)" title="Oldingi kun">‹</button>
+        <input type="date" id="dbar_sana" onchange="sanaTanla(this.value)">
+        <button class="ds-nav" id="ds_next" onclick="sanaOzgar(1)" title="Keyingi kun">›</button>
+      </div>
       <div class="sg">
         <button id="btn_kunlik" onclick="setMode('kunlik')"><span class="i" data-i="route"></span>Kunlik yo'l</button>
         <button id="btn_jonli" onclick="setMode('jonli')"><span class="i" data-i="live"></span>Jonli</button>
@@ -305,6 +314,21 @@ const DAVOMAT_URL="https://web-production-07267.up.railway.app";  // Davomat ser
 const $=id=>document.getElementById(id);
 let DATA=null, CARS=null, DAVOMAT=null, EVENTS=null, views=[], cur=0;
 let KUN=null;  // ochilgan mashinaning kunlik ma'lumoti (kesh)
+let detailSana=null;  // tanlangan sana (YYYY-MM-DD); null = bugun
+function bugunISO(){ return new Date().toLocaleDateString('en-CA'); }
+function dmyKun(s){ const p=(s||'').split('-'); return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):s; }
+function sanaHeaderYangila(){
+  const s=detailSana||bugunISO();
+  $('scr_idx').textContent='Mashina marshruti · '+(s===bugunISO()?('bugun · '+dmyKun(s)):dmyKun(s));
+  const b=$('ds_next'); if(b) b.style.visibility=(s>=bugunISO())?'hidden':'visible';
+}
+function sanaTanla(v){ if(!v) return; detailSana=v; KUN=null; sanaHeaderYangila(); chizMarshrut(); }
+function sanaOzgar(delta){
+  const d=new Date((detailSana||bugunISO())+'T12:00:00'); d.setDate(d.getDate()+delta);
+  const nv=d.toLocaleDateString('en-CA'); if(nv>bugunISO()) return;
+  detailSana=nv; const si=$('dbar_sana'); if(si) si.value=nv;
+  KUN=null; sanaHeaderYangila(); chizMarshrut();
+}
 let dmap=null, dlayer=null;
 const HAR_SONIYA=14;
 
@@ -612,8 +636,10 @@ async function ochMashina(id){
   if(id<0 || !CARS) return;
   const c=CARS.find(x=>x.id===id); if(!c) return;
   DETAIL=true; detailId=id; detailMode='kunlik'; KUN=null;
+  detailSana=bugunISO();
+  { const si=$('dbar_sana'); if(si){ si.value=detailSana; si.max=bugunISO(); } }
   progReset();
-  $('scr_nom').textContent=c.nom; $('scr_idx').textContent='Mashina marshruti';
+  $('scr_nom').textContent=c.nom; sanaHeaderYangila();
   $('stage').innerHTML=""; $('dmap').style.display="block"; $('mapleg').style.display="none";
   $('dbar_nom').textContent=c.nom; $('dbar_av').innerHTML=bosh(c.nom); $('dbar_av').className='av '+(c.harakat?'on':'off');
   $('dbar').style.display="flex";
@@ -624,6 +650,7 @@ function setMode(m){
   detailMode=m;
   $('btn_kunlik').classList.toggle('act',m==='kunlik');
   $('btn_jonli').classList.toggle('act',m==='jonli');
+  const ds=$('dsana'); if(ds) ds.style.display=(m==='kunlik')?'flex':'none';
   chizMarshrut();
 }
 function _carId(id){ return (CARS&&CARS.find(c=>c.id===id))||null; }
@@ -645,7 +672,7 @@ async function chizMarshrut(){
     let x=KUN;
     if(!x){
       if(DEMO) x=demoKun(detailId);
-      else { const r=await fetch('/api/tv_gps_kun?id='+detailId+(K?('&k='+encodeURIComponent(K)):'')); x=await r.json(); }
+      else { const r=await fetch('/api/tv_gps_kun?id='+detailId+'&sana='+(detailSana||bugunISO())+(K?('&k='+encodeURIComponent(K)):'')); x=await r.json(); }
       KUN=x;
     }
     dlayer.clearLayers();
@@ -666,8 +693,11 @@ async function chizMarshrut(){
     });
     if(pts.length){ try{ dmap.fitBounds(pts,{padding:[100,70],maxZoom:15}); }catch(e){} }
     else if(c&&c.lat!=null){ dmap.setView([c.lat,c.lon],14); }
-    if(x.km!=null){
-      $('dbar_nom').innerHTML=esc(c?c.nom:'')+' <span style="color:var(--mut);font-weight:600;font-size:.9rem">· '+x.km+' km · '+soatdaq(x.harakat_min)+' · max '+(x.max_tezlik||0)+' km/s</span>';
+    const nm=esc(c?c.nom:'');
+    if(!pts.length){
+      $('dbar_nom').innerHTML=nm+' <span style="color:var(--mut);font-weight:600;font-size:.9rem">· bu kunda yurish ma\'lumoti yo\'q</span>';
+    } else {
+      $('dbar_nom').innerHTML=nm+' <span style="color:var(--mut);font-weight:600;font-size:.9rem">· '+x.km+' km · '+soatdaq(x.harakat_min)+' · max '+(x.max_tezlik||0)+' km/s</span>';
     }
   }catch(e){}
 }
