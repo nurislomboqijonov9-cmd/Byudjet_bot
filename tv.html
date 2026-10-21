@@ -222,10 +222,28 @@ h1{font-size:2.3rem;font-weight:800;letter-spacing:-.03em;margin-top:.35rem;line
 .sg button .i,.btn .i{width:1rem;height:1rem}
 .sg button.act{background:var(--gold);color:#1a1205}
 .btn.x{background:rgba(251,113,133,.1);color:var(--ro);border:1px solid rgba(251,113,133,.25)}
-.dsana{display:flex;align-items:center;gap:.25rem;background:#080b0f;border:1px solid var(--ln);border-radius:.65rem;padding:.2rem .3rem}
+.dsana{position:relative;display:flex;align-items:center;gap:.25rem;background:#080b0f;border:1px solid var(--ln);border-radius:.65rem;padding:.2rem .3rem}
 .dsana .ds-nav{background:transparent;border:0;color:var(--gold);font-size:1.35rem;font-weight:800;cursor:pointer;width:1.7rem;height:1.7rem;border-radius:.4rem;line-height:1;display:flex;align-items:center;justify-content:center}
 .dsana .ds-nav:hover{background:rgba(232,185,100,.15)}
-.dsana input[type=date]{background:transparent;border:0;color:#f1f5f9;font:700 .9rem Inter,sans-serif;color-scheme:dark;cursor:pointer;outline:none}
+.dsana .ds-lbl{background:transparent;border:0;color:#f1f5f9;font:700 .9rem Inter,sans-serif;cursor:pointer;padding:.3rem .55rem;border-radius:.45rem;white-space:nowrap;min-width:6.5rem}
+.dsana .ds-lbl:hover{background:rgba(232,185,100,.12)}
+.dcal{position:absolute;top:calc(100% + .45rem);left:50%;transform:translateX(-50%);background:#0d1117;border:1px solid var(--ln2);border-radius:.75rem;padding:.65rem;z-index:30;width:16rem;box-shadow:0 12px 34px rgba(0,0,0,.6)}
+.dcal .ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:.45rem}
+.dcal .mbtn{background:transparent;border:0;color:var(--gold);font-size:1.25rem;cursor:pointer;padding:.1rem .55rem;border-radius:.4rem;line-height:1}
+.dcal .mbtn:hover{background:rgba(232,185,100,.15)}
+.dcal .mbtn[disabled]{opacity:.25;pointer-events:none}
+.dcal .mlab{font:800 .92rem Inter,sans-serif;color:#f1f5f9}
+.dcal .wk{display:grid;grid-template-columns:repeat(7,1fr);gap:.12rem;margin-bottom:.15rem}
+.dcal .wk span{color:var(--mut);font:700 .66rem Inter,sans-serif;text-align:center;padding:.1rem 0}
+.dcal .gr{display:grid;grid-template-columns:repeat(7,1fr);gap:.12rem}
+.dcal .d{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:.42rem;font:700 .82rem Inter,sans-serif;cursor:pointer;color:#e5e7eb}
+.dcal .d:hover{background:rgba(232,185,100,.2)}
+.dcal .d.sel{background:var(--gold);color:#1a1205}
+.dcal .d.tod{outline:1px solid var(--gold);outline-offset:-1px}
+.dcal .d.dis{opacity:.22;pointer-events:none}
+.dcal .d.emp{visibility:hidden;pointer-events:none}
+.dcal .today-b{margin-top:.5rem;width:100%;background:rgba(232,185,100,.12);border:1px solid var(--ln);color:var(--gold);border-radius:.5rem;padding:.4rem;font:700 .82rem Inter,sans-serif;cursor:pointer}
+.dcal .today-b:hover{background:rgba(232,185,100,.2)}
 
 /* Lock / modal */
 body.locked #nav,body.locked .ctrl,body.locked .navl,body.locked .upd{visibility:hidden}
@@ -295,8 +313,9 @@ body.locked #nav,body.locked .ctrl,body.locked .navl,body.locked .upd{visibility
       <div class="dn" id="dbar_nom">—</div>
       <div class="dsana" id="dsana">
         <button class="ds-nav" onclick="sanaOzgar(-1)" title="Oldingi kun">‹</button>
-        <input type="date" id="dbar_sana" onchange="sanaTanla(this.value)">
+        <button class="ds-lbl" id="ds_lbl" onclick="kalendarToggle(event)">—</button>
         <button class="ds-nav" id="ds_next" onclick="sanaOzgar(1)" title="Keyingi kun">›</button>
+        <div class="dcal" id="dcal" style="display:none"></div>
       </div>
       <div class="sg">
         <button id="btn_kunlik" onclick="setMode('kunlik')"><span class="i" data-i="route"></span>Kunlik yo'l</button>
@@ -315,20 +334,69 @@ const $=id=>document.getElementById(id);
 let DATA=null, CARS=null, DAVOMAT=null, EVENTS=null, views=[], cur=0;
 let KUN=null;  // ochilgan mashinaning kunlik ma'lumoti (kesh)
 let detailSana=null;  // tanlangan sana (YYYY-MM-DD); null = bugun
+let calMonth=null;    // kalendarda ko'rsatilayotgan oy {y,m}
+const CAL_OY=["Yanvar","Fevral","Mart","Aprel","May","Iyun","Iyul","Avgust","Sentabr","Oktabr","Noyabr","Dekabr"];
+const CAL_HAFTA=["Du","Se","Ch","Pa","Ju","Sh","Ya"];
 function bugunISO(){ return new Date().toLocaleDateString('en-CA'); }
 function dmyKun(s){ const p=(s||'').split('-'); return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):s; }
+function _haftaKun(iso){ const d=new Date(iso+'T12:00:00'); return ["Yakshanba","Dushanba","Seshanba","Chorshanba","Payshanba","Juma","Shanba"][d.getDay()]; }
+function sanaLabelYangila(){
+  const s=detailSana||bugunISO();
+  $('ds_lbl').textContent=(s===bugunISO()?'Bugun':_haftaKun(s))+' · '+dmyKun(s);
+}
 function sanaHeaderYangila(){
   const s=detailSana||bugunISO();
   $('scr_idx').textContent='Mashina marshruti · '+(s===bugunISO()?('bugun · '+dmyKun(s)):dmyKun(s));
   const b=$('ds_next'); if(b) b.style.visibility=(s>=bugunISO())?'hidden':'visible';
+  sanaLabelYangila();
 }
-function sanaTanla(v){ if(!v) return; detailSana=v; KUN=null; sanaHeaderYangila(); chizMarshrut(); }
+function _sanaQoy(nv){
+  if(!nv || nv>bugunISO()) return;
+  detailSana=nv; KUN=null; sanaHeaderYangila(); chizMarshrut();
+}
 function sanaOzgar(delta){
   const d=new Date((detailSana||bugunISO())+'T12:00:00'); d.setDate(d.getDate()+delta);
-  const nv=d.toLocaleDateString('en-CA'); if(nv>bugunISO()) return;
-  detailSana=nv; const si=$('dbar_sana'); if(si) si.value=nv;
-  KUN=null; sanaHeaderYangila(); chizMarshrut();
+  _sanaQoy(d.toLocaleDateString('en-CA'));
 }
+/* ===== Oy kalendari ===== */
+function kalendarToggle(ev){
+  if(ev) ev.stopPropagation();
+  const el=$('dcal'); if(!el) return;
+  if(el.style.display==='block'){ el.style.display='none'; return; }
+  const s=detailSana||bugunISO(); const p=s.split('-');
+  calMonth={y:+p[0], m:+p[1]-1};
+  kalendarChiz(); el.style.display='block';
+}
+function kalendarYop(){ const el=$('dcal'); if(el) el.style.display='none'; }
+function kalendarOy(delta){
+  let y=calMonth.y, m=calMonth.m+delta;
+  if(m<0){ m=11; y--; } if(m>11){ m=0; y++; }
+  calMonth={y,m}; kalendarChiz();
+}
+function kalendarChiz(){
+  const el=$('dcal'); if(!el) return;
+  const {y,m}=calMonth, bug=bugunISO(), sel=detailSana||bug;
+  const birinchi=new Date(y,m,1), kunSoni=new Date(y,m+1,0).getDate();
+  let boshOrin=(birinchi.getDay()+6)%7;  // Dushanba = 0
+  // keyingi oy tugmasi: kelajak oy bo'lsa o'chiriladi
+  const bugD=new Date(bug+'T12:00:00'), kelajak=(y>bugD.getFullYear())||(y===bugD.getFullYear()&&m>=bugD.getMonth());
+  let cells='';
+  for(let i=0;i<boshOrin;i++) cells+='<div class="d emp"></div>';
+  for(let dn=1;dn<=kunSoni;dn++){
+    const iso=y+'-'+String(m+1).padStart(2,'0')+'-'+String(dn).padStart(2,'0');
+    let cl='d'; if(iso>bug) cl+=' dis'; if(iso===sel) cl+=' sel'; if(iso===bug) cl+=' tod';
+    cells+=`<div class="${cl}" ${iso<=bug?`onclick="kalendarTanla('${iso}')"`:''}>${dn}</div>`;
+  }
+  el.innerHTML=
+    `<div class="ch"><button class="mbtn" onclick="kalendarOy(-1)">‹</button>`+
+    `<span class="mlab">${CAL_OY[m]} ${y}</span>`+
+    `<button class="mbtn" onclick="kalendarOy(1)" ${kelajak?'disabled':''}>›</button></div>`+
+    `<div class="wk">${CAL_HAFTA.map(w=>`<span>${w}</span>`).join('')}</div>`+
+    `<div class="gr">${cells}</div>`+
+    `<button class="today-b" onclick="kalendarTanla('${bug}')">Bugun</button>`;
+}
+function kalendarTanla(iso){ kalendarYop(); _sanaQoy(iso); }
+document.addEventListener('click',e=>{ const ds=$('dsana'); if(ds && !ds.contains(e.target)) kalendarYop(); });
 let dmap=null, dlayer=null;
 const HAR_SONIYA=14;
 
@@ -636,8 +704,7 @@ async function ochMashina(id){
   if(id<0 || !CARS) return;
   const c=CARS.find(x=>x.id===id); if(!c) return;
   DETAIL=true; detailId=id; detailMode='kunlik'; KUN=null;
-  detailSana=bugunISO();
-  { const si=$('dbar_sana'); if(si){ si.value=detailSana; si.max=bugunISO(); } }
+  detailSana=bugunISO(); kalendarYop();
   progReset();
   $('scr_nom').textContent=c.nom; sanaHeaderYangila();
   $('stage').innerHTML=""; $('dmap').style.display="block"; $('mapleg').style.display="none";
