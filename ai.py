@@ -20,10 +20,38 @@ _ishlagan_model = None     # muvaffaqiyatli model keshi
 _client = None
 
 
+# Vertex AI (Google Cloud $300 kredit shu yerda ishlaydi) yoqilganmi?
+# VERTEX_PROJECT yoki GOOGLE_VERTEX_KEY_JSON berilsa — Vertex orqali ishlaydi,
+# aks holda hozirgidek AI Studio API-key (GEMINI_API_KEY) orqali.
+_USE_VERTEX = bool(os.getenv("VERTEX_PROJECT") or os.getenv("GOOGLE_VERTEX_KEY_JSON"))
+
+
+def _ensure_vertex_creds():
+    """Xizmat akkaunti JSON kaliti env orqali berilgan bo'lsa — faylga yozib,
+    GOOGLE_APPLICATION_CREDENTIALS ga ulaymiz (Railwayda shunchaki yopishtirish uchun)."""
+    raw = os.getenv("GOOGLE_VERTEX_KEY_JSON")
+    if raw and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+        import tempfile, pathlib
+        try:
+            p = pathlib.Path(tempfile.gettempdir()) / "vertex_key.json"
+            p.write_text(raw)
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(p)
+        except Exception:
+            pass
+
+
 def client():
     global _client
     if _client is None:
-        _client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        if _USE_VERTEX:
+            _ensure_vertex_creds()
+            _client = genai.Client(
+                vertexai=True,
+                project=os.environ.get("VERTEX_PROJECT"),
+                location=os.getenv("VERTEX_LOCATION", "us-central1"),
+            )
+        else:
+            _client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     return _client
 
 
