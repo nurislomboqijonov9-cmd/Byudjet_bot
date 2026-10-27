@@ -1666,6 +1666,16 @@ def make_web_app(bot_token):
     def _ishchi_ok(request):
         return db.sardor_kalit_ok(request.headers.get("X-Sardor-Key", ""))
 
+    def _sardor_tasdiqchi():
+        try:
+            uid, vaqt = (db.get_sozlama("sardor_tasdiqchi") or "").split("|")
+            from datetime import datetime as _d, timedelta as _td
+            if db.now_tk() - _d.fromisoformat(vaqt) < _td(minutes=15):
+                return int(uid)
+        except Exception:
+            pass
+        return db.OWNER_ID
+
     async def api_sardor_juftlash(request):
         """Kompyuter ulanish so'rovi: ega Telegram'da ✅ bossa, shu kalit ishlay boshlaydi."""
         try:
@@ -1679,7 +1689,7 @@ def make_web_app(bot_token):
                 import aiohttp as _ah
                 async with _ah.ClientSession() as ss:
                     await ss.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", json={
-                        "chat_id": db.OWNER_ID,
+                        "chat_id": _sardor_tasdiqchi(),
                         "text": f"💻 Kompyuter Sardor ishchisi sifatida ulanmoqchi: {b.get('nom') or '-'}\nKod: {kod}\n\nSiz ishga tushirgan bo'lsangiz — ruxsat bering.",
                         "reply_markup": {"inline_keyboard": [[{"text": "✅ Ruxsat berish", "callback_data": f"sardorok:{kod}"},
                                                               {"text": "❌ Yo'q", "callback_data": f"sardorno:{kod}"}]]}},

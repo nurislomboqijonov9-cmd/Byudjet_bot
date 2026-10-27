@@ -493,10 +493,26 @@ async def qarzdorlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         log.exception("qarzdorlar excel xatolik")
 
 
+async def sardor_ulash_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Xodim: kompyuterni Sardor ishchisi qilib ulash. Ulanish so'rovi shu odamga keladi (15 daqiqa)."""
+    if not await guard(update):
+        return
+    uid = update.effective_user.id
+    if db.faqat_korish(uid):
+        await update.message.reply_text("Sizda bu amal uchun ruxsat yo'q.")
+        return
+    db.set_sozlama("sardor_tasdiqchi", f"{uid}|{db.now_tk().isoformat()}")
+    url = (webapp_url() or "(manzil topilmadi)").split("?")[0]
+    await update.message.reply_text(
+        "📞 Sardor ishchisini ulash\n\nKompyuterdagi bot_url.txt ichiga:\n" + url +
+        "\n\nKeyin A_SARDOR_ISHCHI.bat ni ishga tushiring — 15 daqiqa ichida shu yerga ✅ ruxsat tugmasi keladi.")
+
+
 async def sardor_juft_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
-    if not db.is_owner(q.from_user.id):
-        await q.answer("Faqat ega ruxsat bera oladi", show_alert=True)
+    _t = (db.get_sozlama("sardor_tasdiqchi") or "").split("|")[0]
+    if not (db.is_owner(q.from_user.id) or db.is_admin(q.from_user.id) or _t == str(q.from_user.id)):
+        await q.answer("Sizda ruxsat yo'q", show_alert=True)
         return
     amal, kod = q.data.split(":", 1)
     if amal == "sardorok":
@@ -1515,6 +1531,7 @@ async def run():
     app.add_handler(CommandHandler("shablonlar", shablonlar_cmd))
     app.add_handler(CommandHandler("sms", sms_cmd))
     app.add_handler(CommandHandler("sardor_kalit", sardor_kalit_cmd))
+    app.add_handler(CommandHandler("sardor_ulash", sardor_ulash_cmd))
     app.add_handler(CommandHandler("xodimlar", xodimlar_cmd))
     app.add_handler(CommandHandler("xodim_qosh", xodim_qosh_cmd))
     app.add_handler(CommandHandler("admin_qosh", admin_qosh_cmd))
