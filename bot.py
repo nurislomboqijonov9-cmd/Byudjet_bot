@@ -493,6 +493,21 @@ async def qarzdorlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         log.exception("qarzdorlar excel xatolik")
 
 
+async def sardor_juft_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    if not db.is_owner(q.from_user.id):
+        await q.answer("Faqat ega ruxsat bera oladi", show_alert=True)
+        return
+    amal, kod = q.data.split(":", 1)
+    if amal == "sardorok":
+        v = db.sardor_juft_tasdiq(kod)
+        await q.answer("Ruxsat berildi" if v else "Kod eskirgan")
+        await q.edit_message_text(f"✅ Kompyuter ulandi ({v['nom']}). Endi mijoz kartasidagi 🟢🟡🔴 tugmalar ishlaydi." if v else "Kod eskirgan.")
+    else:
+        await q.answer("Rad etildi")
+        await q.edit_message_text("❌ Rad etildi.")
+
+
 async def sardor_kalit_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Faqat ega: ofis kompyuteridagi Sardor ishchisi uchun manzil va kalit."""
     if not db.is_owner(update.effective_user.id):
@@ -1504,6 +1519,7 @@ async def run():
     app.add_handler(CommandHandler("xodim_qosh", xodim_qosh_cmd))
     app.add_handler(CommandHandler("admin_qosh", admin_qosh_cmd))
     app.add_handler(CommandHandler("ochir", ochir_cmd))
+    app.add_handler(CallbackQueryHandler(sardor_juft_cb, pattern=r"^sardor(ok|no):"))
     app.add_handler(CallbackQueryHandler(on_cb, pattern=r"^(pick:|picknew|delp:|delr:|delt:|dele:|tasdiq:|sms:|smsok:|smsno|loc:)"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.LOCATION | filters.VENUE, handle_location))

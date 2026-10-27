@@ -1664,8 +1664,31 @@ def make_web_app(bot_token):
         return web.json_response({"tarix": db.sardor_tarix(mid)})
 
     def _ishchi_ok(request):
-        k = request.headers.get("X-Sardor-Key", "")
-        return bool(k) and hmac.compare_digest(k, db.sardor_kalit())
+        return db.sardor_kalit_ok(request.headers.get("X-Sardor-Key", ""))
+
+    async def api_sardor_juftlash(request):
+        """Kompyuter ulanish so'rovi: ega Telegram'da ✅ bossa, shu kalit ishlay boshlaydi."""
+        try:
+            b = await request.json()
+            h = str(b.get("hash") or "")
+            if len(h) != 64:
+                return web.json_response({"ok": False}, status=400)
+            kod, yangi = db.sardor_juft_sorov(h, b.get("nom"))
+            if yangi:
+              try:
+                import aiohttp as _ah
+                async with _ah.ClientSession() as ss:
+                    await ss.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", json={
+                        "chat_id": db.OWNER_ID,
+                        "text": f"💻 Kompyuter Sardor ishchisi sifatida ulanmoqchi: {b.get('nom') or '-'}\nKod: {kod}\n\nSiz ishga tushirgan bo'lsangiz — ruxsat bering.",
+                        "reply_markup": {"inline_keyboard": [[{"text": "✅ Ruxsat berish", "callback_data": f"sardorok:{kod}"},
+                                                              {"text": "❌ Yo'q", "callback_data": f"sardorno:{kod}"}]]}},
+                        timeout=_ah.ClientTimeout(total=12))
+              except Exception:
+                pass
+            return web.json_response({"ok": True, "kod": kod})
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": type(e).__name__})
 
     async def api_sardor_navbat(request):
         if not _ishchi_ok(request):
@@ -1721,6 +1744,12 @@ def make_web_app(bot_token):
     app.router.add_post("/api/sardor", api_sardor)
     app.router.add_get("/api/sardor_tarix", api_sardor_tarix)
     app.router.add_get("/api/sardor/navbat", api_sardor_navbat)
+    app.router.add_post("/api/sardor/juftlash", api_sardor_juftlash)
+    async def api_sardor_tekshir(request):
+        if not _ishchi_ok(request):
+            return web.json_response({"xato": "ruxsat yo'q"}, status=403)
+        return web.json_response({"ok": True})
+    app.router.add_get("/api/sardor/navbat_tekshir", api_sardor_tekshir)
     app.router.add_post("/api/sardor/natija", api_sardor_natija)
 
     app.router.add_get("/api/mijozlar", api_mijozlar)

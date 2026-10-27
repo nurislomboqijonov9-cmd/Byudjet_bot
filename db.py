@@ -5680,3 +5680,50 @@ def sardor_tarix(mijoz_id, limit=10):
             x["natija"] = None
         out.append(x)
     return out
+
+
+# ---- Sardor ishchisini (kompyuterni) ulash: kompyuter o'z kalitini yaratadi, ega Telegram'da ruxsat beradi
+def _sjson(kalit, default):
+    import json as _j
+    try:
+        return _j.loads(get_sozlama(kalit) or "") or default
+    except Exception:
+        return default
+
+
+def sardor_juft_sorov(kalit_hash, nom):
+    import json as _j, random
+    kut = _sjson("sardor_kutish", {})
+    for kod, v in kut.items():
+        if v.get("hash") == kalit_hash:
+            return kod, False
+    kod = f"{random.randint(0, 999999):06d}"
+    kut = dict(list(kut.items())[-4:])
+    kut[kod] = {"hash": kalit_hash, "nom": str(nom or "")[:60], "vaqt": now_tk().isoformat()}
+    set_sozlama("sardor_kutish", _j.dumps(kut))
+    return kod, True
+
+
+def sardor_juft_tasdiq(kod):
+    import json as _j
+    kut = _sjson("sardor_kutish", {})
+    v = kut.pop(kod, None)
+    if not v:
+        return None
+    rux = _sjson("sardor_ruxsat", [])
+    if v["hash"] not in rux:
+        rux.append(v["hash"])
+    set_sozlama("sardor_ruxsat", _j.dumps(rux[-5:]))
+    set_sozlama("sardor_kutish", _j.dumps(kut))
+    return v
+
+
+def sardor_kalit_ok(kalit):
+    import hashlib, hmac as _h
+    if not kalit:
+        return False
+    h = hashlib.sha256(kalit.encode()).hexdigest()
+    if any(_h.compare_digest(h, x) for x in _sjson("sardor_ruxsat", [])):
+        return True
+    k = get_sozlama("sardor_kalit")
+    return bool(k) and _h.compare_digest(kalit, k)
