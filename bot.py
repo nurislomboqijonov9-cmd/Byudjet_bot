@@ -1090,7 +1090,7 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         f = await ctx.bot.get_file(update.message.voice.file_id)
         audio = bytes(await f.download_as_bytearray())
-        actions = ai.from_audio(audio, mime_type="audio/ogg")
+        actions = await asyncio.to_thread(ai.from_audio, audio, mime_type="audio/ogg")
         await msg.delete()
     except Exception:
         log.exception("voice xatolik")
@@ -1122,7 +1122,7 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             ctx.user_data.pop("loc", None)
     if ctx.user_data.pop("await_edit", False):
         try:
-            actions = ai.from_text(txt)
+            actions = await asyncio.to_thread(ai.from_text, txt)
         except Exception:
             log.exception("tahrir xatolik")
             await update.message.reply_text("Xatolik. Qaytadan urinib ko'ring.")
@@ -1135,7 +1135,7 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if _only_arrows(txt):
         return await _set_yonalish(update, ctx, _arrow_dir(txt))
     try:
-        actions = ai.from_text(txt)
+        actions = await asyncio.to_thread(ai.from_text, txt)
     except Exception as e:
         log.exception("text xatolik")
         s = str(e).lower()

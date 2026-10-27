@@ -1,5 +1,6 @@
 """Mini App veb-serveri (aiohttp)."""
 import os
+import asyncio
 import json
 import hmac
 import time
@@ -984,7 +985,7 @@ def make_web_app(bot_token):
             matn = (body.get("matn") or "").strip()
             if not matn:
                 return web.json_response({"ok": False, "xabar": "Matn bo'sh"})
-            actions = ai.from_text(matn)
+            actions = await asyncio.to_thread(ai.from_text, matn)
             actions = [a for a in actions if a.tushunildi and a.amal] or actions[:1]
             if not actions:
                 return web.json_response({"ok": False, "xabar": "Tushunolmadim"})
@@ -1040,7 +1041,7 @@ def make_web_app(bot_token):
             mid = int(request.headers.get("X-Mijoz-Id"))
             audio = await request.read()
             mime = request.headers.get("Content-Type", "audio/ogg").split(";")[0]
-            actions = ai.from_audio(audio, mime_type=mime)
+            actions = await asyncio.to_thread(ai.from_audio, audio, mime_type=mime)
             actions = [a for a in actions if a.tushunildi and a.amal] or actions[:1]
             if not actions:
                 return web.json_response({"ok": False, "xabar": "Tushunolmadim"})

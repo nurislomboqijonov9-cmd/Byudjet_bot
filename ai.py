@@ -49,9 +49,11 @@ def client():
                 vertexai=True,
                 project=os.environ.get("VERTEX_PROJECT"),
                 location=os.getenv("VERTEX_LOCATION", "us-central1"),
+                http_options=types.HttpOptions(timeout=45000),
             )
         else:
-            _client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+            _client = genai.Client(api_key=os.environ["GEMINI_API_KEY"],
+                                   http_options=types.HttpOptions(timeout=45000))
     return _client
 
 
