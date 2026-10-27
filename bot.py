@@ -493,6 +493,17 @@ async def qarzdorlar_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         log.exception("qarzdorlar excel xatolik")
 
 
+async def sardor_kalit_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Faqat ega: ofis kompyuteridagi Sardor ishchisi uchun manzil va kalit."""
+    if not db.is_owner(update.effective_user.id):
+        return
+    url = (webapp_url() or "(WEBAPP_URL topilmadi)").split("?")[0]
+    await update.message.reply_text(
+        "📞 Sardor ishchisi sozlamasi (kompyuterdagi AI_Operator papkasiga):\n\n"
+        f"bot_url.txt ichiga:\n{url}\n\nsardor_kalit.txt ichiga:\n{db.sardor_kalit()}\n\n"
+        "⚠️ Kalitni hech kimga bermang.")
+
+
 async def sms_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await guard(update):
         return
@@ -1488,6 +1499,7 @@ async def run():
     app.add_handler(CommandHandler("shablon", shablon_cmd))
     app.add_handler(CommandHandler("shablonlar", shablonlar_cmd))
     app.add_handler(CommandHandler("sms", sms_cmd))
+    app.add_handler(CommandHandler("sardor_kalit", sardor_kalit_cmd))
     app.add_handler(CommandHandler("xodimlar", xodimlar_cmd))
     app.add_handler(CommandHandler("xodim_qosh", xodim_qosh_cmd))
     app.add_handler(CommandHandler("admin_qosh", admin_qosh_cmd))

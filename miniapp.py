@@ -1636,6 +1636,93 @@ def make_web_app(bot_token):
         ms = [m for m in db.mijozlar(bolim="ijara") if m.get("tolov_turi") == "perech" and not m.get("arxiv")]
         return web.json_response({"mijozlar": [{"id": m["id"], "mijoz": m.get("mijoz"), "telefon": m.get("telefon")} for m in ms]})
 
+    # ================= SARDOR (AI qo'ng'iroq) =================
+    _DAR_NOM = {"yashil": "🟢 muloyim", "sariq": "🟡 qattiqroq", "qizil": "🔴 qat'iy"}
+
+    async def api_sardor(request):
+        uid, err = check_yoz(request)
+        if err:
+            return err
+        try:
+            b = await request.json()
+            mid = int(b.get("mijoz_id"))
+            res = db.sardor_qosh(mid, b.get("telefon"), (b.get("daraja") or "").strip(), uid)
+            if res.get("ok"):
+                _audit(uid, "sardor_qongiroq", f"{b.get('daraja')} {b.get('telefon')}", mid)
+            return web.json_response(res)
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
+    async def api_sardor_tarix(request):
+        uid, err = check(request)
+        if err:
+            return err
+        try:
+            mid = int(request.query.get("mijoz_id"))
+        except Exception:
+            return web.json_response({"xato": "mijoz_id kerak"}, status=400)
+        return web.json_response({"tarix": db.sardor_tarix(mid)})
+
+    def _ishchi_ok(request):
+        k = request.headers.get("X-Sardor-Key", "")
+        return bool(k) and hmac.compare_digest(k, db.sardor_kalit())
+
+    async def api_sardor_navbat(request):
+        if not _ishchi_ok(request):
+            return web.json_response({"xato": "kalit noto'g'ri"}, status=403)
+        return web.json_response({"ish": db.sardor_navbat_ol()})
+
+    async def api_sardor_natija(request):
+        if not _ishchi_ok(request):
+            return web.json_response({"xato": "kalit noto'g'ri"}, status=403)
+        try:
+            b = await request.json()
+            cid = int(b.get("id"))
+            n = b.get("natija") or {}
+            r = db.sardor_natija(cid, n)
+            if not r:
+                return web.json_response({"ok": False, "xato": "topilmadi"})
+            mid = r["mijoz_id"]
+            m = db.get_mijoz(mid) or {}
+            nom = m.get("ism") or "-"
+            dar = _DAR_NOM.get(r["daraja"], r["daraja"])
+            if n.get("javob_berdi"):
+                qator = [f"📞 *Sardor qo'ng'iroq qildi* — {nom} ({r['telefon']})", f"Daraja: {dar}"]
+                if n.get("xulosa"):
+                    qator.append(f"📝 {n['xulosa']}")
+                if n.get("vada_sana"):
+                    qator.append(f"📅 Va'da: {n['vada_sana']}" + (f" · {n['summa']}" if n.get("summa") else ""))
+                if n.get("keyingi_qadam"):
+                    qator.append(f"👉 {n['keyingi_qadam']}")
+                if n.get("davomiylik"):
+                    qator.append(f"⏱ {n['davomiylik']} s")
+                # Mijoz kartasiga qayd + va'da sanasi bo'lsa eslatma
+                try:
+                    db.qayd_add(mid, f"📞 Sardor ({dar}): " + (n.get("xulosa") or "gaplashildi")
+                                + (f" Va'da: {n['vada_sana']}" if n.get("vada_sana") else ""))
+                except Exception:
+                    pass
+                vs = str(n.get("vada_sana_iso") or "")[:10]
+                if len(vs) == 10 and vs[4] == "-" and vs[7] == "-":
+                    try:
+                        db.add_eslatma(mid, vs, "Sardor: " + (n.get("summa") or "to'lov va'dasi"))
+                    except Exception:
+                        pass
+            else:
+                qator = [f"📵 Sardor: {nom} ({r['telefon']}) — javob bermadi", f"Daraja: {dar}"]
+                if n.get("sabab"):
+                    qator.append(n["sabab"])
+            if r.get("kim_uid"):
+                await tg_xabar(r["kim_uid"], "\n".join(qator))
+            return web.json_response({"ok": True})
+        except Exception as e:
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
+
+    app.router.add_post("/api/sardor", api_sardor)
+    app.router.add_get("/api/sardor_tarix", api_sardor_tarix)
+    app.router.add_get("/api/sardor/navbat", api_sardor_navbat)
+    app.router.add_post("/api/sardor/natija", api_sardor_natija)
+
     app.router.add_get("/api/mijozlar", api_mijozlar)
     app.router.add_get("/api/faktura", api_faktura)
     app.router.add_get("/api/perech_mijozlar", api_perech_mijozlar)

@@ -186,6 +186,13 @@
   .retg-i{display:flex;align-items:center;justify-content:space-between;font-size:13.5px;padding:3px 0;}
   .retg-i b{font-family:'Space Grotesk';}
   .retg-i .x{color:#B7C3BD;background:none;border:none;font-size:17px;cursor:pointer;}
+  .sdr-row{display:flex;gap:8px;margin:6px 0 4px}
+  .sdr{flex:1;padding:12px 4px;border-radius:12px;border:none;font-family:inherit;font-weight:700;font-size:20px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:#fff}
+  .sdr span{font-size:12px;font-weight:600}
+  .sdr.g{background:#2E9E5B}.sdr.y{background:#D9A21B}.sdr.r{background:#C0392B}
+  .sdr:active{transform:scale(.97)}
+  .sdr-h{padding:8px 0;border-top:1px solid var(--faint);font-size:13px}
+  .sdr-h .m{color:var(--soft);font-size:12px}
   .smsbtn{width:100%;padding:12px;background:#fff;border:1px solid var(--brand);color:var(--brand);border-radius:12px;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;margin-bottom:10px;}
   .omb-wrap{background:#0B1017;margin:0 -14px;padding:14px;min-height:100vh;}
   .omb-h{padding:4px 2px 12px;}
@@ -636,7 +643,15 @@
       <button class="send" id="bsendb" onclick="brovQator(${d.id})">Qo'shish</button>
       <div id="berr"></div>
       <div class="hint" id="bhint">Boshqadan olib turib shu mijozga bergan tovar. <b>Mijozga hisoblanadi</b>, omborga ta'sir qilmaydi.</div></div>`;
-    const smsBtn=`<button class="smsbtn" onclick="smsPick(${d.id})">📩 Qarz eslatmasi SMS</button><div id="smsbox" class="addbox" style="display:none"></div>`;
+    const smsBtn=`<button class="smsbtn" onclick="smsPick(${d.id})">📩 Qarz eslatmasi SMS</button><div id="smsbox" class="addbox" style="display:none"></div>`+`<div class="addbox sardorbox"><div class="t">📞 Sardor qo'ng'iroq qilsin</div>
+      <div class="sdr-row">
+        <button class="sdr g" onclick="sardorPick(${d.id},'yashil')">🟢<span>Muloyim</span></button>
+        <button class="sdr y" onclick="sardorPick(${d.id},'sariq')">🟡<span>Qattiqroq</span></button>
+        <button class="sdr r" onclick="sardorPick(${d.id},'qizil')">🔴<span>Qat'iy</span></button></div>
+      <div id="sardorpick"></div>
+      <div class="hint">🟢 eslatadi · 🟡 aniq sana talab qiladi · 🔴 to'lanmasa mahsulot olib ketilishini aytadi</div>
+      <div id="sardortarix"></div></div>`;
+    setTimeout(()=>sardorTarix(d.id),0);
     const qolganCard=((d.qolganlar||[]).length)?`<div class="addbox"><div class="t">📦 Qolgan mahsulotlar (hozir mijozda)</div>${
       (d.qolganlar||[]).map(q=>`<div class="retg-i" style="padding:6px 0;border-top:1px solid var(--faint)${q.qolgan<0?';background:#fdecea;border-radius:8px;padding:8px 10px;margin:2px 0':''}">
         <span style="${q.qolgan<0?'color:#c0392b;font-weight:700':''}">${esc(q.mahsulot)}${q.qolgan<0?' — ortiqcha qaytdi':''}${q.manzillar&&q.manzillar.length?` <span style="color:var(--brand);font-size:12px">📍 ${esc(q.manzillar.join(', '))}</span>`:''}</span>
@@ -1302,6 +1317,43 @@ window.yopHisobot=async function(id){
       let j=null; try{j=await r.json();}catch(_){}
       if(j&&j.ok){toast('✅ SMS yuborildi');} else {toast('❌ '+((j&&j.xabar)||('Xato '+r.status)));}
     }catch(e){toast('Tarmoq xatosi');}
+  };
+
+  // ======== SARDOR (AI qo'ng'iroq) ========
+  const SDR_NOM={yashil:'🟢 Muloyim',sariq:'🟡 Qattiqroq',qizil:'🔴 Qat\'iy'};
+  const SDR_HOLAT={navbat:'⏳ navbatda',jarayonda:'📞 gaplashyapti…',tugadi:'✅ gaplashildi',javobsiz:'📵 javob bermadi',xato:'⚠️ xato'};
+  window.sardorPick=function(mid,dar){
+    const d=window._curMijoz; const ph=(d&&d.telefonlar)||[];
+    const box=document.getElementById('sardorpick');
+    if(ph.length===1){sardorSend(mid,dar,ph[0]);return;}
+    let h=`<div class="t" style="margin-top:8px">${SDR_NOM[dar]} — qaysi raqamga?</div>`;
+    h+=ph.map(p=>`<button class="mini-btn" style="width:100%;margin-bottom:6px" onclick="sardorSend(${mid},'${dar}','${esc(p)}')">📞 ${esc(p)}</button>`).join('');
+    h+=`<input class="f" id="sdrphone" inputmode="tel" placeholder="Boshqa raqam (998901234567)" style="margin-bottom:6px">
+      <button class="mini-btn" style="width:100%" onclick="sardorSend(${mid},'${dar}',(document.getElementById('sdrphone').value||'').trim())">📞 Shu raqamga</button>`;
+    box.innerHTML=h;
+  };
+  window.sardorSend=async function(mid,dar,tel){
+    if(!tel){toast('Raqam yozing');return;}
+    const d=window._curMijoz; const nm=(d&&d.mijoz)||'';
+    const ok=await tasdiq(SDR_NOM[dar]+'\nSardor «'+nm+'» ('+tel+') ga hozir qo\'ng\'iroq qilsinmi?');
+    if(!ok)return;
+    const box=document.getElementById('sardorpick'); if(box) box.innerHTML='';
+    try{const r=await fetch('/api/sardor',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:mid,telefon:tel,daraja:dar})});
+      let j=null; try{j=await r.json();}catch(_){}
+      if(j&&j.ok){toast(j.navbat>1?('⏳ Navbatga qo\'shildi ('+j.navbat+'-o\'rin)'):'📞 Sardor qo\'ng\'iroq qilyapti…'); sardorTarix(mid);}
+      else toast('❌ '+((j&&j.xato)||('Xato '+r.status)));
+    }catch(e){toast('Tarmoq xatosi');}
+  };
+  window.sardorTarix=async function(mid){
+    const el=document.getElementById('sardortarix'); if(!el)return;
+    let j; try{const r=await fetch('/api/sardor_tarix?mijoz_id='+mid,{headers:H}); if(!r.ok)return; j=await r.json();}catch(e){return;}
+    const t=(j&&j.tarix)||[];
+    el.innerHTML=t.map(x=>{const n=x.natija||{};
+      return `<div class="sdr-h"><b>${SDR_NOM[x.daraja]||esc(x.daraja)}</b> · ${SDR_HOLAT[x.holat]||esc(x.holat)} <span class="m">${esc((x.yaratilgan||'').slice(0,16).replace('T',' '))}</span>
+        ${n.xulosa?`<div>${esc(n.xulosa)}</div>`:''}${n.vada_sana?`<div>📅 Va'da: <b>${esc(n.vada_sana)}</b>${n.summa?' · '+esc(n.summa):''}</div>`:''}</div>`;}).join('');
+    if(t.some(x=>x.holat==='navbat'||x.holat==='jarayonda')){
+      clearTimeout(window._sdrT); window._sdrT=setTimeout(()=>{if(window._curMijoz&&window._curMijoz.id===mid)sardorTarix(mid);},8000);
+    }
   };
 
   // ======== OMBOR ========

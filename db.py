@@ -5539,3 +5539,144 @@ def mgps_davr_xulosa(vid, dan, gacha):
         "segmentlar": segmentlar,
         "kunlar": kunlar,
     }
+
+
+# ================= SARDOR (AI telefon operatori) =================
+# Mini App'da 🟢/🟡/🔴 tugma → navbatga yoziladi → ofis kompyuteridagi ishchi
+# (sardor_ishchi.py) navbatdan olib qo'ng'iroq qiladi → natijani qaytaradi.
+SARDOR_DARAJALAR = ("yashil", "sariq", "qizil")
+
+
+def _sardor_init(con):
+    con.execute("""CREATE TABLE IF NOT EXISTS sardor_qongiroq (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        mijoz_id INTEGER NOT NULL, telefon TEXT NOT NULL, daraja TEXT NOT NULL,
+        holat TEXT NOT NULL DEFAULT 'navbat',
+        kontekst TEXT, natija TEXT, kim_uid INTEGER,
+        yaratilgan TEXT NOT NULL, yangilangan TEXT)""")
+
+
+def sardor_kalit():
+    """Ishchi (kompyuter) uchun maxfiy kalit. Birinchi marta avtomatik yaratiladi."""
+    k = get_sozlama("sardor_kalit")
+    if not k:
+        import secrets
+        k = secrets.token_urlsafe(24)
+        set_sozlama("sardor_kalit", k)
+    return k
+
+
+def sardor_tel(t):
+    d = "".join(c for c in str(t or "") if c.isdigit())
+    if len(d) == 9:
+        d = "998" + d
+    return d if len(d) == 12 and d.startswith("998") else None
+
+
+def sardor_kontekst(mijoz_id):
+    d = mijoz_detail(mijoz_id)
+    if not d:
+        return None
+    ohirgi_tolov = None
+    tl = [t for t in (d.get("tolovlar") or []) if (t.get("summa") or 0) > 0]
+    if tl:
+        t = max(tl, key=lambda x: str(x.get("sana") or ""))
+        ohirgi_tolov = {"sana": str(t.get("sana"))[:10], "summa": round(t.get("summa") or 0)}
+    vada = [e for e in (d.get("eslatmalar") or [])]
+    return {
+        "ism": d.get("mijoz"),
+        "qarz": round(d.get("qolgan_qarz") or 0),
+        "kunlik": round(d.get("kunlik") or 0),
+        "tolov_turi": d.get("tolov_turi"),
+        "mahsulotlar": [{"mahsulot": q["mahsulot"], "soni": q["qolgan"], "birlik": q.get("birlik") or "ta",
+                         "manzil": ", ".join(q.get("manzillar") or [])}
+                        for q in (d.get("qolganlar") or []) if q.get("qolgan", 0) > 0],
+        "ohirgi_tolov": ohirgi_tolov,
+        "vadalar": [{"sana": str(e.get("vada_sana"))[:10], "izoh": e.get("izoh")} for e in vada][-3:],
+        "bugun": today_tk().isoformat(),
+    }
+
+
+def sardor_qosh(mijoz_id, telefon, daraja, kim_uid=None):
+    if daraja not in SARDOR_DARAJALAR:
+        return {"ok": False, "xato": "Daraja noto'g'ri"}
+    tel = sardor_tel(telefon)
+    if not tel:
+        return {"ok": False, "xato": "Telefon raqam noto'g'ri (998XXXXXXXXX bo'lishi kerak)"}
+    kon = sardor_kontekst(mijoz_id)
+    if not kon:
+        return {"ok": False, "xato": "Mijoz topilmadi"}
+    import json as _j
+    con = _con()
+    _sardor_init(con)
+    bor = con.execute("SELECT id FROM sardor_qongiroq WHERE mijoz_id=? AND holat IN ('navbat','jarayonda')",
+                      (mijoz_id,)).fetchone()
+    if bor:
+        con.close()
+        return {"ok": False, "xato": "Bu mijozga qo'ng'iroq allaqachon navbatda"}
+    cid = con.execute("""INSERT INTO sardor_qongiroq (mijoz_id, telefon, daraja, kontekst, kim_uid, yaratilgan)
+        VALUES (?,?,?,?,?,?)""", (mijoz_id, tel, daraja, _j.dumps(kon, ensure_ascii=False), kim_uid,
+                                  now_tk().isoformat())).lastrowid
+    navbat = con.execute("SELECT COUNT(*) FROM sardor_qongiroq WHERE holat='navbat'").fetchone()[0]
+    con.commit()
+    con.close()
+    return {"ok": True, "id": cid, "navbat": navbat}
+
+
+def sardor_navbat_ol():
+    """Ishchi uchun: eng eski navbatdagini olib 'jarayonda' qiladi. 20 daqiqadan oshgan osilganlar — xato."""
+    import json as _j
+    from datetime import timedelta
+    con = _con()
+    _sardor_init(con)
+    eski = (now_tk() - timedelta(minutes=20)).isoformat()
+    con.execute("UPDATE sardor_qongiroq SET holat='xato', yangilangan=? WHERE holat='jarayonda' AND yangilangan<?",
+                (now_tk().isoformat(), eski))
+    r = con.execute("SELECT * FROM sardor_qongiroq WHERE holat='navbat' ORDER BY id LIMIT 1").fetchone()
+    if not r:
+        con.commit(); con.close()
+        return None
+    con.execute("UPDATE sardor_qongiroq SET holat='jarayonda', yangilangan=? WHERE id=?",
+                (now_tk().isoformat(), r["id"]))
+    con.commit()
+    con.close()
+    j = dict(r)
+    j["kontekst"] = _j.loads(j["kontekst"] or "{}")
+    return j
+
+
+def sardor_natija(cid, natija):
+    import json as _j
+    con = _con()
+    _sardor_init(con)
+    r = con.execute("SELECT * FROM sardor_qongiroq WHERE id=?", (cid,)).fetchone()
+    if not r:
+        con.close()
+        return None
+    holat = "tugadi" if (natija or {}).get("javob_berdi") else "javobsiz"
+    con.execute("UPDATE sardor_qongiroq SET holat=?, natija=?, yangilangan=? WHERE id=?",
+                (holat, _j.dumps(natija or {}, ensure_ascii=False), now_tk().isoformat(), cid))
+    con.commit()
+    con.close()
+    j = dict(r)
+    j["holat"] = holat
+    return j
+
+
+def sardor_tarix(mijoz_id, limit=10):
+    import json as _j
+    con = _con()
+    _sardor_init(con)
+    rows = con.execute("SELECT id, telefon, daraja, holat, natija, yaratilgan, yangilangan FROM sardor_qongiroq "
+                       "WHERE mijoz_id=? ORDER BY id DESC LIMIT ?", (mijoz_id, limit)).fetchall()
+    con.commit()
+    con.close()
+    out = []
+    for r in rows:
+        x = dict(r)
+        try:
+            x["natija"] = _j.loads(x["natija"]) if x["natija"] else None
+        except Exception:
+            x["natija"] = None
+        out.append(x)
+    return out
