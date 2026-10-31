@@ -1389,6 +1389,91 @@ async def _daily_report(app):
             log.exception("kunlik hisobot yuborishda xatolik")
 
 
+# ============ AVTOMATIK ZAHIRA (backup) ============
+BACKUP_SOAT = int(os.getenv("BACKUP_SOAT", "4"))  # kuniga shu soatdan keyin (Toshkent)
+
+
+def _zahira_bytes():
+    """Butun bazadan izchil nusxa olib, (parol bo'lsa) qulflangan ZIP qaytaradi.
+    Qaytadi: (BytesIO, fayl_nomi, parolli_bool)."""
+    import sqlite3
+    import tempfile
+    import os as _os
+    import pyzipper
+    sana = db.now_tk().strftime("%Y-%m-%d_%H%M")
+    tdir = tempfile.mkdtemp()
+    snap = _os.path.join(tdir, "arenda.db")
+    # Izchil nusxa (baza yozilayotgan bo'lsa ham) — sqlite backup API
+    s = sqlite3.connect(str(db.DB_PATH))
+    t = sqlite3.connect(snap)
+    try:
+        s.backup(t)
+    finally:
+        t.close()
+        s.close()
+    parol = os.getenv("BACKUP_PAROL") or ""
+    bio = BytesIO()
+    if parol:
+        with pyzipper.AESZipFile(bio, "w", compression=pyzipper.ZIP_DEFLATED,
+                                 encryption=pyzipper.WZ_AES) as zf:
+            zf.setpassword(parol.encode())
+            zf.write(snap, arcname="arenda.db")
+        parolli = True
+    else:
+        with pyzipper.AESZipFile(bio, "w", compression=pyzipper.ZIP_DEFLATED) as zf:
+            zf.write(snap, arcname="arenda.db")
+        parolli = False
+    bio.seek(0)
+    try:
+        _os.remove(snap)
+        _os.rmdir(tdir)
+    except Exception:
+        pass
+    return bio, f"zahira_{sana}.zip", parolli
+
+
+async def _zahira_yubor(app, chat_id):
+    bio, fn, parolli = _zahira_bytes()
+    try:
+        mb = len(bio.getbuffer()) / 1048576
+    except Exception:
+        mb = 0
+    try:
+        soni = len(db.mijozlar())
+    except Exception:
+        soni = None
+    cap = (f"🛡 *Baza zaxirasi* · {db.now_tk().strftime('%d.%m.%Y %H:%M')}\n"
+           f"📦 {mb:.1f} MB" + (f" · {soni} ta mijoz" if soni is not None else "") + "\n"
+           + ("🔒 Parol bilan qulflangan" if parolli
+              else "⚠️ Parolsiz! Railway'ga BACKUP_PAROL qo'ying."))
+    await app.bot.send_document(chat_id=chat_id, document=InputFile(bio, filename=fn),
+                                caption=cap, parse_mode="Markdown")
+
+
+async def _daily_backup(app):
+    now = db.now_tk()
+    if now.hour < BACKUP_SOAT:
+        return
+    if db.get_sozlama("zahira_oxirgi_kun") == now.date().isoformat():
+        return  # bugun allaqachon yuborildi
+    db.set_sozlama("zahira_oxirgi_kun", now.date().isoformat())
+    try:
+        await _zahira_yubor(app, db.OWNER_ID)
+    except Exception:
+        log.exception("avtomatik zahira xatolik")
+
+
+async def zahira_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    await update.message.reply_text("⏳ Zaxira tayyorlanmoqda…")
+    try:
+        await _zahira_yubor(ctx.application, update.effective_chat.id)
+    except Exception:
+        log.exception("qo'lda zahira xatolik")
+        await update.message.reply_text("❌ Zaxira yaratishda xatolik.")
+
+
 async def _set_commands(app):
     # Hamma ko'radigan asosiy menyu (Telegram "/" tugmasida chiqadi)
     umumiy = [
@@ -1436,6 +1521,7 @@ async def reminder_loop(app):
                 await _send_eslatma(app, r)
                 db.mark_eslatma_sent(r["id"])
             await _daily_report(app)
+            await _daily_backup(app)
         except Exception:
             log.exception("eslatma tekshiruvi xatolik")
         await asyncio.sleep(60)
@@ -1522,6 +1608,7 @@ async def run():
     app.add_handler(CommandHandler("nom", nom_cmd))
     app.add_handler(CommandHandler("ombor_hisobla", ombor_hisobla_cmd))
     app.add_handler(CommandHandler("parol", parol_cmd))
+    app.add_handler(CommandHandler("zahira", zahira_cmd))
     app.add_handler(CommandHandler("haydovchilar", haydovchilar_cmd))
     app.add_handler(CommandHandler("haydovchi_qosh", haydovchi_qosh_cmd))
     app.add_handler(CommandHandler("haydovchi_ochir", haydovchi_ochir_cmd))
