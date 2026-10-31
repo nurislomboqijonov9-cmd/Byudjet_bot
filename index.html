@@ -413,6 +413,8 @@
 
   window.BOLIM='ijara';
   try{ const b=localStorage.getItem('bolim'); if(b==='sotuv'||b==='ijara') window.BOLIM=b; }catch(e){}
+  window._saral='qarz';  // 'qarz' = qarzi bo'yicha, 'tolov' = eng uzoq to'lamagan
+  try{ const s=localStorage.getItem('saral'); if(s==='qarz'||s==='tolov') window._saral=s; }catch(e){}
   window.ARXIV=false;
   window.bolimTgl=function(b){
     window.BOLIM=b; window.ARXIV=false;
@@ -447,23 +449,48 @@
       <div class="hero"><div class="arc"></div><div class="lbl">${window.ARXIV?'Arxiv — yopilgan mijozlar':((window._isPerech||window._isKoruvchi)?'Mijozlar':'Umumiy qarz')}</div>
         <div class="amt num">${window.ARXIV?_ml.length:((window._isKoruvchi||window._isPerech)?_ml.length:(window._pulKorsin?som(jami):'•••'))} <small>${window.ARXIV?'ta':((window._isKoruvchi||window._isPerech)?'ta mijoz':(window._pulKorsin?'so\'m':''))}</small></div>${(window._isKoruvchi||window._isPerech)?'':`<div class="sub">${_ml.length} ta mijoz</div>`}</div>
       <div id="newform"></div>
+      ${(window.ARXIV||window._isKoruvchi||window._isPerech)?'':`<div class="inrow" style="margin:0 0 10px">
+        <button class="tabb ${window._saral!=='tolov'?'on':''}" id="sr_qarz" onclick="saralTgl('qarz')">💰 Qarzi bo'yicha</button>
+        <button class="tabb ${window._saral==='tolov'?'on':''}" id="sr_tolov" onclick="saralTgl('tolov')">⏰ To'lamaganlar</button></div>`}
       <div class="search"><input id="qidir" placeholder="🔍 Ism, telefon yoki manzil..." oninput="renderCards(this.value)"></div>
       <div id="cards"></div>`;
     renderCards('');
     if(window._listY){const y=window._listY;window._listY=0;setTimeout(()=>{try{window.scrollTo(0,y);}catch(e){}},30);}
   }
 
+  function tolovText(m){
+    if(window._isKoruvchi) return '';
+    const k=m.kutilgan_kun;
+    if(k==null) return '';
+    const nd=(m.oxirgi_tolov)?('oxirgi to\'lov: '+k+' kun oldin'):('hali to\'lov yo\'q · '+k+' kun');
+    const warn=k>=15;  // 15 kundan oshsa — diqqat (qizil)
+    return `<div class="mt" style="color:${warn?'#C0392B':'#8A9AA8'};font-weight:${warn?'700':'600'}">${warn?'⚠️ ':'💵 '}${nd}</div>`;
+  }
   window.renderCards=function(q){
     q=(q||'').toLowerCase().trim();
     let list=(window._ml||[]).filter(m=>!q || (m.mijoz||'').toLowerCase().includes(q) || (m.telefon||'').includes(q) || (m.adres||'').toLowerCase().includes(q));
+    if(window._saral==='tolov'){
+      list=list.slice().sort((a,b)=>((b.kutilgan_kun==null?-1:b.kutilgan_kun)-(a.kutilgan_kun==null?-1:a.kutilgan_kun)));
+    } else {
+      list=list.slice().sort((a,b)=>(b.qolgan_qarz||0)-(a.qolgan_qarz||0));
+    }
     let cards=list.map(m=>`<div class="card mcard st-${esc(m.status||'')}${m.tolov_turi==='perech'?' perech':''}"><div class="mijoz" onclick="window._listY=window.scrollY;loadMijoz(${m.id})">
         <div class="av"><span>${ini(m.mijoz)}</span></div>
         <div><div class="nm">${m.status&&STAT[m.status]?`<span class="stdot" style="background:${STAT[m.status].c}"></span>`:''}${esc(m.mijoz)}${m.yopilgan?` <span style="font-size:11px;font-weight:700;color:#C9763A;background:rgba(201,118,58,.14);padding:2px 7px;border-radius:6px;vertical-align:middle">🔒 Yopilgan</span>`:''}</div>
           <div class="mt">${window._isKoruvchi?('📦 '+(m.tovarlar||'tovar yoq')):(`${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan${m.tolov_turi==='perech'?' · <b style="color:#7A4FC0">🏦 perech</b>':(m.tolov_turi==='naqd'?' · 💵':'')}${m.yopilgan&&m.kesim_sana?' · <b style="color:#C9763A">🔒 '+dmy(m.kesim_sana)+' da toxtatilgan</b>':''}`)}</div>
-          ${m.adres?`<div class="mt" style="color:var(--brand)">📍 ${esc(m.adres)}</div>`:''}</div>
+          ${m.adres?`<div class="mt" style="color:var(--brand)">📍 ${esc(m.adres)}</div>`:''}
+          ${tolovText(m)}</div>
         ${window._isKoruvchi?'':`<div class="val"><b>${som(m.qolgan_qarz)}</b><span>so'm</span></div>`}<div class="chev">›</div></div></div>`).join('');
     if(!list.length) cards='<div class="empty">'+(q?'Topilmadi':'Hozircha mijoz yo\'q. «➕ Yangi» bosing.')+'</div>';
     document.getElementById('cards').innerHTML=cards;
+  };
+  window.saralTgl=function(v){
+    window._saral=(v==='tolov')?'tolov':'qarz';
+    try{ localStorage.setItem('saral',window._saral); }catch(e){}
+    var a=document.getElementById('sr_qarz'),b=document.getElementById('sr_tolov');
+    if(a)a.classList.toggle('on',window._saral==='qarz');
+    if(b)b.classList.toggle('on',window._saral==='tolov');
+    renderCards((document.getElementById('qidir')||{}).value||'');
   };
 
   window.showNew=function(){

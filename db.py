@@ -2788,11 +2788,31 @@ def mijozlar(today=None, bolim=None, arxiv=None):
         ids = [r[0] for r in con.execute("SELECT id FROM mijozlar ORDER BY id").fetchall()]
     con.close()
     res = []
+    try:
+        _tday = today if isinstance(today, date) else date.fromisoformat(str(today)[:10])
+    except Exception:
+        _tday = today_tk()
     for mid in ids:
         d = mijoz_detail(mid, today)
         _arxiv = (d["qolgan_qarz"] == 0 and d["jami_qolgan"] == 0)
         _kesimlar = [str(p.get("kesim_sana"))[:10] for p in d["partiyalar"]
                      if p.get("kesim_sana") and (p.get("qolgan") or 0) > 0]
+        # Oxirgi pul olingan sana (faqat musbat to'lov — qarz qo'shilishi emas)
+        _tol = [str(t["sana"])[:10] for t in d.get("tolovlar", []) if (t.get("summa") or 0) > 0]
+        oxirgi_tolov = max(_tol) if _tol else None
+        # Kutilgan kun: oxirgi to'lovdan beri; to'lov bo'lmasa — birinchi chiqishdan beri
+        _ref = oxirgi_tolov
+        if not _ref:
+            _ch = [str(p["chiqgan_sana"])[:10] for p in d["partiyalar"] if p.get("chiqgan_sana")]
+            _ref = min(_ch) if _ch else None
+        kutilgan_kun = None
+        if _ref:
+            try:
+                kutilgan_kun = (_tday - date.fromisoformat(_ref)).days
+                if kutilgan_kun < 0:
+                    kutilgan_kun = 0
+            except Exception:
+                kutilgan_kun = None
         res.append({
             "id": mid, "mijoz": d["mijoz"], "telefon": d["telefon"], "status": d["status"],
             "adres": d.get("adres"), "tolov_turi": d.get("tolov_turi"),
@@ -2802,6 +2822,8 @@ def mijozlar(today=None, bolim=None, arxiv=None):
             "arxiv": _arxiv,
             "yopilgan": bool(_kesimlar),
             "kesim_sana": (min(_kesimlar) if _kesimlar else None),
+            "oxirgi_tolov": oxirgi_tolov,
+            "kutilgan_kun": kutilgan_kun,
         })
     if arxiv is True:
         res = [x for x in res if x["arxiv"]]
