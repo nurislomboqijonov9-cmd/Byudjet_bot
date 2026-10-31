@@ -1391,6 +1391,8 @@ async def _daily_report(app):
 
 # ============ AVTOMATIK ZAHIRA (backup) ============
 BACKUP_SOAT = int(os.getenv("BACKUP_SOAT", "4"))  # kuniga shu soatdan keyin (Toshkent)
+# Zaxira AYNAN shu chatga boradi (OWNER_ID o'zgarsa ham). Railway'dan o'zgartirsa bo'ladi.
+BACKUP_CHAT_ID = int(os.getenv("BACKUP_CHAT_ID", "7589459697"))
 
 
 def _zahira_bytes():
@@ -1458,7 +1460,7 @@ async def _daily_backup(app):
         return  # bugun allaqachon yuborildi
     db.set_sozlama("zahira_oxirgi_kun", now.date().isoformat())
     try:
-        await _zahira_yubor(app, db.OWNER_ID)
+        await _zahira_yubor(app, BACKUP_CHAT_ID)
     except Exception:
         log.exception("avtomatik zahira xatolik")
 
