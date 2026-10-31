@@ -2800,11 +2800,21 @@ def mijozlar(today=None, bolim=None, arxiv=None):
         # Oxirgi pul olingan sana (faqat musbat to'lov — qarz qo'shilishi emas)
         _tol = [str(t["sana"])[:10] for t in d.get("tolovlar", []) if (t.get("summa") or 0) > 0]
         oxirgi_tolov = max(_tol) if _tol else None
-        # Kutilgan kun: oxirgi to'lovdan beri; to'lov bo'lmasa — birinchi chiqishdan beri
+        # Kutilgan kun: oxirgi to'lovdan beri; pul umuman kiritilmagan bo'lsa —
+        # eng birinchi harakat (tovar chiqishi / qo'shimcha / qarz yozuvi) kunidan.
         _ref = oxirgi_tolov
         if not _ref:
-            _ch = [str(p["chiqgan_sana"])[:10] for p in d["partiyalar"] if p.get("chiqgan_sana")]
-            _ref = min(_ch) if _ch else None
+            _kunlar = []
+            for p in d.get("partiyalar", []):
+                if p.get("chiqgan_sana"):
+                    _kunlar.append(str(p["chiqgan_sana"])[:10])
+            for q in d.get("qoshimcha", []):
+                if q.get("sana"):
+                    _kunlar.append(str(q["sana"])[:10])
+            for t in d.get("tolovlar", []):
+                if t.get("sana"):
+                    _kunlar.append(str(t["sana"])[:10])
+            _ref = min(_kunlar) if _kunlar else None
         kutilgan_kun = None
         if _ref:
             try:
