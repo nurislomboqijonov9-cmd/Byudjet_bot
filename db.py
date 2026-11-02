@@ -4276,6 +4276,7 @@ def partiya_hisob(p, today=None, kesim=False):
     # Rent faqat OLINGAN miqdorgacha yoziladi (ortiqcha qaytarishga arenda yozilmaydi)
     rets_sorted = sorted(rets, key=lambda r: str(r["qaytgan_sana"])[:10])
     qaytgan_bill = 0.0
+    qayt_out = []   # har bir qaytarish uchun: necha kun ishladi, qancha summa
     for r in rets_sorted:
         rd = _pdate(r["qaytgan_sana"])
         if cut and rd > cut:
@@ -4284,9 +4285,14 @@ def partiya_hisob(p, today=None, kesim=False):
         bill_qty = r["miqdor"] if r["miqdor"] < cap else cap
         if bill_qty < 0:
             bill_qty = 0.0
-        narx += bill_qty * daily * _billable_days(issue, rd)
+        _kun = _billable_days(issue, rd)
+        narx += bill_qty * daily * _kun
         qaytgan_bill += bill_qty
         qaytgan += r["miqdor"]
+        qayt_out.append({"id": r["id"], "miqdor": r["miqdor"],
+                         "qaytgan_sana": str(r["qaytgan_sana"])[:10],
+                         "kun": _kun, "kunlik_narx": daily,
+                         "summa": round(bill_qty * daily * _kun)})
     qolgan_haqiqiy = p["miqdor"] - qaytgan        # manfiy bo'lishi mumkin (ortiqcha qaytarish)
     qolgan = qolgan_haqiqiy if qolgan_haqiqiy > 0 else 0.0
     ortiqcha = (qaytgan - p["miqdor"]) if qaytgan > p["miqdor"] else 0.0
@@ -4301,7 +4307,7 @@ def partiya_hisob(p, today=None, kesim=False):
         "birlik": (p.get("birlik") if isinstance(p, dict) else None) or tovar_birlik(p["mahsulot"]),
         "qaytgan": qaytgan, "ortiqcha": ortiqcha,
         "kesim_sana": (p.get("kesim_sana") if isinstance(p, dict) else None),
-        "qaytarishlar": [{"id": r["id"], "miqdor": r["miqdor"], "qaytgan_sana": str(r["qaytgan_sana"])[:10]} for r in rets],
+        "qaytarishlar": sorted(qayt_out, key=lambda x: x["qaytgan_sana"]),
     }
 
 

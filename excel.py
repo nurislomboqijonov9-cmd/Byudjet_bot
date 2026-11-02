@@ -92,8 +92,17 @@ def mijoz_excel(d, dan=None, gacha=None, **_kw):
         c.alignment = Alignment(horizontal="center")
     r += 1
     for p in d.get("partiyalar", []):
+        # Kun: hali qolgani bo'lsa — bugungacha; to'liq qaytgan bo'lsa —
+        # ishlagan kuni (eng oxirgi qaytarishgacha), 0 bo'lib qolmasin.
+        _q = p.get("qaytarishlar") or []
+        if (p.get("qolgan") or 0) > 0:
+            kun_korset = p.get("kunlar") or 0
+        elif _q:
+            kun_korset = max((x.get("kun") or 0) for x in _q)
+        else:
+            kun_korset = p.get("kunlar") or 0
         row = [p["partiya_raqam"], p["mahsulot"], p["miqdor"], p["qolgan"], p.get("birlik") or "ta",
-               p["kunlik_narx"], _dmy(p["chiqgan_sana"]), p["kunlar"], round(p["narx"], 2),
+               p["kunlik_narx"], _dmy(p["chiqgan_sana"]), kun_korset, round(p["narx"], 2),
                p.get("manzil") or "—", p.get("brov_kim") or "—"]
         for i, v in enumerate(row, 1):
             c = ws.cell(row=r, column=i, value=v)
@@ -124,21 +133,39 @@ def mijoz_excel(d, dan=None, gacha=None, **_kw):
                 r += 1
         r += 1
 
-    # Qaytarishlar
+    # Qaytarishlar — har bir qaytarish uchun: necha dona, necha kun ishladi,
+    # kunlik narx va shu qaytarishning summasi (o'zimiz hisoblamasligimiz uchun)
     rets = [(p, rr) for p in d.get("partiyalar", []) for rr in p.get("qaytarishlar", [])]
     if rets:
-        title("QAYTARISHLAR", r); r += 1
-        for h, col in [("Partiya", 1), ("Mahsulot", 2), ("Soni", 3), ("Sana", 4), ("Brovdan (kim)", 5)]:
-            c = ws.cell(row=r, column=col, value=h)
+        title("QAYTARISHLAR (qaytarilgan tovarlar hisobi)", r, span=9); r += 1
+        heads2 = ["Partiya", "Mahsulot", "Soni", "Chiqgan sana", "Qaytgan sana",
+                  "Kun", "Kunlik narx", "Summa (so'm)", "Brovdan (kim)"]
+        for i, h in enumerate(heads2, 1):
+            c = ws.cell(row=r, column=i, value=h)
             c.font = Font(bold=True); c.fill = PatternFill("solid", fgColor=LIGHT); c.border = BORDER
+            c.alignment = Alignment(horizontal="center")
         r += 1
+        jami_ret = 0.0
         for p, rr in rets:
-            qator = [p["partiya_raqam"], p["mahsulot"], rr["miqdor"], _dmy(rr["qaytgan_sana"]),
-                     p.get("brov_kim") or "—"]
+            qator = [p["partiya_raqam"], p["mahsulot"], rr.get("miqdor"),
+                     _dmy(p.get("chiqgan_sana")), _dmy(rr.get("qaytgan_sana")),
+                     rr.get("kun"), rr.get("kunlik_narx") if rr.get("kunlik_narx") is not None else p.get("kunlik_narx"),
+                     round(rr.get("summa") or 0), p.get("brov_kim") or "—"]
             for i, v in enumerate(qator, 1):
-                ws.cell(row=r, column=i, value=v).border = BORDER
+                c = ws.cell(row=r, column=i, value=v); c.border = BORDER
+                if i in (3, 6, 7, 8):
+                    c.alignment = Alignment(horizontal="right")
+            jami_ret += (rr.get("summa") or 0)
             r += 1
-        r += 1
+        # Jami
+        c = ws.cell(row=r, column=1, value="JAMI (qaytarilganlar)")
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=7)
+        c.font = Font(bold=True)
+        cs = ws.cell(row=r, column=8, value=round(jami_ret)); cs.font = Font(bold=True)
+        cs.alignment = Alignment(horizontal="right")
+        for col in range(1, 10):
+            ws.cell(row=r, column=col).fill = PatternFill("solid", fgColor=LIGHT)
+        r += 2
 
     # To'lovlar
     if d.get("tolovlar"):
