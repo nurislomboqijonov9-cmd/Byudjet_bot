@@ -959,6 +959,26 @@ def make_web_app(bot_token):
         _audit(uid, "mijoz qo'shish", ism, mid)
         return web.json_response({"ok": True, "id": mid})
 
+    async def api_mijoz_nusxa(request):
+        uid, err = check_yoz(request)
+        if err:
+            return err
+        try:
+            body = await request.json()
+            mid = int(body.get("id"))
+        except Exception:
+            return web.json_response({"ok": False, "xato": "id kerak"}, status=400)
+        try:
+            yangi = db.mijoz_nusxa(mid)
+        except Exception as e:
+            import logging
+            logging.getLogger("miniapp").exception("mijoz nusxa xatolik")
+            return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"}, status=500)
+        if not yangi:
+            return web.json_response({"ok": False, "xato": "Mijoz topilmadi"}, status=404)
+        _audit(uid, "mijoz nusxa", f"#{mid} -> #{yangi}", yangi)
+        return web.json_response({"ok": True, "id": yangi})
+
     async def api_mijoz_edit(request):
         uid, err = check_yoz(request)
         if err:
@@ -1774,6 +1794,7 @@ def make_web_app(bot_token):
     app.router.add_post("/api/mijoz_yop_bekor", api_mijoz_yop_bekor)
     app.router.add_get("/api/mijoz_jurnal", api_mijoz_jurnal)
     app.router.add_post("/api/mijoz_qosh", api_mijoz_qosh)
+    app.router.add_post("/api/mijoz_nusxa", api_mijoz_nusxa)
     app.router.add_post("/api/mijoz_edit", api_mijoz_edit)
     app.router.add_post("/api/qoshish", api_qoshish)
     app.router.add_post("/api/qator", api_qator)

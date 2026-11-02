@@ -845,6 +845,9 @@
           <div class="hint" style="margin:0 0 8px">Mijoz shu havoladan o'z qarzini ko'radi. Har doim yangilanib turadi — bir marta yuborsangiz yetadi.</div>
           <input class="f" id="mlink" readonly value="${location.origin}/m/${esc(d.token)}" onclick="this.select()">
           <button class="mini-btn" style="width:100%;margin-top:8px" onclick="havolaNusxa()">📋 Nusxa olish</button></div>`:''}
+        <div class="addbox"><div class="t">📑 Mijozni nusxalash</div>
+          <div class="hint" style="margin:0 0 8px">Shu mijozning aynan nusxasini yaratadi — hamma tovari, qarzi, to'lovi bilan. Yangi mijoz «(nusxa)» deb belgilanadi, keyin nomini o'zgartirsangiz bo'ladi.</div>
+          <button class="mini-btn" style="width:100%" onclick="mijozNusxa(${d.id})">📑 Nusxa yaratish</button></div>
         <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>
       </div>`;
     if(_y>0) setTimeout(()=>window.scrollTo(0,_y),0);
@@ -1318,6 +1321,18 @@ window.yopHisobot=async function(id){
     if(!ok)return;
     try{const r=await fetch('/api/ochirish',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({mijoz_id:id})});
       if(!r.ok)throw 0; toast('O\'chirildi'); loadList();}catch(e){toast('O\'chirib bo\'lmadi');}
+  };
+
+  window.mijozNusxa=async function(id){
+    const ok = await tasdiq('Shu mijozning aynan nusxasini yaratamizmi? (hamma tovari, qarzi, to\'lovi bilan)');
+    if(!ok)return;
+    toast('⏳ Nusxalanmoqda…');
+    try{
+      const r=await fetch('/api/mijoz_nusxa',{method:'POST',headers:{...H,'Content-Type':'application/json'},body:JSON.stringify({id})});
+      const d=await r.json();
+      if(r.ok && d.ok){ toast('📑 Nusxa yaratildi'); loadMijoz(d.id); }
+      else toast(d.xato||'Nusxalab bo\'lmadi');
+    }catch(e){ toast('Xato'); }
   };
 
   window.smsPick=function(mid){

@@ -5759,3 +5759,76 @@ def sardor_kalit_ok(kalit):
         return True
     k = get_sozlama("sardor_kalit")
     return bool(k) and _h.compare_digest(kalit, k)
+
+
+def mijoz_nusxa(mijoz_id):
+    """Mijozni HAMMA ma'lumoti bilan nusxalaydi (yangi mijoz yaratadi):
+    zakaz, partiya, qaytarish, to'lov, qo'shimcha, eslatma, qayd, brov — barchasi.
+    Ichki bog'lanishlar (zakaz_id, partiya_id, brov_id) to'g'ri qayta ulanadi.
+    Yangi mijoz id qaytaradi (yoki None)."""
+    import secrets as _sec
+    con = _con()
+    src = con.execute("SELECT * FROM mijozlar WHERE id=?", (mijoz_id,)).fetchone()
+    if not src:
+        con.close()
+        return None
+
+    def _cols(t):
+        return [r[1] for r in con.execute("PRAGMA table_info(%s)" % t).fetchall()]
+
+    def _copy(table, row, overrides):
+        cols = [c for c in _cols(table) if c != "id"]
+        keys = row.keys()
+        vals = [overrides[c] if c in overrides else (row[c] if c in keys else None) for c in cols]
+        q = "INSERT INTO %s (%s) VALUES (%s)" % (table, ",".join(cols), ",".join("?" * len(cols)))
+        return con.execute(q, vals).lastrowid
+
+    try:
+        # 1) Mijozning o'zi
+        ov = {"ism": (src["ism"] or "Mijoz") + " (nusxa)", "yaratilgan": now_tk().isoformat()}
+        if "token" in src.keys():
+            ov["token"] = _sec.token_urlsafe(9)
+        yangi = _copy("mijozlar", src, ov)
+
+        # 2) Zakazlar (eski id -> yangi id)
+        zmap = {}
+        for z in con.execute("SELECT * FROM zakazlar WHERE mijoz_id=?", (mijoz_id,)).fetchall():
+            zmap[z["id"]] = _copy("zakazlar", z, {"mijoz_id": yangi})
+
+        # 3) Partiyalar (zakaz_id qayta ulanadi)
+        pmap = {}
+        for p in con.execute("SELECT * FROM partiyalar WHERE mijoz_id=?", (mijoz_id,)).fetchall():
+            o = {"mijoz_id": yangi}
+            if "zakaz_id" in p.keys() and p["zakaz_id"] in zmap:
+                o["zakaz_id"] = zmap[p["zakaz_id"]]
+            pmap[p["id"]] = _copy("partiyalar", p, o)
+
+        # 4) Qaytarishlar (partiya_id qayta ulanadi)
+        for pid_old, pid_new in pmap.items():
+            for q in con.execute("SELECT * FROM qaytarishlar WHERE partiya_id=?", (pid_old,)).fetchall():
+                _copy("qaytarishlar", q, {"partiya_id": pid_new})
+
+        # 5) mijoz_id bo'yicha oddiy jadvallar
+        for table in ("tolovlar", "qoshimcha", "eslatmalar", "qaydlar"):
+            try:
+                for r in con.execute("SELECT * FROM %s WHERE mijoz_id=?" % table, (mijoz_id,)).fetchall():
+                    _copy(table, r, {"mijoz_id": yangi})
+            except Exception:
+                pass
+
+        # 6) Brovlar (+ brov_qaytarish)
+        try:
+            for b in con.execute("SELECT * FROM brovlar WHERE mijoz_id=?", (mijoz_id,)).fetchall():
+                nb = _copy("brovlar", b, {"mijoz_id": yangi})
+                for bq in con.execute("SELECT * FROM brov_qaytarish WHERE brov_id=?", (b["id"],)).fetchall():
+                    _copy("brov_qaytarish", bq, {"brov_id": nb})
+        except Exception:
+            pass
+
+        con.commit()
+    except Exception:
+        con.rollback()
+        con.close()
+        raise
+    con.close()
+    return yangi
