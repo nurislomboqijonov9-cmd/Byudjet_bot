@@ -74,7 +74,8 @@ def apply(mijoz_id, t):
         # Tovar nomi: ombordagi eng yaqin nomga avtomat to'g'rilanadi
         # (brovdan olingan tovarga tegilmaydi — u tashqi tovar)
         tuzatildi = None
-        if db.get_sozlama("tovar_tekshir") == "1" and not (getattr(t, "brov_kim", None) or "").strip():
+        # Sotuv bo'limida tovarni ro'yxatdan tashqari qo'lda yozib qo'shsa ham bo'ladi
+        if db.get_sozlama("tovar_tekshir") == "1" and _bolim != "sotuv" and not (getattr(t, "brov_kim", None) or "").strip():
             togri, aniq, taklif = db.tovar_match(t.mahsulot)
             if togri is None:
                 if taklif:
@@ -323,7 +324,8 @@ def qator_chiqish(mijoz_id, qatorlar, sana=None, brov_kim=None, manzil=None, tek
     _bolim = (m.get("bolim") or "ijara")
     sana = str(sana or db.today_tk().isoformat())[:10]
     brov_kim = (brov_kim or "").strip() or None
-    tekshir = (db.get_sozlama("tovar_tekshir") == "1") and not tekshirmasdan
+    # Sotuv bo'limida ro'yxatda yo'q tovarni ham qo'lda yozib qo'shsa bo'ladi
+    tekshir = (db.get_sozlama("tovar_tekshir") == "1") and not tekshirmasdan and _bolim != "sotuv"
     natija, xatolar, tuzatilgan = [], [], []
 
     for q in (qatorlar or []):
