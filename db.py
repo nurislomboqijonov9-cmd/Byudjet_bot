@@ -2793,48 +2793,56 @@ def mijozlar(today=None, bolim=None, arxiv=None):
     except Exception:
         _tday = today_tk()
     for mid in ids:
-        d = mijoz_detail(mid, today)
-        _arxiv = (d["qolgan_qarz"] == 0 and d["jami_qolgan"] == 0)
-        _kesimlar = [str(p.get("kesim_sana"))[:10] for p in d["partiyalar"]
-                     if p.get("kesim_sana") and (p.get("qolgan") or 0) > 0]
-        # Oxirgi pul olingan sana (faqat musbat to'lov — qarz qo'shilishi emas)
-        _tol = [str(t["sana"])[:10] for t in d.get("tolovlar", []) if (t.get("summa") or 0) > 0]
-        oxirgi_tolov = max(_tol) if _tol else None
-        # Kutilgan kun: oxirgi to'lovdan beri; pul umuman kiritilmagan bo'lsa —
-        # eng birinchi harakat (tovar chiqishi / qo'shimcha / qarz yozuvi) kunidan.
-        _ref = oxirgi_tolov
-        if not _ref:
-            _kunlar = []
-            for p in d.get("partiyalar", []):
-                if p.get("chiqgan_sana"):
-                    _kunlar.append(str(p["chiqgan_sana"])[:10])
-            for q in d.get("qoshimcha", []):
-                if q.get("sana"):
-                    _kunlar.append(str(q["sana"])[:10])
-            for t in d.get("tolovlar", []):
-                if t.get("sana"):
-                    _kunlar.append(str(t["sana"])[:10])
-            _ref = min(_kunlar) if _kunlar else None
-        kutilgan_kun = None
-        if _ref:
-            try:
-                kutilgan_kun = (_tday - date.fromisoformat(_ref)).days
-                if kutilgan_kun < 0:
-                    kutilgan_kun = 0
-            except Exception:
-                kutilgan_kun = None
-        res.append({
-            "id": mid, "mijoz": d["mijoz"], "telefon": d["telefon"], "status": d["status"],
-            "adres": d.get("adres"), "tolov_turi": d.get("tolov_turi"),
-            "jami": d["jami"], "tolangan": d["tolangan"], "qolgan_qarz": d["qolgan_qarz"],
-            "jami_qolgan": d["jami_qolgan"],
-            "partiya_soni": len(d["partiyalar"]),
-            "arxiv": _arxiv,
-            "yopilgan": bool(_kesimlar),
-            "kesim_sana": (min(_kesimlar) if _kesimlar else None),
-            "oxirgi_tolov": oxirgi_tolov,
-            "kutilgan_kun": kutilgan_kun,
-        })
+        # Bitta mijozda nosozlik bo'lsa — butun hisobot to'xtamasin, shu mijoz o'tkazib yuboriladi.
+        try:
+            d = mijoz_detail(mid, today)
+            if not d:
+                continue
+            _arxiv = (d["qolgan_qarz"] == 0 and d["jami_qolgan"] == 0)
+            _kesimlar = [str(p.get("kesim_sana"))[:10] for p in d["partiyalar"]
+                         if p.get("kesim_sana") and (p.get("qolgan") or 0) > 0]
+            # Oxirgi pul olingan sana (faqat musbat to'lov — qarz qo'shilishi emas)
+            _tol = [str(t["sana"])[:10] for t in d.get("tolovlar", []) if (t.get("summa") or 0) > 0]
+            oxirgi_tolov = max(_tol) if _tol else None
+            # Kutilgan kun: oxirgi to'lovdan beri; pul umuman kiritilmagan bo'lsa —
+            # eng birinchi harakat (tovar chiqishi / qo'shimcha / qarz yozuvi) kunidan.
+            _ref = oxirgi_tolov
+            if not _ref:
+                _kunlar = []
+                for p in d.get("partiyalar", []):
+                    if p.get("chiqgan_sana"):
+                        _kunlar.append(str(p["chiqgan_sana"])[:10])
+                for q in d.get("qoshimcha", []):
+                    if q.get("sana"):
+                        _kunlar.append(str(q["sana"])[:10])
+                for t in d.get("tolovlar", []):
+                    if t.get("sana"):
+                        _kunlar.append(str(t["sana"])[:10])
+                _ref = min(_kunlar) if _kunlar else None
+            kutilgan_kun = None
+            if _ref:
+                try:
+                    kutilgan_kun = (_tday - date.fromisoformat(_ref)).days
+                    if kutilgan_kun < 0:
+                        kutilgan_kun = 0
+                except Exception:
+                    kutilgan_kun = None
+            res.append({
+                "id": mid, "mijoz": d["mijoz"], "telefon": d["telefon"], "status": d["status"],
+                "adres": d.get("adres"), "tolov_turi": d.get("tolov_turi"),
+                "jami": d["jami"], "tolangan": d["tolangan"], "qolgan_qarz": d["qolgan_qarz"],
+                "jami_qolgan": d["jami_qolgan"],
+                "partiya_soni": len(d["partiyalar"]),
+                "arxiv": _arxiv,
+                "yopilgan": bool(_kesimlar),
+                "kesim_sana": (min(_kesimlar) if _kesimlar else None),
+                "oxirgi_tolov": oxirgi_tolov,
+                "kutilgan_kun": kutilgan_kun,
+            })
+        except Exception:
+            import logging
+            logging.getLogger("db").exception("mijozlar: #%s o'tkazildi", mid)
+            continue
     if arxiv is True:
         res = [x for x in res if x["arxiv"]]
     elif arxiv is False:
