@@ -421,9 +421,29 @@ async def xarajat_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def hisobot_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await guard(update):
         return
-    ml = db.mijozlar()
+    try:
+        ml = db.mijozlar()
+    except Exception as e:
+        log.exception("hisobot mijozlar xato")
+        await update.message.reply_text(f"⚠️ Hisobot xatosi: {type(e).__name__}: {str(e)[:200]}")
+        return
     if not ml:
-        await update.message.reply_text("Hozircha mijoz yo'q.")
+        # Diagnostika: baza bo'shmi yoki boshqa joygami?
+        import os as _os
+        try:
+            import sqlite3 as _s
+            _c = _s.connect(str(db.DB_PATH))
+            _n = _c.execute("SELECT COUNT(*) FROM mijozlar").fetchone()[0]
+            _c.close()
+        except Exception as e:
+            _n = f"?({type(e).__name__})"
+        _sz = (_os.path.getsize(db.DB_PATH) if _os.path.exists(db.DB_PATH) else "fayl yo'q")
+        await update.message.reply_text(
+            "Hozircha mijoz yo'q.\n\n🔧 DIAGNOSTIKA (buni Claude'ga yuboring):\n"
+            f"Bazadagi mijozlar: {_n}\n"
+            f"DB fayl: {db.DB_PATH}\n"
+            f"DATA_DIR: {db.DATA_DIR}\n"
+            f"Fayl hajmi: {_sz}")
         return
     jami_qarz = sum(m["qolgan_qarz"] for m in ml)
     # Har mijozning arendadagi mahsulotlari — yonida ustun bo'lib ko'rinishi uchun
