@@ -1478,6 +1478,10 @@ async def _daily_backup(app):
         return
     if db.get_sozlama("zahira_oxirgi_kun") == now.date().isoformat():
         return  # bugun allaqachon yuborildi
+    # Bo'sh bazani avtomatik yubormaymiz — eski yaxshi zaxiralar ustiga tushmasin
+    if _db_mijoz_soni(db.DB_PATH) <= 0:
+        log.warning("avtomatik zahira o'tkazildi: baza bo'sh (0 mijoz)")
+        return
     db.set_sozlama("zahira_oxirgi_kun", now.date().isoformat())
     try:
         await _zahira_yubor(app, BACKUP_CHAT_ID)
@@ -1494,6 +1498,150 @@ async def zahira_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     except Exception:
         log.exception("qo'lda zahira xatolik")
         await update.message.reply_text("❌ Zaxira yaratishda xatolik.")
+
+
+def _db_mijoz_soni(path):
+    """Berilgan .db faylida nechta mijoz borligini qaytaradi (xato bo'lsa -1)."""
+    import sqlite3 as _s
+    try:
+        c = _s.connect(str(path))
+        n = c.execute("SELECT COUNT(*) FROM mijozlar").fetchone()[0]
+        c.close()
+        return int(n)
+    except Exception:
+        return -1
+
+
+def _tiklash_bytes_ajrat(data):
+    """ZIP yoki to'g'ridan-to'g'ri .db bo'lsin — ichidan arenda.db baytlarini chiqaradi.
+    Qaytadi: (db_bytes, xato_matni). Biri None bo'ladi."""
+    import pyzipper
+    import zipfile
+    # To'g'ridan-to'g'ri SQLite fayli bo'lsa
+    if data[:16] == b"SQLite format 3\x00":
+        return data, None
+    # ZIP bo'lsa — parolsiz, keyin BACKUP_PAROL bilan sinaymiz
+    parol = (os.getenv("BACKUP_PAROL") or "").encode() or None
+    for pw in (None, parol):
+        if pw is None and parol is not None and data[:2] != b"PK":
+            continue
+        try:
+            with pyzipper.AESZipFile(BytesIO(data)) as zf:
+                nomlar = zf.namelist()
+                ichki = next((n for n in nomlar if n.lower().endswith(".db")), None)
+                if not ichki:
+                    return None, "ZIP ichida .db fayl topilmadi."
+                if pw is not None:
+                    zf.setpassword(pw)
+                return zf.read(ichki), None
+        except RuntimeError:
+            continue  # parol xato — keyingi urinish
+        except (zipfile.BadZipFile, pyzipper.BadZipFile):
+            return None, "Bu to'g'ri ZIP fayl emas."
+        except Exception as e:
+            last = str(e)
+            continue
+    return None, ("ZIP parol bilan qulflangan va parol mos kelmadi "
+                  "(Railway'dagi BACKUP_PAROL bilan tekshiring).")
+
+
+async def tiklash_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await admin_guard(update):
+        return
+    ctx.user_data["tiklash_kut"] = True
+    await update.message.reply_text(
+        "♻️ *Zaxiradan tiklash*\n\n"
+        "Telegramingizdagi zaxira faylini (🛡 `zahira_...zip`) shu yerga *yuboring* "
+        "(forward qiling yoki qo'shib yuboring).\n\n"
+        "Men uni tekshirib, ichidagi mijozlarni bazaga qaytaraman.\n\n"
+        "⚠️ Hozirgi (bo'sh) baza o'rniga o'sha fayldagi ma'lumot qo'yiladi.\n"
+        "Bekor qilish: /bekor",
+        parse_mode="Markdown")
+
+
+async def bekor_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if ctx.user_data.pop("tiklash_kut", None):
+        await update.message.reply_text("Bekor qilindi. Tiklash to'xtatildi.")
+
+
+async def handle_hujjat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Admin /tiklash bosgach yuborgan zaxira faylini bazaga qaytaradi."""
+    if not ctx.user_data.get("tiklash_kut"):
+        return  # tiklash rejimida emasmiz — e'tibor bermaymiz
+    if not db.is_admin(update.effective_user.id):
+        return
+    ctx.user_data.pop("tiklash_kut", None)  # bir urinish
+    doc = update.message.document
+    if not doc:
+        await update.message.reply_text("Fayl topilmadi. Yana /tiklash bosib qayta yuboring.")
+        return
+    await update.message.reply_text("⏳ Fayl tekshirilyapti…")
+    try:
+        f = await doc.get_file()
+        ba = bytes(await f.download_as_bytearray())
+    except Exception:
+        log.exception("tiklash: yuklab olish xatosi")
+        await update.message.reply_text("❌ Faylni yuklab bo'lmadi. Qaytadan urinib ko'ring.")
+        return
+    db_bytes, xato = _tiklash_bytes_ajrat(ba)
+    if xato:
+        await update.message.reply_text("❌ " + xato + "\n\nYana /tiklash bosing.")
+        return
+    # Vaqtinchalik faylga yozib tekshiramiz
+    import tempfile
+    import os as _os
+    tdir = tempfile.mkdtemp()
+    tpath = _os.path.join(tdir, "tekshir.db")
+    with open(tpath, "wb") as fh:
+        fh.write(db_bytes)
+    soni = _db_mijoz_soni(tpath)
+    if soni < 0:
+        await update.message.reply_text(
+            "❌ Bu faylda to'g'ri baza yo'q (mijozlar jadvali topilmadi).\n"
+            "Boshqa zaxira faylini yuboring. Yana /tiklash bosing.")
+        try: _os.remove(tpath); _os.rmdir(tdir)
+        except Exception: pass
+        return
+    if soni == 0:
+        await update.message.reply_text(
+            "⚠️ Bu zaxirada ham *0 ta mijoz*. Bu bo'sh nusxa.\n"
+            "Telegramda *eski*, ichida mijozlar bor zaxirani toping "
+            "(izohida «... ta mijoz» deb yozilgan bo'ladi). Yana /tiklash bosing.",
+            parse_mode="Markdown")
+        try: _os.remove(tpath); _os.rmdir(tdir)
+        except Exception: pass
+        return
+    # Hozirgi bazani ehtiyot uchun saqlab, almashtiramiz
+    try:
+        eski_soni = _db_mijoz_soni(db.DB_PATH)
+        import shutil
+        try:
+            shutil.copy(str(db.DB_PATH), str(db.DB_PATH) + ".tiklashdan_oldin")
+        except Exception:
+            pass
+        for ext in ("-journal", "-wal", "-shm"):
+            p = str(db.DB_PATH) + ext
+            if _os.path.exists(p):
+                try: _os.remove(p)
+                except Exception: pass
+        yangi = str(db.DB_PATH) + ".yangi"
+        with open(yangi, "wb") as fh:
+            fh.write(db_bytes)
+        _os.replace(yangi, str(db.DB_PATH))
+    except Exception:
+        log.exception("tiklash: almashtirish xatosi")
+        await update.message.reply_text("❌ Bazani almashtirishda xatolik.")
+        return
+    finally:
+        try: _os.remove(tpath); _os.rmdir(tdir)
+        except Exception: pass
+    yangi_soni = _db_mijoz_soni(db.DB_PATH)
+    await update.message.reply_text(
+        f"✅ *Tiklandi!*\n\n"
+        f"Qaytgan mijozlar: *{yangi_soni} ta*\n"
+        f"(oldin bazada: {eski_soni} ta edi)\n\n"
+        f"Tekshiring: /hisobot yoki /mijozlar",
+        parse_mode="Markdown")
 
 
 async def _set_commands(app):
@@ -1631,6 +1779,8 @@ async def run():
     app.add_handler(CommandHandler("ombor_hisobla", ombor_hisobla_cmd))
     app.add_handler(CommandHandler("parol", parol_cmd))
     app.add_handler(CommandHandler("zahira", zahira_cmd))
+    app.add_handler(CommandHandler("tiklash", tiklash_cmd))
+    app.add_handler(CommandHandler("bekor", bekor_cmd))
     app.add_handler(CommandHandler("haydovchilar", haydovchilar_cmd))
     app.add_handler(CommandHandler("haydovchi_qosh", haydovchi_qosh_cmd))
     app.add_handler(CommandHandler("haydovchi_ochir", haydovchi_ochir_cmd))
@@ -1650,6 +1800,7 @@ async def run():
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.LOCATION | filters.VENUE, handle_location))
     app.add_handler(MessageHandler(filters.Sticker.ALL, handle_sticker))
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_hujjat))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     port = int(os.getenv("PORT", "8080"))
