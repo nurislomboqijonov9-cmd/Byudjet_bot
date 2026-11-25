@@ -139,6 +139,29 @@ h1{font-size:2.3rem;font-weight:800;letter-spacing:-.03em;margin-top:.35rem;line
 .kvrow:last-child{border:0}
 .kvrow b{font-size:1.2rem;color:var(--tx);font-weight:800}
 .kvrow .sw{display:inline-block;width:.6rem;height:.6rem;border-radius:.15rem;margin-right:.5rem}
+/* Sotuv bo'limi */
+.navsec{display:flex;align-items:center;gap:.5rem;margin:1rem .3rem .35rem;font-size:.66rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+.navsec:first-child{margin-top:0}
+.navsec .i{width:.85rem;height:.85rem;opacity:.7}
+.donutwrap{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+.donut{position:relative;width:100%;max-width:16rem;margin:0 auto}
+.donut svg{width:100%;height:auto;display:block}
+.donut .dc{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.donut .dp{font-size:3rem;font-weight:800;letter-spacing:-.04em;line-height:1;color:var(--tx)}
+.donut .dl{font-size:.72rem;color:var(--mut);font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-top:.35rem}
+.distbar{height:1.1rem;border-radius:999px;overflow:hidden;display:flex;background:#171f2a;border:1px solid var(--ln)}
+.distbar i{display:block;height:100%}
+.rsnwrap{flex:1;display:flex;flex-direction:column;justify-content:center;gap:.55rem;min-height:0;padding:.3rem 0}
+.rsn{display:flex;align-items:center;gap:.9rem}
+.rsn .rn{flex:none;width:1.8rem;height:1.8rem;border-radius:.5rem;background:#171f2a;color:var(--mut);font-weight:800;font-size:.9rem;display:flex;align-items:center;justify-content:center}
+.rsn .rn.gold{background:linear-gradient(145deg,var(--gold),#c89a44);color:#1a1205}
+.rsn .rb{flex:1;min-width:0}
+.rsn .rbt{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;margin-bottom:.3rem}
+.rsn .rl{font-size:1rem;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rsn .rv{font-size:.86rem;color:var(--mut);font-weight:700;flex:none}
+.rsn .rbar{height:.5rem;border-radius:999px;background:#171f2a;overflow:hidden}
+.rsn .rbar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--ro),#f43f5e)}
+.rsn .rbar i.em{background:linear-gradient(90deg,var(--em),#10b981)}
 
 /* Stat strip for list screens */
 .stats{display:grid;gap:1.1rem;flex:none}
@@ -333,8 +356,10 @@ body.locked #nav,body.locked .ctrl,body.locked .navl,body.locked .upd{visibility
 let K=new URLSearchParams(location.search).get('k')||'';  // har yuklanishda bo'sh -> PIN so'raladi
 const DEMO=new URLSearchParams(location.search).has('demo'); // ?demo=1 — server'siz namuna ma'lumot
 const DAVOMAT_URL="https://web-production-07267.up.railway.app";  // Davomat server manzili
+const ROP_URL="";  // ROP.AI (sotuv voronkasi) — rop-ai Railway manzili; bo'sh bo'lsa Sotuv bo'limi chiqmaydi
+const ROP_KEY="";  // rop-ai TV_KEY (agar o'rnatilgan bo'lsa)
 const $=id=>document.getElementById(id);
-let DATA=null, CARS=null, DAVOMAT=null, EVENTS=null, views=[], cur=0;
+let DATA=null, CARS=null, DAVOMAT=null, EVENTS=null, SOTUV=null, views=[], cur=0;
 let KUN=null;  // ochilgan mashinaning kunlik ma'lumoti (kesh)
 let detailDan=null, detailGacha=null;  // tanlangan oraliq (YYYY-MM-DD); teng bo'lsa — bitta kun
 let calMonth=null, calPending=null;     // kalendar oyi {y,m} va oraliq boshlanishi
@@ -666,16 +691,69 @@ function yangilaMarkerlar(){
   $('mapleg').innerHTML='<div class="st c-em"><div class="si">'+ic('truck')+'</div><div><div class="sl">Harakatda</div><div class="sv">'+on+'</div></div></div><div class="st c-ro"><div class="si">'+ic('alert')+'</div><div><div class="sl">To\'xtagan</div><div class="sv">'+(CARS.length-on)+'</div></div></div>';
 }
 
+/* ===== Sotuv (ROP.AI CRM) ===== */
+function ekranSotuvVoronka(s){
+  const jami=s.jami||0, so=s.sotildi||0, ot=s.otkaz||0, ja=s.jarayonda||0, konv=s.konversiya||0, tot=Math.max(1,jami);
+  const wSo=so/tot*100, wOt=ot/tot*100, wJa=Math.max(0,100-wSo-wOt);
+  const kpi=[
+    `<div class="kpi c-vi"><div class="kt">${ic('users')}Jami lid</div><div class="kv">${son(jami)}<small>ta</small></div><div class="kvis"><div class="kf" style="margin:0"><span>shu oy</span><span><b>${son(s.bugun||0)}</b> bugun</span></div></div></div>`,
+    `<div class="kpi c-em"><div class="kt">${ic('check')}Sotildi</div><div class="kv" style="color:var(--em)">${son(so)}</div><div class="kvis"><div class="kf" style="margin:0"><span>yopilgan bitim</span></div></div></div>`,
+    `<div class="kpi c-ro"><div class="kt">${ic('x')}Otkaz</div><div class="kv" style="color:var(--ro)">${son(ot)}</div><div class="kvis"><div class="kf" style="margin:0"><span>sota olmadik</span></div></div></div>`,
+    `<div class="kpi c-gold"><div class="kt">${ic('clock')}Jarayonda</div><div class="kv" style="color:var(--gold)">${son(ja)}</div><div class="kvis"><div class="kf" style="margin:0"><span>ochiq lid</span></div></div></div>`,
+    `<div class="kpi c-sky"><div class="kt">${ic('trend')}Konversiya</div><div class="kv" style="color:var(--sky)">${konv}<small>%</small></div><div class="kvis"><div class="seg"><i style="width:${konv}%;background:var(--sky)"></i></div></div></div>`
+  ];
+  const R=80,C=2*Math.PI*R,off=C*(1-Math.min(100,konv)/100);
+  return {nom:"Sotuv voronkasi", ic:'trend', html:
+    `<div class="kpis" style="grid-template-columns:repeat(${kpi.length},1fr)">${kpi.join('')}</div>
+     <div class="ovg" style="grid-template-columns:1fr 1.25fr">
+       <div class="card c-em"><div class="ch"><span class="dotc"></span><h3>Konversiya</h3><span class="hint">lid → sotuv</span></div>
+         <div class="donutwrap"><div class="donut"><svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="80" fill="none" stroke="#171f2a" stroke-width="18"/>
+           <circle cx="100" cy="100" r="80" fill="none" stroke="var(--em)" stroke-width="18" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 100 100)"/></svg>
+           <div class="dc"><div class="dp">${konv}%</div><div class="dl">konversiya</div></div></div></div></div>
+       <div class="card c-vi"><div class="ch"><span class="dotc"></span><h3>Taqsimot</h3><span class="hint">${son(jami)} ta lid</span></div>
+         <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:1.4rem;min-height:0">
+         <div class="distbar"><i style="width:${wSo}%;background:var(--em)"></i><i style="width:${wOt}%;background:var(--ro)"></i><i style="width:${wJa}%;background:var(--gold)"></i></div>
+         <div><div class="kvrow"><span><i class="sw" style="background:var(--em)"></i>Sotildi</span><b>${son(so)}</b></div>
+           <div class="kvrow"><span><i class="sw" style="background:var(--ro)"></i>Otkaz</span><b>${son(ot)}</b></div>
+           <div class="kvrow"><span><i class="sw" style="background:var(--gold)"></i>Jarayonda</span><b>${son(ja)}</b></div></div></div></div>
+     </div>`};
+}
+function ekranSotuvOtkaz(s){
+  const list=(s.otkaz_sabablari||[]), tot=Math.max(1,list.reduce((a,x)=>a+(x.soni||0),0)), mx=Math.max(1,...list.map(x=>x.soni||0));
+  const rows=list.slice(0,9).map((x,i)=>`<div class="rsn"><span class="rn">${i+1}</span><div class="rb"><div class="rbt"><span class="rl">${esc(x.sabab)}</span><span class="rv">${son(x.soni)} · ${(x.soni/tot*100).toFixed(1)}%</span></div><div class="rbar"><i style="width:${x.soni/mx*100}%"></i></div></div></div>`).join('');
+  return {nom:"Otkaz sabablari", ic:'alert', html:
+    `<div class="card c-ro" style="flex:1"><div class="ch"><span class="dotc"></span><h3>Otkaz sabablari</h3><span class="hint">${son(s.otkaz||0)} ta otkaz</span></div>
+      <div class="rsnwrap">${rows||bo('check',"Otkaz yo'q")}</div></div>`};
+}
+function ekranSotuvMenejer(s){
+  const list=(s.menejer||[]), mx=Math.max(1,...list.map(x=>x.sotildi||0));
+  const rows=list.slice(0,9).map((x,i)=>`<div class="rsn"><span class="rn${i===0?' gold':''}">${i+1}</span><div class="rb"><div class="rbt"><span class="rl">${esc(x.ism)}</span><span class="rv">${son(x.sotildi)} sotuv · ${x.konv}%</span></div><div class="rbar"><i class="em" style="width:${(x.sotildi||0)/mx*100}%"></i></div></div></div>`).join('');
+  return {nom:"Menejer reytingi", ic:'users', html:
+    `<div class="card c-em" style="flex:1"><div class="ch"><span class="dotc"></span><h3>Menejer reytingi</h3><span class="hint">sotuvlar bo'yicha</span></div>
+      <div class="rsnwrap">${rows||bo('users',"Ma'lumot yo'q")}</div></div>`};
+}
+
 /* ===== Aylanish ===== */
 function qurViews(){
-  views=[]; if(DATA){ views.push(ekranUmumiy(DATA)); ekranlarOmbor(DATA).forEach(v=>views.push(v)); views.push(ekranBandlik(DATA)); ekranlarQarzdor(DATA).forEach(v=>views.push(v)); ekranlarSotuv(DATA).forEach(v=>views.push(v)); }
-  if(DAVOMAT) ekranlarDavomat(DAVOMAT).forEach(v=>views.push(v));
+  views=[];
+  const ijara=[];
+  if(DATA){ ijara.push(ekranUmumiy(DATA)); ekranlarOmbor(DATA).forEach(v=>ijara.push(v)); ijara.push(ekranBandlik(DATA)); ekranlarQarzdor(DATA).forEach(v=>ijara.push(v)); ekranlarSotuv(DATA).forEach(v=>ijara.push(v)); }
+  if(DAVOMAT) ekranlarDavomat(DAVOMAT).forEach(v=>ijara.push(v));
   if(CARS && CARS.length){
-    ekranlarMashina(CARS).forEach(v=>views.push(v));
-    views.push({nom:"Jonli xarita", ic:'map', kind:"dmap", html:""});
+    ekranlarMashina(CARS).forEach(v=>ijara.push(v));
+    ijara.push({nom:"Jonli xarita", ic:'map', kind:"dmap", html:""});
   }
+  ijara.forEach(v=>{ v.bolim="Ijara"; views.push(v); });
+  const sotuv=[];
+  if(SOTUV){ sotuv.push(ekranSotuvVoronka(SOTUV)); if((SOTUV.otkaz_sabablari||[]).length) sotuv.push(ekranSotuvOtkaz(SOTUV)); if((SOTUV.menejer||[]).length) sotuv.push(ekranSotuvMenejer(SOTUV)); }
+  sotuv.forEach(v=>{ v.bolim="Sotuv"; views.push(v); });
   const prog=$('prog')||Object.assign(document.createElement('i'),{id:'prog'});
-  $('nav').innerHTML=views.map((v,i)=>'<div class="nv'+(i===cur?' on':'')+'" onclick="borga('+i+')">'+ic(v.ic)+'<span class="nt">'+v.nom+'</span>'+(v.pg?'<span class="np">'+v.pg+'</span>':'')+'<span class="trk"></span></div>').join('');
+  let navHtml='', last=null;
+  views.forEach((v,i)=>{
+    if(v.bolim!==last){ navHtml+='<div class="navsec">'+ic(v.bolim==="Sotuv"?'trend':'home')+'<span>'+(v.bolim||'')+'</span></div>'; last=v.bolim; }
+    navHtml+='<div class="nv'+(i===cur?' on':'')+'" data-i="'+i+'" onclick="borga('+i+')">'+ic(v.ic)+'<span class="nt">'+v.nom+'</span>'+(v.pg?'<span class="np">'+v.pg+'</span>':'')+'<span class="trk"></span></div>';
+  });
+  $('nav').innerHTML=navHtml;
   const a=$('nav').querySelector('.nv.on .trk'); if(a) a.appendChild(prog); else document.body.appendChild(prog);
 }
 function koarsat(i){
@@ -683,7 +761,8 @@ function koarsat(i){
   cur=((i%views.length)+views.length)%views.length;
   const v=views[cur];
   $('scr_nom').textContent=v.nom+(v.pg?(' · '+v.pg):'');
-  $('scr_idx').textContent='Ekran '+(cur+1)+' / '+views.length;
+  const secV=views.filter(x=>x.bolim===v.bolim), posS=secV.indexOf(v)+1;
+  $('scr_idx').textContent=(v.bolim?((v.bolim==="Sotuv"?'📞 SOTUV':'🏗 IJARA')+' · '+posS+'/'+secV.length):('Ekran '+(cur+1)+' / '+views.length));
   if(v.kind==="dmap"){
     $('stage').innerHTML="";
     $('dmap').style.display="block"; $('mapleg').style.display="flex";
@@ -693,7 +772,7 @@ function koarsat(i){
     $('dmap').style.display="none"; $('mapleg').style.display="none";
     $('stage').innerHTML='<div class="scr">'+v.html+'</div>';
   }
-  [...$('nav').children].forEach((el,idx)=>{ el.classList.toggle('on',idx===cur); if(idx===cur){ const t=el.querySelector('.trk'); const p=$('prog'); if(t&&p) t.appendChild(p); } });
+  $('nav').querySelectorAll('.nv').forEach(el=>{ const on=(+el.dataset.i===cur); el.classList.toggle('on',on); if(on){ const t=el.querySelector('.trk'); const p=$('prog'); if(t&&p) t.appendChild(p); } });
   progReset();
 }
 function keyingi(){ if(views.length && !DETAIL) koarsat(cur+1); }
@@ -836,9 +915,13 @@ async function davomatYukla(){
   if(DEMO) return;
   try{ const r=await fetch(DAVOMAT_URL+'/api/tv'+(K?('?k='+encodeURIComponent(K)):'')); const d=await r.json(); if(d && d.odamlar) DAVOMAT=d; }catch(e){}
 }
+async function sotuvYukla(){
+  if(DEMO || !ROP_URL) return;
+  try{ const r=await fetch(ROP_URL+'/api/tv'+(ROP_KEY?('?key='+encodeURIComponent(ROP_KEY)):'')); const d=await r.json(); if(d && !d.detail) SOTUV=d; }catch(e){}
+}
 async function hammasi(){
   const eski=views.length;
-  await Promise.all([yukla(), carsYukla(), davomatYukla()]);
+  await Promise.all([yukla(), carsYukla(), davomatYukla(), sotuvYukla()]);
   qurViews();
   if(!eski && views.length) koarsat(0);
   else if(cur>=views.length) koarsat(0);
