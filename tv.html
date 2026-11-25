@@ -356,7 +356,7 @@ body.locked #nav,body.locked .ctrl,body.locked .navl,body.locked .upd{visibility
 let K=new URLSearchParams(location.search).get('k')||'';  // har yuklanishda bo'sh -> PIN so'raladi
 const DEMO=new URLSearchParams(location.search).has('demo'); // ?demo=1 — server'siz namuna ma'lumot
 const DAVOMAT_URL="https://web-production-07267.up.railway.app";  // Davomat server manzili
-const ROP_URL="";  // ROP.AI (sotuv voronkasi) — rop-ai Railway manzili; bo'sh bo'lsa Sotuv bo'limi chiqmaydi
+const ROP_URL="https://rop-ai-production.up.railway.app";  // ROP.AI (sotuv voronkasi)
 const ROP_KEY="";  // rop-ai TV_KEY (agar o'rnatilgan bo'lsa)
 const $=id=>document.getElementById(id);
 let DATA=null, CARS=null, DAVOMAT=null, EVENTS=null, SOTUV=null, views=[], cur=0;
