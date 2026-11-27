@@ -942,11 +942,13 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
             continue
         g = bgr.setdefault(kim, {"kim": kim, "items": [], "jami": 0.0, "jami_kunlik": 0.0})
         _kn = float(h.get("kunlik_narx") or 0)
+        # Mijoz qaytarsa — brovdan olingan ulush ham qaytgan hisoblanadi (hali mijozda qolgani)
+        _aktiv = min(bm, max(0.0, float(h.get("qolgan") or 0)))
         g["items"].append({"mahsulot": h["mahsulot"], "miqdor": bm,
-                           "partiya_raqam": h["partiya_raqam"], "qolgan": h["qolgan"],
-                           "narx": _kn, "kunlik": round(bm * _kn)})
+                           "partiya_raqam": h["partiya_raqam"], "qolgan": _aktiv,
+                           "narx": _kn, "kunlik": round(_aktiv * _kn)})
         g["jami"] += bm
-        g["jami_kunlik"] += bm * _kn
+        g["jami_kunlik"] += _aktiv * _kn
     for g in bgr.values():
         g["items"].sort(key=lambda x: (x["mahsulot"] or "").lower())
     brovdan = sorted(bgr.values(), key=lambda x: x["kim"].lower())
@@ -2700,11 +2702,13 @@ def mijoz_detail(mijoz_id, today=None, kesim=False):
             continue
         g = bgr.setdefault(kim, {"kim": kim, "items": [], "jami": 0.0, "jami_kunlik": 0.0})
         _kn = float(h.get("kunlik_narx") or 0)
+        # Mijoz qaytarsa — brovdan olingan ulush ham qaytgan hisoblanadi (hali mijozda qolgani)
+        _aktiv = min(bm, max(0.0, float(h.get("qolgan") or 0)))
         g["items"].append({"mahsulot": h["mahsulot"], "miqdor": bm,
-                           "partiya_raqam": h["partiya_raqam"], "qolgan": h["qolgan"],
-                           "narx": _kn, "kunlik": round(bm * _kn)})
+                           "partiya_raqam": h["partiya_raqam"], "qolgan": _aktiv,
+                           "narx": _kn, "kunlik": round(_aktiv * _kn)})
         g["jami"] += bm
-        g["jami_kunlik"] += bm * _kn
+        g["jami_kunlik"] += _aktiv * _kn
     for g in bgr.values():
         g["items"].sort(key=lambda x: (x["mahsulot"] or "").lower())
     brovdan = sorted(bgr.values(), key=lambda x: x["kim"].lower())
