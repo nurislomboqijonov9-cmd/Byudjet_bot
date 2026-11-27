@@ -353,7 +353,7 @@ body.locked #nav,body.locked .ctrl,body.locked .navl,body.locked .upd{visibility
 </main>
 
 <script>
-let K=new URLSearchParams(location.search).get('k')||'';  // har yuklanishda bo'sh -> PIN so'raladi
+let K=new URLSearchParams(location.search).get('k')||(function(){try{return sessionStorage.getItem('tvk')||''}catch(e){return ''}})();  // ?k= yoki shu tabda saqlangan PIN
 const DEMO=new URLSearchParams(location.search).has('demo'); // ?demo=1 — server'siz namuna ma'lumot
 const DAVOMAT_URL="https://web-production-07267.up.railway.app";  // Davomat server manzili
 const ROP_URL="https://rop-ai-production.up.railway.app";  // ROP.AI (sotuv voronkasi)
@@ -947,13 +947,14 @@ window.pinKirit=async function(){
   const p=$('pinp'); if(!p) return;
   K=(p.value||'').trim();
   if(!K){ pinEkran(true); return; }
-  if(await pinTekshir()) ishga(); else { K=''; pinEkran(true); }
+  if(await pinTekshir()){ try{sessionStorage.setItem('tvk',K)}catch(e){} ishga(); } else { K=''; pinEkran(true); }
 };
 async function ishga(){
   document.body.classList.remove('locked');
   $('stage').innerHTML='';
   hammasi(); setInterval(hammasi,30000);
   startRot();
+  setTimeout(function(){ try{location.reload()}catch(e){} }, 2*3600*1000);  // har 2 soatda yangi versiyani oladi (PIN saqlanadi)
 }
 window.pinOzgartir=function(){
   if(DEMO){ alert("Demo rejimda PIN o'zgartirib bo'lmaydi"); return; }
