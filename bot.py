@@ -815,6 +815,38 @@ async def parol_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "_Shu login bilan kirgan FAQAT perechisleniya mijozlarni ko'radi._",
             parse_mode="Markdown", disable_web_page_preview=True)
         return
+    # Lyulka (faqat lyulka mijozlari — faqat qaytarish, pul yo'q)
+    if a and a[0].lower() in ("lyulka", "lulka", "lyulkachi"):
+        if len(a) < 3:
+            p = db.get_xodim(db.LYULKA_ID)
+            hozir = f"\n\nHozirgi: login `{p['login']}`" if (p and p.get("login")) else "\n\n_Hali qo'yilmagan._"
+            await update.message.reply_text(
+                "🛗 *Lyulka login (faqat lyulka mijozlari)*\n\n"
+                "Kirgan odam FAQAT lyulka olgan mijozlarni ko'radi. "
+                "Pul ko'rinmaydi — faqat qaytganini belgilaydi.\n\n"
+                "Qo'yish: `/parol lyulka <login> <parol>`\n"
+                "Masalan: `/parol lyulka lyulka 2026`\n"
+                "O'chirish: `/parol lyulka ochir`" + hozir, parse_mode="Markdown")
+            return
+        if a[1].lower() == "ochir":
+            db.lyulka_ochir()
+            await update.message.reply_text("🗑 Lyulka login o'chirildi.")
+            return
+        login, parol = a[1], a[2]
+        res = db.set_lyulka_parol(login, parol)
+        if not res.get("ok"):
+            await update.message.reply_text(f"❌ {res.get('xato')}")
+            return
+        url = webapp_url() or ""
+        base = url.split("?")[0]
+        await update.message.reply_text(
+            f"✅ *Lyulka login tayyor*\n\n"
+            f"🔑 Login: `{res['login']}`\n🔒 Parol: `{parol}`\n\n"
+            f"🌐 Havola:\n`{base}`\n\n"
+            "_Shu login bilan kirgan FAQAT lyulka mijozlarni ko'radi, "
+            "pul ko'rmaydi, faqat qaytganini belgilaydi._",
+            parse_mode="Markdown", disable_web_page_preview=True)
+        return
     if len(a) == 2 and a[0].lower() == "ochir" and a[1].lower() in ("hamma", "hammasi", "all"):
         db.barcha_parollarni_ochir()
         await update.message.reply_text("🗑 Alohida loginlar o'chirildi (umumiy login qoldi).")
@@ -872,6 +904,7 @@ async def parol_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "Berish: `/parol <id> <login> <parol>`\n"
             "Masalan: `/parol 12345678 akmal 4477`\n\n"
             "Umumiy (bitta) login: `/parol umumiy <login> <parol>`\n"
+            "Lyulka (faqat lyulka, pulsiz): `/parol lyulka <login> <parol>`\n"
             "Hammaga alohida: `/parol hammaga`\n"
             "Ro'yxat: `/parol royxat`\n"
             "O'chirish: `/parol ochir <id>`\n\n"

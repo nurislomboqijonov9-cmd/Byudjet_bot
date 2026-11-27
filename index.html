@@ -435,21 +435,22 @@
     window._isAloqa=(d.is_aloqa===true);
     window._isKoruvchi=(d.is_koruvchi===true);
     window._isPerech=(d.is_perech===true);
+    window._isLyulka=(d.is_lyulka===true);
     setTimeout(()=>{const b=document.getElementById('fsb');if(b)b.textContent=document.body.classList.contains('wide')?'⤡':'⛶';tunSync();tickClock();},0);
     app.innerHTML=`<header><div><div class="eyebrow">${BOLIM==='sotuv'?'Sotuv hisobi':'Ijara hisobi'}${window.ARXIV?' · 📂 Arxiv':''}</div><h1>Mijozlar</h1></div>
-        ${(window._isAloqa||window._isPerech)?'':'<button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>'}
+        ${(window._isAloqa||window._isPerech||window._isLyulka)?'':'<button class="ombnav" onclick="loadOmbor()">📦 Ombor</button>'}
         <button class="fsbtn" id="fsb" onclick="wideTgl()">⛶</button>
         <button class="tunbtn" id="tunb" onclick="tunTgl()">🌙</button>
         ${(tg&&tg.initData)?'':'<button class="tunbtn" onclick="chiqish()">🚪</button>'}
-        ${window._canYoz?'<button class="plus" style="margin-left:8px" onclick="showNew()">➕</button>':''}</header>
-      ${window._isPerech?'':`<div class="inrow" style="margin:0 0 12px">
+        ${(window._canYoz&&!window._isLyulka)?'<button class="plus" style="margin-left:8px" onclick="showNew()">➕</button>':''}</header>
+      ${(window._isPerech||window._isLyulka)?'':`<div class="inrow" style="margin:0 0 12px">
         <button class="tabb ${(BOLIM==='ijara'&&!window.ARXIV)?'on':''}" onclick="bolimTgl('ijara')">🏗 Ijara</button>
         <button class="tabb ${(BOLIM==='sotuv'&&!window.ARXIV)?'on':''}" onclick="bolimTgl('sotuv')">🏷 Sotuv</button>
         <button class="tabb ${window.ARXIV?'on':''}" onclick="arxivTgl()">📂 Arxiv</button></div>`}
-      <div class="hero"><div class="arc"></div><div class="lbl">${window.ARXIV?'Arxiv — yopilgan mijozlar':((window._isPerech||window._isKoruvchi)?'Mijozlar':'Umumiy qarz')}</div>
-        <div class="amt num">${window.ARXIV?_ml.length:((window._isKoruvchi||window._isPerech)?_ml.length:(window._pulKorsin?som(jami):'•••'))} <small>${window.ARXIV?'ta':((window._isKoruvchi||window._isPerech)?'ta mijoz':(window._pulKorsin?'so\'m':''))}</small></div>${(window._isKoruvchi||window._isPerech)?'':`<div class="sub">${_ml.length} ta mijoz</div>`}</div>
+      <div class="hero"><div class="arc"></div><div class="lbl">${window.ARXIV?'Arxiv — yopilgan mijozlar':((window._isPerech||window._isKoruvchi||window._isLyulka)?(window._isLyulka?'Lyulka mijozlari':'Mijozlar'):'Umumiy qarz')}</div>
+        <div class="amt num">${window.ARXIV?_ml.length:((window._isKoruvchi||window._isPerech||window._isLyulka)?_ml.length:(window._pulKorsin?som(jami):'•••'))} <small>${window.ARXIV?'ta':((window._isKoruvchi||window._isPerech||window._isLyulka)?'ta mijoz':(window._pulKorsin?'so\'m':''))}</small></div>${(window._isKoruvchi||window._isPerech||window._isLyulka)?'':`<div class="sub">${_ml.length} ta mijoz</div>`}</div>
       <div id="newform"></div>
-      ${(window.ARXIV||window._isKoruvchi||window._isPerech)?'':`<div class="inrow" style="margin:0 0 10px">
+      ${(window.ARXIV||window._isKoruvchi||window._isPerech||window._isLyulka)?'':`<div class="inrow" style="margin:0 0 10px">
         <button class="tabb ${window._saral!=='tolov'?'on':''}" id="sr_qarz" onclick="saralTgl('qarz')">💰 Qarzi bo'yicha</button>
         <button class="tabb ${window._saral==='tolov'?'on':''}" id="sr_tolov" onclick="saralTgl('tolov')">⏰ To'lamaganlar</button></div>`}
       <div class="search"><input id="qidir" placeholder="🔍 Ism, telefon yoki manzil..." oninput="renderCards(this.value)"></div>
@@ -459,7 +460,7 @@
   }
 
   function tolovText(m){
-    if(window._isKoruvchi) return '';
+    if(window._isKoruvchi||window._isLyulka) return '';
     const k=m.kutilgan_kun;
     if(k==null) return '';
     const nd=(m.oxirgi_tolov)?('oxirgi to\'lov: '+k+' kun oldin'):('hali to\'lov yo\'q · '+k+' kun');
@@ -477,10 +478,10 @@
     let cards=list.map(m=>`<div class="card mcard st-${esc(m.status||'')}${m.tolov_turi==='perech'?' perech':''}"><div class="mijoz" onclick="window._listY=window.scrollY;loadMijoz(${m.id})">
         <div class="av"><span>${ini(m.mijoz)}</span></div>
         <div><div class="nm">${m.status&&STAT[m.status]?`<span class="stdot" style="background:${STAT[m.status].c}"></span>`:''}${esc(m.mijoz)}${m.yopilgan?` <span style="font-size:11px;font-weight:700;color:#C9763A;background:rgba(201,118,58,.14);padding:2px 7px;border-radius:6px;vertical-align:middle">🔒 Yopilgan</span>`:''}</div>
-          <div class="mt">${window._isKoruvchi?('📦 '+(m.tovarlar||'tovar yoq')):(`${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan${m.tolov_turi==='perech'?' · <b style="color:#7A4FC0">🏦 perech</b>':(m.tolov_turi==='naqd'?' · 💵':'')}${m.yopilgan&&m.kesim_sana?' · <b style="color:#C9763A">🔒 '+dmy(m.kesim_sana)+' da toxtatilgan</b>':''}`)}</div>
+          <div class="mt">${window._isLyulka?(m.telefon?('📞 '+esc(phones(m.telefon))):'🛗 Lyulka mijozi'):window._isKoruvchi?('📦 '+(m.tovarlar||'tovar yoq')):(`${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan${m.tolov_turi==='perech'?' · <b style="color:#7A4FC0">🏦 perech</b>':(m.tolov_turi==='naqd'?' · 💵':'')}${m.yopilgan&&m.kesim_sana?' · <b style="color:#C9763A">🔒 '+dmy(m.kesim_sana)+' da toxtatilgan</b>':''}`)}</div>
           ${m.adres?`<div class="mt" style="color:var(--brand)">📍 ${esc(m.adres)}</div>`:''}
           ${tolovText(m)}</div>
-        ${window._isKoruvchi?'':`<div class="val"><b>${som(m.qolgan_qarz)}</b><span>so'm</span></div>`}<div class="chev">›</div></div></div>`).join('');
+        ${(window._isKoruvchi||window._isLyulka)?'':`<div class="val"><b>${som(m.qolgan_qarz)}</b><span>so'm</span></div>`}<div class="chev">›</div></div></div>`).join('');
     if(!list.length) cards='<div class="empty">'+(q?'Topilmadi':'Hozircha mijoz yo\'q. «➕ Yangi» bosing.')+'</div>';
     document.getElementById('cards').innerHTML=cards;
   };
@@ -536,6 +537,33 @@
           <div style="font-size:26px;font-weight:800;margin:4px 0 8px">${esc(d.mijoz)}</div>
           <div class="sub">📦 ${son(jami)} dona tovar tashqarida</div></div>
         <div style="font-size:14px;color:var(--soft);font-weight:700;margin:16px 4px 10px">TOVARLAR (chiqqan / qaytgan)</div>
+        ${ph}`;
+      window.scrollTo(0,0);
+      return;
+    }
+    // LYULKA xodimi: faqat lyulka mahsulotlari, faqat qaytarish (pul yo'q)
+    if(d.is_lyulka===true){
+      const parts=(d.partiyalar||[]).filter(p=>p.qolgan>0 || (p.qaytarishlar||[]).length);
+      let ph=parts.map(p=>{
+        const rr=(p.qaytarishlar||[]).map(q=>`<div class="mt" style="color:var(--pos);margin-top:4px">📥 ${son(q.miqdor)} ${esc(p.birlik||'ta')} qaytdi · ${dmy(q.qaytgan_sana)}</div>`).join('');
+        const retBox=(p.qolgan>0)?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--faint)">
+            <div class="inrow"><input class="f" id="r_miq${p.id}" inputmode="decimal" placeholder="Nechta qaytdi">
+              <input class="f" id="r_sana${p.id}" type="date" value="${bugun}"></div>
+            <button class="send" style="margin-top:8px" onclick="saveRet(${p.id},${d.id})">↩️ Qaytdi</button></div>`:'';
+        return `<div class="card" style="padding:14px 16px;margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:16px;font-weight:700">${esc(p.mahsulot)}</span>
+            <span style="font-size:15px;font-weight:700;color:${p.qolgan<=0?'var(--pos)':'var(--brand)'}">${son(p.qolgan)}/${son(p.miqdor)} ${esc(p.birlik||'ta')}${p.qolgan<=0?' ✓':''}</span></div>
+          <div class="mt" style="margin-top:6px">📤 Chiqdi · ${dmy(p.chiqgan_sana)}</div>${rr}${retBox}</div>`;
+      }).join('');
+      if(!parts.length) ph='<div class="empty">Bu mijozda lyulka yo\'q</div>';
+      const jami=parts.reduce((s,p)=>s+(p.qolgan>0?p.qolgan:0),0);
+      app.innerHTML=`<header style="padding:16px 4px 10px"><button class="ombnav" onclick="loadList()">‹ Mijozlar</button></header>
+        <div class="hero" style="padding:22px"><div class="arc"></div>
+          <div class="lbl">MIJOZ${d.telefon?' · 📞 '+esc(phones(d.telefon)):''}</div>
+          <div style="font-size:26px;font-weight:800;margin:4px 0 8px">${esc(d.mijoz)}</div>
+          <div class="sub">🛗 ${son(jami)} ta lyulka mijozda</div></div>
+        <div style="font-size:14px;color:var(--soft);font-weight:700;margin:16px 4px 10px">LYULKA — qaytganini belgilang</div>
         ${ph}`;
       window.scrollTo(0,0);
       return;

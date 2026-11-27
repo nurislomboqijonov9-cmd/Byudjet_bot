@@ -456,7 +456,7 @@ def get_xodim(uid):
 
 def add_xodim(uid, ism=None, rol="xodim", qoshgan_id=None):
     """Yangi xodim/admin qo'shadi yoki mavjudini yangilaydi (rol/ism)."""
-    if rol not in ("xodim", "admin", "aloqa", "koruvchi", "perech"):
+    if rol not in ("xodim", "admin", "aloqa", "koruvchi", "perech", "lyulka"):
         rol = "xodim"
     con = _con()
     ex = con.execute("SELECT id FROM xodimlar WHERE id = ?", (uid,)).fetchone()
@@ -2214,7 +2214,7 @@ def get_xodim(uid):
 
 def add_xodim(uid, ism=None, rol="xodim", qoshgan_id=None):
     """Yangi xodim/admin qo'shadi yoki mavjudini yangilaydi (rol/ism)."""
-    if rol not in ("xodim", "admin", "aloqa", "koruvchi", "perech"):
+    if rol not in ("xodim", "admin", "aloqa", "koruvchi", "perech", "lyulka"):
         rol = "xodim"
     con = _con()
     ex = con.execute("SELECT id FROM xodimlar WHERE id = ?", (uid,)).fetchone()
@@ -3649,10 +3649,61 @@ def perech_ochir():
     return {"ok": True}
 
 
+# ---------- LYULKA (faqat lyulka olgan mijozlar; pul ko'rinmaydi; faqat qaytarish) ----------
+LYULKA_ID = 3   # maxsus "lyulka kirish" hisobi (Telegram ID emas)
+
+
+def set_lyulka_parol(login, parol):
+    """Lyulka xodimi logini: kirsa faqat lyulka olgan mijozlar va ularning lyulkasi ko'rinadi.
+    Pul/to'lov ko'rinmaydi; faqat qaytarish yoza oladi."""
+    login = (login or "").strip().lower()
+    if not login or not parol:
+        return {"ok": False, "xato": "Login va parol kerak"}
+    con = _con()
+    band = con.execute("SELECT id FROM xodimlar WHERE LOWER(login)=? AND id<>?", (login, LYULKA_ID)).fetchone()
+    if band:
+        con.close()
+        return {"ok": False, "xato": "Bu login boshqa xodimda band"}
+    bor = con.execute("SELECT id FROM xodimlar WHERE id=?", (LYULKA_ID,)).fetchone()
+    if bor:
+        con.execute("UPDATE xodimlar SET ism=?, rol='lyulka', login=?, parol_hash=? WHERE id=?",
+                    ("Lyulka xodimi", login, _parol_hash(parol), LYULKA_ID))
+    else:
+        con.execute("INSERT INTO xodimlar (id, ism, rol, qoshgan_id, yaratilgan, login, parol_hash) "
+                    "VALUES (?,?,?,?,?,?,?)",
+                    (LYULKA_ID, "Lyulka xodimi", "lyulka", OWNER_ID, now_tk().isoformat(),
+                     login, _parol_hash(parol)))
+    con.commit()
+    con.close()
+    return {"ok": True, "login": login}
+
+
+def lyulka_ochir():
+    con = _con()
+    con.execute("DELETE FROM xodimlar WHERE id=?", (LYULKA_ID,))
+    con.commit()
+    con.close()
+    return {"ok": True}
+
+
+def _lyulka_mi(nom):
+    """Mahsulot nomi lyulkami?"""
+    s = (nom or "").strip().lower()
+    return ("lyulka" in s) or ("lulka" in s) or ("люл" in s)
+
+
+def lyulka_mijoz_idlari():
+    """Lyulka mahsuloti bor (bir martayam olgan) mijozlar id to'plami."""
+    con = _con()
+    rows = con.execute("SELECT DISTINCT mijoz_id, mahsulot FROM partiyalar").fetchall()
+    con.close()
+    return {r["mijoz_id"] for r in rows if _lyulka_mi(r["mahsulot"])}
+
+
 def barcha_parollarni_ochir(umumiydan_tashqari=True):
     con = _con()
     if umumiydan_tashqari:
-        con.execute("UPDATE xodimlar SET login=NULL, parol_hash=NULL WHERE id NOT IN (?,?)", (UMUMIY_ID, PERECH_ID))
+        con.execute("UPDATE xodimlar SET login=NULL, parol_hash=NULL WHERE id NOT IN (?,?,?)", (UMUMIY_ID, PERECH_ID, LYULKA_ID))
     else:
         con.execute("UPDATE xodimlar SET login=NULL, parol_hash=NULL")
     con.commit()
@@ -5068,6 +5119,11 @@ def is_koruvchi(uid):
 def is_perech(uid):
     """Buxgalter — faqat perechisleniya mijozlarni ko'radi (yozish yo'q)."""
     return rol_of(uid) == "perech"
+
+
+def is_lyulka(uid):
+    """Lyulka xodimi — faqat lyulka olgan mijozlar; pul ko'rinmaydi; faqat qaytarish yozadi."""
+    return rol_of(uid) == "lyulka"
 
 def faqat_korish(uid):
     """Yozish/o'zgartirishga ruxsatsiz rollar (aloqa + koruvchi + perech)."""

@@ -247,6 +247,15 @@ def make_web_app(bot_token):
         uid, err = check(request)
         if err:
             return None, err
+        if db.faqat_korish(uid) or db.is_lyulka(uid):
+            return None, web.json_response({"xato": "Sizda bu amal uchun ruxsat yo'q"}, status=403)
+        return uid, None
+
+    def check_qaytar(request):
+        """check() + faqat qaytarishga ruxsat (lyulka xodimi ham o'tadi, aloqa/koruvchi/perech yo'q)."""
+        uid, err = check(request)
+        if err:
+            return None, err
         if db.faqat_korish(uid):
             return None, web.json_response({"xato": "Sizda bu amal uchun ruxsat yo'q"}, status=403)
         return uid, None
@@ -693,7 +702,8 @@ def make_web_app(bot_token):
             x = db.get_xodim(uid) or {}
             return web.json_response({"ok": True, "token": make_token(uid, bot_token),
                                       "ism": x.get("ism") or "", "rol": x.get("rol") or "xodim",
-                                      "is_perech": (x.get("rol") == "perech")})
+                                      "is_perech": (x.get("rol") == "perech"),
+                                      "is_lyulka": (x.get("rol") == "lyulka")})
         except Exception:
             return web.json_response({"ok": False, "xato": "Xato"}, status=400)
 
@@ -740,6 +750,9 @@ def make_web_app(bot_token):
         _ml = db.mijozlar(bolim=bolim, arxiv=arxiv)
         if db.is_perech(uid):
             _ml = [m for m in _ml if m.get("tolov_turi") == "perech"]
+        if db.is_lyulka(uid):
+            _lyset = db.lyulka_mijoz_idlari()
+            _ml = [m for m in _ml if m.get("id") in _lyset]
         if db.is_koruvchi(uid):
             for _m in _ml:
                 try:
@@ -754,6 +767,7 @@ def make_web_app(bot_token):
                                   "is_aloqa": db.is_aloqa(uid),
                                   "is_koruvchi": db.is_koruvchi(uid),
                                   "is_perech": db.is_perech(uid),
+                                  "is_lyulka": db.is_lyulka(uid),
                                   "is_admin": db.is_bosh_admin(uid)})
 
     async def api_mijoz(request):
@@ -769,6 +783,31 @@ def make_web_app(bot_token):
             return web.json_response({"xato": "topilmadi"}, status=404)
         if db.is_perech(uid) and d.get("tolov_turi") != "perech":
             return web.json_response({"xato": "Ruxsat yo'q"}, status=403)
+        if db.is_lyulka(uid):
+            if mid not in db.lyulka_mijoz_idlari():
+                return web.json_response({"xato": "Ruxsat yo'q"}, status=403)
+            _ly = db._lyulka_mi
+            d["partiyalar"] = [p for p in (d.get("partiyalar") or []) if _ly(p.get("mahsulot"))]
+            d["qolganlar"] = [x for x in (d.get("qolganlar") or []) if _ly(x.get("mahsulot") or x.get("nom"))]
+            try:
+                _qg = []
+                for g in (d.get("qaytarishlar_guruh") or []):
+                    _k = "items" if ("items" in g) else ("qatorlar" if ("qatorlar" in g) else None)
+                    if _k:
+                        _its = [i for i in (g.get(_k) or []) if _ly(i.get("mahsulot"))]
+                        if _its:
+                            _g = dict(g); _g[_k] = _its; _qg.append(_g)
+                    else:
+                        _qg.append(g)
+                d["qaytarishlar_guruh"] = _qg
+            except Exception:
+                pass
+            d["jami_qolgan"] = sum((x.get("qolgan", 0) or 0) for x in d["partiyalar"])
+            d["kunlik"] = 0
+            for _k in ("jami", "hisoblangan", "yolkira", "remont", "tolangan", "qolgan_qarz"):
+                d[_k] = 0
+            d["tolovlar"] = []
+            d["is_lyulka"] = True
         # Predoplata rejimi va holati
         try:
             d["predoplata"] = (mid in db.predoplata_idlar())
@@ -1041,6 +1080,16 @@ def make_web_app(bot_token):
             b = await request.json()
             mid = int(b.get("mijoz_id"))
             qat = b.get("qatorlar") or []
+            if db.is_lyulka(uid):
+                # Lyulka xodimi: faqat qaytarish, faqat lyulka mijozi, faqat lyulka buyumi
+                if (b.get("amal") or "chiqish") != "qaytarish":
+                    return web.json_response({"ok": False, "xabar": "Faqat qaytarish mumkin"}, status=403)
+                if mid not in db.lyulka_mijoz_idlari():
+                    return web.json_response({"ok": False, "xabar": "Ruxsat yo'q"}, status=403)
+                qat = [q for q in qat if db._lyulka_mi(q.get("mahsulot"))]
+                if not qat:
+                    return web.json_response({"ok": False, "xabar": "Faqat lyulka qaytariladi"}, status=400)
+                b["amal"] = "qaytarish"
             if (b.get("amal") or "chiqish") == "qaytarish":
                 res = logic.qator_qaytarish(mid, qat, b.get("sana"), b.get("brov_kim"))
             else:
@@ -1198,7 +1247,7 @@ def make_web_app(bot_token):
             return web.json_response({"ok": False, "xato": f"Xato: {type(e).__name__}"})
 
     async def api_qaytarish(request):
-        uid, err = check_yoz(request)
+        uid, err = check_qaytar(request)
         if err:
             return err
         try:
@@ -1209,6 +1258,8 @@ def make_web_app(bot_token):
             p = db.get_partiya_by_id(pid)
             if not p:
                 return web.json_response({"ok": False, "xabar": "Partiya topilmadi"})
+            if db.is_lyulka(uid) and not db._lyulka_mi(p.get("mahsulot")):
+                return web.json_response({"ok": False, "xabar": "Faqat lyulka qaytariladi"}, status=403)
             qolgan = db.partiya_hisob(p)["qolgan"]
             if miqdor <= 0:
                 return web.json_response({"ok": False, "xabar": "Soni noto'g'ri"})
