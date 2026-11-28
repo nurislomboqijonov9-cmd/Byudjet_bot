@@ -124,7 +124,7 @@ def webapp_url():
         base = os.environ["WEBAPP_URL"].rstrip("/")
     else:
         dom = os.getenv("RAILWAY_PUBLIC_DOMAIN")
-        base = f"https://{dom}" if dom else None
+        base = f"https://{dom}" if dom else "https://byudjetbot-production.up.railway.app"
     if not base:
         return None
     return f"{base}{'&' if '?' in base else '?'}v={APP_VERSION}"
