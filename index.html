@@ -460,7 +460,7 @@
   }
 
   function tolovText(m){
-    if(window._isKoruvchi||window._isLyulka) return '';
+    if(window._isKoruvchi) return '';
     const k=m.kutilgan_kun;
     if(k==null) return '';
     const nd=(m.oxirgi_tolov)?('oxirgi to\'lov: '+k+' kun oldin'):('hali to\'lov yo\'q · '+k+' kun');
@@ -478,10 +478,10 @@
     let cards=list.map(m=>`<div class="card mcard st-${esc(m.status||'')}${m.tolov_turi==='perech'?' perech':''}"><div class="mijoz" onclick="window._listY=window.scrollY;loadMijoz(${m.id})">
         <div class="av"><span>${ini(m.mijoz)}</span></div>
         <div><div class="nm">${m.status&&STAT[m.status]?`<span class="stdot" style="background:${STAT[m.status].c}"></span>`:''}${esc(m.mijoz)}${m.yopilgan?` <span style="font-size:11px;font-weight:700;color:#C9763A;background:rgba(201,118,58,.14);padding:2px 7px;border-radius:6px;vertical-align:middle">🔒 Yopilgan</span>`:''}</div>
-          <div class="mt">${window._isLyulka?('🛗 '+son(m.lyulka_qoldiq||0)+' kom lyulka'+(m.telefon?(' · 📞 '+esc(phones(m.telefon))):'')):window._isKoruvchi?('📦 '+(m.tovarlar||'tovar yoq')):(`${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan${m.tolov_turi==='perech'?' · <b style="color:#7A4FC0">🏦 perech</b>':(m.tolov_turi==='naqd'?' · 💵':'')}${m.yopilgan&&m.kesim_sana?' · <b style="color:#C9763A">🔒 '+dmy(m.kesim_sana)+' da toxtatilgan</b>':''}`)}</div>
+          <div class="mt">${window._isKoruvchi?('📦 '+(m.tovarlar||'tovar yoq')):(`${m.telefon?('📞 '+esc(phones(m.telefon))+' · '):''}${son(m.jami_qolgan)} dona qolgan${window._isLyulka&&(m.lyulka_qoldiq||0)>0?' · <b style="color:#B0913F">🛗 '+son(m.lyulka_qoldiq)+' lyulka</b>':''}${m.tolov_turi==='perech'?' · <b style="color:#7A4FC0">🏦 perech</b>':(m.tolov_turi==='naqd'?' · 💵':'')}${m.yopilgan&&m.kesim_sana?' · <b style="color:#C9763A">🔒 '+dmy(m.kesim_sana)+' da toxtatilgan</b>':''}`)}</div>
           ${m.adres?`<div class="mt" style="color:var(--brand)">📍 ${esc(m.adres)}</div>`:''}
           ${tolovText(m)}</div>
-        ${(window._isKoruvchi||window._isLyulka)?'':`<div class="val"><b>${som(m.qolgan_qarz)}</b><span>so'm</span></div>`}<div class="chev">›</div></div></div>`).join('');
+        ${window._isKoruvchi?'':`<div class="val"><b>${som(m.qolgan_qarz)}</b><span>so'm</span></div>`}<div class="chev">›</div></div></div>`).join('');
     if(!list.length) cards='<div class="empty">'+(q?'Topilmadi':'Hozircha mijoz yo\'q. «➕ Yangi» bosing.')+'</div>';
     document.getElementById('cards').innerHTML=cards;
   };
@@ -541,33 +541,6 @@
       window.scrollTo(0,0);
       return;
     }
-    // LYULKA xodimi: faqat lyulka mahsulotlari, faqat qaytarish (pul yo'q)
-    if(d.is_lyulka===true){
-      const parts=(d.partiyalar||[]).filter(p=>p.qolgan>0 || (p.qaytarishlar||[]).length);
-      let ph=parts.map(p=>{
-        const rr=(p.qaytarishlar||[]).map(q=>`<div class="mt" style="color:var(--pos);margin-top:4px">📥 ${son(q.miqdor)} ${esc(p.birlik||'ta')} qaytdi · ${dmy(q.qaytgan_sana)}</div>`).join('');
-        const retBox=(p.qolgan>0)?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--faint)">
-            <div class="inrow"><input class="f" id="r_miq${p.id}" inputmode="decimal" placeholder="Nechta qaytdi">
-              <input class="f" id="r_sana${p.id}" type="date" value="${bugun}"></div>
-            <button class="send" style="margin-top:8px" onclick="saveRet(${p.id},${d.id})">↩️ Qaytdi</button></div>`:'';
-        return `<div class="card" style="padding:14px 16px;margin-bottom:10px">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:16px;font-weight:700">${esc(p.mahsulot)}</span>
-            <span style="font-size:15px;font-weight:700;color:${p.qolgan<=0?'var(--pos)':'var(--brand)'}">${son(p.qolgan)}/${son(p.miqdor)} ${esc(p.birlik||'ta')}${p.qolgan<=0?' ✓':''}</span></div>
-          <div class="mt" style="margin-top:6px">📤 Chiqdi · ${dmy(p.chiqgan_sana)}</div>${rr}${retBox}</div>`;
-      }).join('');
-      if(!parts.length) ph='<div class="empty">Bu mijozda lyulka yo\'q</div>';
-      const jami=parts.reduce((s,p)=>s+(p.qolgan>0?p.qolgan:0),0);
-      app.innerHTML=`<header style="padding:16px 4px 10px"><button class="ombnav" onclick="loadList()">‹ Mijozlar</button></header>
-        <div class="hero" style="padding:22px"><div class="arc"></div>
-          <div class="lbl">MIJOZ${d.telefon?' · 📞 '+esc(phones(d.telefon)):''}</div>
-          <div style="font-size:26px;font-weight:800;margin:4px 0 8px">${esc(d.mijoz)}</div>
-          <div class="sub">🛗 ${son(jami)} ta lyulka mijozda</div></div>
-        <div style="font-size:14px;color:var(--soft);font-weight:700;margin:16px 4px 10px">LYULKA — qaytganini belgilang</div>
-        ${ph}`;
-      window.scrollTo(0,0);
-      return;
-    }
     // Bitta mahsulot satri (yetkazma ichida)
     const itemHtml=p=>{const done=p.qolgan<=0;
       return `<div class="litem pcard" data-nom="${esc((p.mahsulot||'').toLowerCase())}">
@@ -576,8 +549,8 @@
         ${p.manzil?`<div class="li-manzil">📍 ${esc(p.manzil)}</div>`:''}
         ${p.brov_kim?`<div class="li-brov">🔁 Brovdan: ${esc(p.brov_kim)}${p.brov_miqdor&&p.brov_miqdor<p.miqdor?' — '+son(p.brov_miqdor)+' ta':''}</div>`:''}
         <div class="li-sub"><span>🧮 ${som(p.narx)} so'm · ${p.kunlar} kun</span>
-          <span class="li-acts"><button class="li-btn" onclick="tgl('edit${p.id}')">✏️</button>
-            ${p.qolgan>0?`<button class="li-btn" onclick="tgl('ret${p.id}')">↩️</button>`:''}</span></div>
+          ${window._canYoz?`<span class="li-acts"><button class="li-btn" onclick="tgl('edit${p.id}')">✏️</button>
+            ${p.qolgan>0?`<button class="li-btn" onclick="tgl('ret${p.id}')">↩️</button>`:''}</span>`:''}</div>
         ${(p.ortiqcha&&p.ortiqcha>0)?`<div style="color:#c0392b;font-weight:700;font-size:12px;margin-top:4px">⚠️ ${son(p.ortiqcha)} ta ortiqcha qaytarilgan (olingandan ko'p)</div>`:''}
         <div id="edit${p.id}" style="display:none;margin-top:8px">
           <input class="f" id="e_mah${p.id}" value="${esc(p.mahsulot)}" placeholder="Mahsulot" list="tovarlist" oninput="tovarHint(this)" onblur="tovarFix(this)" autocomplete="off" style="margin-bottom:4px">
@@ -598,8 +571,8 @@
     const ps=(d.yetkazmalar||[]).map(y=>`<div class="card"><div class="p-head"><div class="p-badge">📦</div>
         <div><div class="p-title">Yetkazma · ${y.items.length} mahsulot</div>
           <div class="p-sana">📅 ${dmy(y.sana)} · ${son(y.qolgan_dona)}/${son(y.jami_dona)} dona qolgan
-            <button class="li-btn" style="padding:2px 8px;font-size:12px;margin-left:6px" onclick="tgl('ys${y.sana.replace(/-/g,'')}')">📅 sana</button>
-            <button class="li-btn" style="padding:2px 8px;font-size:12px;margin-left:4px" onclick="tgl('yt${y.sana.replace(/-/g,'')}')">✏️ hammasi</button></div></div>
+            ${window._canYoz?`<button class="li-btn" style="padding:2px 8px;font-size:12px;margin-left:6px" onclick="tgl('ys${y.sana.replace(/-/g,'')}')">📅 sana</button>
+            <button class="li-btn" style="padding:2px 8px;font-size:12px;margin-left:4px" onclick="tgl('yt${y.sana.replace(/-/g,'')}')">✏️ hammasi</button>`:''}</div></div>
         <b class="num" style="margin-left:auto;font-size:15px">${som(y.jami_narx)}</b></div>
         <div id="ys${y.sana.replace(/-/g,'')}" style="display:none;padding:0 0 8px">
           <div class="inrow"><input class="f" id="ysd${y.sana.replace(/-/g,'')}" type="date" value="${y.sana}">
@@ -764,8 +737,8 @@
         <div class="sub">${son(d.jami_qolgan)} dona qaytarilmagan${(d.kunlik>0)?(' · 📅 kuniga '+som(d.kunlik)+' soʻm'):''}</div>`}</div>
       <div style="display:flex;justify-content:flex-end;margin:-2px 0 8px"><button class="qbtn" id="mviewb" onclick="mviewTgl()">☰ Bitta ro'yxat</button></div>
       <div class="mtabs">
-        <button class="tabb on" id="mt_qosh" onclick="mtab('qosh')">➕ Qo'shish</button>
-        <button class="tabb" id="mt_tovar" onclick="mtab('tovar')">📦 Tovarlar</button>
+        ${window._canYoz?`<button class="tabb on" id="mt_qosh" onclick="mtab('qosh')">➕ Qo'shish</button>`:''}
+        <button class="tabb${window._canYoz?'':' on'}" id="mt_tovar" onclick="mtab('tovar')">📦 Tovarlar</button>
         <button class="tabb" id="mt_hisob" onclick="mtab('hisob')">💰 Pullar</button>
         <button class="tabb" id="mt_boshqa" onclick="mtab('boshqa')">⋯ Boshqa</button></div>
 
@@ -822,20 +795,20 @@
           <div class="brk"><span class="k">${neg?'Ortiqcha (haqi)':'Qolgan qarz'}</span><b class="num" style="color:${neg?'var(--pos)':'var(--ink)'}">${som(Math.abs(d.qolgan_qarz))} so'm</b></div>
         </div>
         ${smsBtn}
-        <div class="addbox"><div class="t">💵 To'lov / predoplata (so'm)</div>
-          <div class="inrow"><input class="f" id="paytext" inputmode="numeric" placeholder="Masalan: 1000000">
+        <div class="addbox"><div class="t">💵 To'lovlar</div>
+          ${window._canYoz?`<div class="inrow"><input class="f" id="paytext" inputmode="numeric" placeholder="Masalan: 1000000">
             <input class="f" id="paysana" type="date" value="${bugun}"></div>
           <input class="f" id="payizoh" placeholder="Izoh (ixtiyoriy): oldindan, karta..." style="margin-top:8px">
           <button class="send" style="margin-top:8px" onclick="saveTolov(${d.id},1)">➕ To'lov / predoplata</button>
           <button class="send" style="margin-top:8px;background:var(--neg)" onclick="saveTolov(${d.id},-1)">➖ Qarz qo'shish</button>
-          <div class="hint">Summani yozing. <b>➕</b> — to'lov (qarz kamayadi). <b>➖</b> — o'sha summa mijozga qarz bo'lib qo'shiladi.</div>
-          ${tlist?'<div style="margin-top:10px">'+tlist+'</div>':''}</div>
+          <div class="hint">Summani yozing. <b>➕</b> — to'lov (qarz kamayadi). <b>➖</b> — o'sha summa mijozga qarz bo'lib qo'shiladi.</div>`:''}
+          ${tlist?'<div style="margin-top:10px">'+tlist+'</div>':'<div class="hint">Hali to\'lov yo\'q.</div>'}</div>
         ${eslCard}
         ${d.tolov_turi==='perech'?`<div class="addbox"><div class="t">📄 Faktura (buxgalter uchun)</div>
           <div class="hint" style="margin:0 0 8px">Tanlangan davr uchun rasmiy faktura (NDS bilan, Excel).</div>
           <div class="inrow"><input class="f" id="fak_dan" type="date" value="${bugun}"><input class="f" id="fak_gacha" type="date" value="${bugun}"></div>
           <button class="send" style="margin-top:8px" onclick="fakturaYukla(${d.id})">📄 Faktura chiqarish (Excel)</button></div>`:''}
-        <div class="addbox"><div class="t">🔒 Yopish / kesim sanasi</div>
+        ${window._canYoz?`<div class="addbox"><div class="t">🔒 Yopish / kesim sanasi</div>
           <div class="hint" style="margin:0 0 8px">Hisobni tanlangan kunda muzlatadi — qarz o'smay to'xtaydi.</div>
           <select class="f" id="yop_mah" style="margin-bottom:8px"><option value="">Hamma tovar</option>${(d.qolganlar||[]).map(function(x){return '<option value="'+esc(x.mahsulot)+'">'+esc(x.mahsulot)+'</option>';}).join('')}</select>
           <div class="inrow"><input class="f" id="yop_sana" type="date" value="${bugun}">
@@ -844,7 +817,7 @@
           <div id="yop_pv"></div>
           <button class="mini-btn" style="width:100%;margin-bottom:8px;background:rgba(30,122,90,.10);color:#14603F;border-color:#9CCFB8" onclick="yopHisobot(${d.id})">📊 Shu sanagacha hisobot (Excel)</button>
           <button class="send" onclick="yopTasdiq(${d.id})">🔒 Yopish (tasdiqlash)</button>
-          <button class="mini-btn" style="width:100%;margin-top:8px" onclick="yopBekor(${d.id})">🔓 Yopishni bekor qilish</button></div>
+          <button class="mini-btn" style="width:100%;margin-top:8px" onclick="yopBekor(${d.id})">🔓 Yopishni bekor qilish</button></div>`:''}
       </div>
 
       <div id="tab_boshqa" class="mpanel" style="display:none">
@@ -865,18 +838,18 @@
           <div class="hint" style="margin:0 0 8px">Shu mijozda kim nima o'zgartirgani.</div>
           <button class="mini-btn" style="width:100%" onclick="mijozJurnal(${d.id})">Ko'rsatish</button>
           <div id="mjur" style="margin-top:8px"></div></div>
-        ${vazCard}
-        <div class="addbox"><div class="t">📍 Manzil</div>
+        ${window._canYoz?vazCard:''}
+        ${window._canYoz?`<div class="addbox"><div class="t">📍 Manzil</div>
           <input class="f" id="adrestext" placeholder="Manzil (masalan: Chilonzor 5-kvartal, 12-uy)" value="${esc(d.adres||'')}">
-          <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>
+          <button class="send" onclick="saveAdres(${d.id})">Manzilni saqlash</button></div>`:(d.adres?`<div class="addbox"><div class="t">📍 Manzil</div><div class="hint">${esc(d.adres)}</div></div>`:'')}
         ${d.token?`<div class="addbox"><div class="t">🔗 Mijoz uchun havola</div>
           <div class="hint" style="margin:0 0 8px">Mijoz shu havoladan o'z qarzini ko'radi. Har doim yangilanib turadi — bir marta yuborsangiz yetadi.</div>
           <input class="f" id="mlink" readonly value="${location.origin}/m/${esc(d.token)}" onclick="this.select()">
           <button class="mini-btn" style="width:100%;margin-top:8px" onclick="havolaNusxa()">📋 Nusxa olish</button></div>`:''}
-        <div class="addbox"><div class="t">📑 Mijozni nusxalash</div>
+        ${window._canYoz?`<div class="addbox"><div class="t">📑 Mijozni nusxalash</div>
           <div class="hint" style="margin:0 0 8px">Shu mijozning aynan nusxasini yaratadi — hamma tovari, qarzi, to'lovi bilan. Yangi mijoz «(nusxa)» deb belgilanadi, keyin nomini o'zgartirsangiz bo'ladi.</div>
           <button class="mini-btn" style="width:100%" onclick="mijozNusxa(${d.id})">📑 Nusxa yaratish</button></div>
-        <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>
+        <button class="del" onclick="ochir(${d.id})">🗑 Yacheykani o'chirish</button>`:''}
       </div>`;
     if(_y>0) setTimeout(()=>window.scrollTo(0,_y),0);
     window._qolgan=(d.qolganlar||[]).filter(q=>q.qolgan>0).map(q=>q.mahsulot);
@@ -886,7 +859,7 @@
     window._vtur='yetkazish'; window._vn=0; if(document.getElementById('vrows')) vazRowAdd();
     loadHaydovchilar();
     if(document.getElementById('lochint')) locTekshir();
-    if(window._mtab && window._mtabId===d.id){ mtab(window._mtab); } else { window._mtabId=d.id; mtab('qosh'); }
+    if(window._mtab && window._mtabId===d.id && (window._canYoz||window._mtab!=='qosh')){ mtab(window._mtab); } else { window._mtabId=d.id; mtab(window._canYoz?'qosh':'tovar'); }
     try{ applyMview(mviewGet()); }catch(e){}
   };
 
@@ -1880,8 +1853,8 @@ window.yopHisobot=async function(id){
             <span class="li-val">${son(b.qolgan)}/${son(b.miqdor)} · ${dmy(b.sana)}</span></div>
           ${b.izoh?`<div class="li-manzil">📝 ${esc(b.izoh)}</div>`:''}
           <div class="li-sub"><span>${b.qaytgan>0?'qaytarilgan '+son(b.qaytgan):'hali qaytarilmagan'}</span>
-            <span class="li-acts">${b.qolgan>0?`<button class="li-btn" onclick="tgl('br${b.id}')">↩️ Qaytardim</button>`:''}
-              <button class="li-btn" onclick="brovDel(${b.id})">🗑</button></span></div>
+            ${window._canYoz?`<span class="li-acts">${b.qolgan>0?`<button class="li-btn" onclick="tgl('br${b.id}')">↩️ Qaytardim</button>`:''}
+              <button class="li-btn" onclick="brovDel(${b.id})">🗑</button></span>`:''}</div>
           <div id="br${b.id}" style="display:none;margin-top:8px">
             <div class="inrow"><input class="f" id="brq${b.id}" inputmode="decimal" placeholder="Nechta qaytardim" value="${son(b.qolgan)}">
               <input class="f" id="brs${b.id}" type="date" value="${bugun}"></div>

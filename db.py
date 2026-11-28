@@ -5157,12 +5157,12 @@ def is_perech(uid):
 
 
 def is_lyulka(uid):
-    """Lyulka xodimi — faqat lyulka olgan mijozlar; pul ko'rinmaydi; faqat qaytarish yozadi."""
+    """Lyulka xodimi — faqat lyulka olgan mijozlar; hamma narsa ko'rinadi (pul ham), lekin yozolmaydi."""
     return rol_of(uid) == "lyulka"
 
 def faqat_korish(uid):
-    """Yozish/o'zgartirishga ruxsatsiz rollar (aloqa + koruvchi + perech)."""
-    return rol_of(uid) in ("aloqa", "koruvchi", "perech")
+    """Yozish/o'zgartirishga ruxsatsiz rollar (aloqa + koruvchi + perech + lyulka)."""
+    return rol_of(uid) in ("aloqa", "koruvchi", "perech", "lyulka")
 
 def pul_korsin(uid):
     """Umumiy pul (jami banner) faqat bosh adminlarga ko'rinadi."""

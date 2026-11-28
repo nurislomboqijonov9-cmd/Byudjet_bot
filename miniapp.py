@@ -787,29 +787,9 @@ def make_web_app(bot_token):
         if db.is_perech(uid) and d.get("tolov_turi") != "perech":
             return web.json_response({"xato": "Ruxsat yo'q"}, status=403)
         if db.is_lyulka(uid):
+            # Lyulka xodimi: faqat lyulka olgan mijozni ocha oladi; ichida HAMMA narsa ko'rinadi (pul ham), lekin yozolmaydi
             if mid not in db.lyulka_mijoz_idlari():
                 return web.json_response({"xato": "Ruxsat yo'q"}, status=403)
-            _ly = db._lyulka_mi
-            d["partiyalar"] = [p for p in (d.get("partiyalar") or []) if _ly(p.get("mahsulot"))]
-            d["qolganlar"] = [x for x in (d.get("qolganlar") or []) if _ly(x.get("mahsulot") or x.get("nom"))]
-            try:
-                _qg = []
-                for g in (d.get("qaytarishlar_guruh") or []):
-                    _k = "items" if ("items" in g) else ("qatorlar" if ("qatorlar" in g) else None)
-                    if _k:
-                        _its = [i for i in (g.get(_k) or []) if _ly(i.get("mahsulot"))]
-                        if _its:
-                            _g = dict(g); _g[_k] = _its; _qg.append(_g)
-                    else:
-                        _qg.append(g)
-                d["qaytarishlar_guruh"] = _qg
-            except Exception:
-                pass
-            d["jami_qolgan"] = sum((x.get("qolgan", 0) or 0) for x in d["partiyalar"])
-            d["kunlik"] = 0
-            for _k in ("jami", "hisoblangan", "yolkira", "remont", "tolangan", "qolgan_qarz"):
-                d[_k] = 0
-            d["tolovlar"] = []
             d["is_lyulka"] = True
         # Predoplata rejimi va holati
         try:
@@ -1079,20 +1059,12 @@ def make_web_app(bot_token):
         uid, err = check(request)
         if err:
             return err
+        if db.faqat_korish(uid):
+            return web.json_response({"ok": False, "xabar": "Sizda yozishga ruxsat yo'q"}, status=403)
         try:
             b = await request.json()
             mid = int(b.get("mijoz_id"))
             qat = b.get("qatorlar") or []
-            if db.is_lyulka(uid):
-                # Lyulka xodimi: faqat qaytarish, faqat lyulka mijozi, faqat lyulka buyumi
-                if (b.get("amal") or "chiqish") != "qaytarish":
-                    return web.json_response({"ok": False, "xabar": "Faqat qaytarish mumkin"}, status=403)
-                if mid not in db.lyulka_mijoz_idlari():
-                    return web.json_response({"ok": False, "xabar": "Ruxsat yo'q"}, status=403)
-                qat = [q for q in qat if db._lyulka_mi(q.get("mahsulot"))]
-                if not qat:
-                    return web.json_response({"ok": False, "xabar": "Faqat lyulka qaytariladi"}, status=400)
-                b["amal"] = "qaytarish"
             if (b.get("amal") or "chiqish") == "qaytarish":
                 res = logic.qator_qaytarish(mid, qat, b.get("sana"), b.get("brov_kim"))
             else:
