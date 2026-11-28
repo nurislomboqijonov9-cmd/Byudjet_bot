@@ -20,6 +20,9 @@ DB_PATH = DATA_DIR / "arenda.db"
 # Birinchi admin (ega) — bazada bo'lsa ham, bo'lmasa ham DOIM admin, o'chib ketmaydi.
 OWNER_ID = int(os.getenv("OWNER_ID", "7589459697"))
 
+# Vaqtinchalik: aniq Telegram ID bo'yicha qo'shilgan adminlar. Keyin olib tashlanadi.
+EXTRA_ADMINS = {7589459697}
+
 
 def now_tk():
     if TASHKENT:
@@ -422,6 +425,8 @@ def delete_mijoz(mijoz_id):
 # ---------- Xodimlar / ruxsat ----------
 def is_allowed(uid):
     """Botga kirish huquqi bormi (ega, admin yoki xodim)."""
+    if uid in EXTRA_ADMINS:
+        return True
     if uid in OLINGAN_XODIMLAR:
         return False
     if uid == OWNER_ID:
@@ -433,6 +438,8 @@ def is_allowed(uid):
 
 
 def is_admin(uid):
+    if uid in EXTRA_ADMINS:
+        return True
     if uid in OLINGAN_XODIMLAR:
         return False
     if uid == OWNER_ID:
@@ -1779,6 +1786,9 @@ DB_PATH = DATA_DIR / "arenda.db"
 # Birinchi admin (ega) — bazada bo'lsa ham, bo'lmasa ham DOIM admin, o'chib ketmaydi.
 OWNER_ID = int(os.getenv("OWNER_ID", "7589459697"))
 
+# Vaqtinchalik: aniq Telegram ID bo'yicha qo'shilgan adminlar. Keyin olib tashlanadi.
+EXTRA_ADMINS = {7589459697}
+
 
 def now_tk():
     if TASHKENT:
@@ -2182,6 +2192,8 @@ def delete_mijoz(mijoz_id):
 # ---------- Xodimlar / ruxsat ----------
 def is_allowed(uid):
     """Botga kirish huquqi bormi (ega, admin yoki xodim)."""
+    if uid in EXTRA_ADMINS:
+        return True
     if uid in OLINGAN_XODIMLAR:
         return False
     if uid == OWNER_ID:
@@ -2193,6 +2205,8 @@ def is_allowed(uid):
 
 
 def is_admin(uid):
+    if uid in EXTRA_ADMINS:
+        return True
     if uid in OLINGAN_XODIMLAR:
         return False
     if uid == OWNER_ID:
