@@ -753,6 +753,9 @@ def make_web_app(bot_token):
         if db.is_lyulka(uid):
             _lyset = db.lyulka_mijoz_idlari()
             _ml = [m for m in _ml if m.get("id") in _lyset]
+            _lyq = db.lyulka_qoldiq_map()
+            for m in _ml:
+                m["lyulka_qoldiq"] = _lyq.get(m.get("id"), 0)
         if db.is_koruvchi(uid):
             for _m in _ml:
                 try:

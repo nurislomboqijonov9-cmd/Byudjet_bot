@@ -3718,6 +3718,23 @@ def lyulka_mijoz_idlari():
     return {r["mijoz_id"] for r in rows if _lyulka_mi(r["mahsulot"])}
 
 
+def lyulka_qoldiq_map():
+    """Har bir mijozning lyulka bo'yicha hozir qo'lida turgan (qaytmagan) soni: {mijoz_id: qoldiq}."""
+    con = _con()
+    rows = con.execute(
+        "SELECT p.mijoz_id AS mid, p.mahsulot AS mahsulot, "
+        "p.miqdor - COALESCE((SELECT SUM(q.miqdor) FROM qaytarishlar q WHERE q.partiya_id=p.id),0) AS qoldiq "
+        "FROM partiyalar p").fetchall()
+    con.close()
+    out = {}
+    for r in rows:
+        if _lyulka_mi(r["mahsulot"]):
+            q = r["qoldiq"] or 0
+            if q > 0:
+                out[r["mid"]] = out.get(r["mid"], 0) + q
+    return out
+
+
 def barcha_parollarni_ochir(umumiydan_tashqari=True):
     con = _con()
     if umumiydan_tashqari:
